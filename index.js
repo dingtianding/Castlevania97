@@ -8,6 +8,14 @@ c.fillRect(0, 0, canvas.width, canvas.height)
 
 const gravity = 0.7
 
+const background = new Sprite ({
+    position: {
+        x: 0,
+        y: 0
+    },
+    imageSrc: 'assets/background.png'
+})
+
 const player = new Fighter({
     position: {
     x: 0,
@@ -98,6 +106,7 @@ function animate(){
     window.requestAnimationFrame(animate)
     c.fillStyle = 'black'
     c.fillRect(0, 0, canvas.width, canvas.height)
+    background.update()
     player.update()
     enemy.update()
 
