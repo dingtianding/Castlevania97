@@ -26,6 +26,7 @@ class Sprite {
         }
         this.color = color
         this.isAttacking
+        this.health = 100
     }
 
     draw() {
@@ -161,6 +162,8 @@ function animate(){
         
     ) {
         player.isAttacking = false
+        enemy.health -= 10
+        document.querySelector('#enemyHealth').style.width = enemy.health + '%'
         console.log('hit')
     }
 
@@ -172,6 +175,8 @@ function animate(){
         
     ) {
         enemy.isAttacking = false
+        player.health -= 10
+        document.querySelector('#playerHealth').style.width = player.health + '%'
         console.log('got hit')
     }
 
