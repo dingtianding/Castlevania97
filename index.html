@@ -1,20 +1,66 @@
 
 <head>
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap"
-      rel="stylesheet"
-    />
-    <style>
-      * {
-        box-sizing: border-box;
-        font-family: 'Press Start 2P', cursive;
-      }
-    </style>
-  </head>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap"
+    rel="stylesheet"
+  />
+  <link rel="icon" type="image/x-icon" href="/favicon.ico?">
+
+  <style>
+    * {
+      box-sizing: border-box;
+      font-family: 'Press Start 2P', cursive;
+    }
+  </style>
+</head>
   <body>
+
+    <div>
+      <h1 class="title">Castlevania97</h1>
+      <h3 class="createdby">Created by Dean Ding</h3>
+    </div>
+    
+    <!-- Personal Links -->
+    <div class="links">
+      <a href="https://github.com/dingtianding" target="_blank">
+        <img src="./assets/github.png" alt="github-profile">
+      </a>
+    
+      <a href="https://www.linkedin.com/in/deanding/" target="_blank">
+        <img src="./assets/linkedin.png" alt="linkedin-profile">
+      </a>
+    </div>
+    
+    <!-- Game Menu -->
+    <div class="game-menu">
+      <div class="game-box">
+        <button id="instructions-button">Instructions</button>
+        <div id="instructions" class="instructions">
+          <div class="instructions-header">
+            <div class="instructions-title">Instructions</div>
+            <button id="instructions-exit">&times;</button>
+          </div>
+          <div class="instructions-body">
+            Typer Drive is a typing-based combat game designed to train typing accuracy and speed.
+            <br>
+            <br>
+            Press Start to start a game or click Restart to restart.
+
+          </div>
+        </div>
+      </div>
+      <div class="game-box">
+        <button id="start-button">Start Game</button>
+      </div>
+      <audio id="game-music" loop src="./assets/giorno theme.mp3" type="audio/mpeg"></audio>
+      <div class="game-box">
+        <button id="mute-button">Play Music</button>
+      </div>
+    </div>
     <!-- red container div -->
+    <div class="container-canvas" >
     <div style="position: relative; display: inline-block">
       <!-- smaller red container div -->
       <div
@@ -111,6 +157,7 @@
         Tie
       </div>
       <canvas></canvas>
+      </div>
     </div>
     <script
     src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.9.1/gsap.min.js"
@@ -118,8 +165,8 @@
     crossorigin="anonymous"
     referrerpolicy="no-referrer"
   ></script>
-    <script src="js/utils.js"></script>
-    <script src="js/classes.js"></script>
+    <script src="src/utils.js"></script>
+    <script src="src/classes.js"></script>
     <script src="index.js"></script>
 
 </body>

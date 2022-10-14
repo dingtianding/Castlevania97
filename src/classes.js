@@ -38,7 +38,7 @@ class Sprite {
     }
     update() {
         this.draw()
-        this.animateFrames
+        this.animateFrames()
     }
     
 
