@@ -1,0 +1,12 @@
+body {
+    overflow: hidden;
+    text-align: center;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    background-color:rgba(0, 0, 0, 0.85);
+    margin: 0;
+    font-family: 'VT323';
+    color: white;
+  }
+  
