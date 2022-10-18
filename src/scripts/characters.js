@@ -13,8 +13,8 @@ const player = new Fighter({
         x: 0,
         y: 0
     },
-    imageSrc: 'assets/hero/Idle.png',
-    framesMax: 4,
+    imageSrc: 'assets/samuraiMack/Idle.png',
+    framesMax: 8,
     scale: 2.5,
     offset: {
         x: 215,
@@ -22,8 +22,8 @@ const player = new Fighter({
     },
     sprites: {
         idle: {
-            imageSrc: 'assets/hero/Idle.png',
-            framesMax: 4
+            imageSrc: 'assets/samuraiMack/Idle.png',
+            framesMax: 8
         },
         run: {
             imageSrc: 'assets/samuraiMack/Run.png',
