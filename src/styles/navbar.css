@@ -1,0 +1,141 @@
+.navbar {
+    width: 1024px;
+    height: 120px;
+    margin: auto;
+    margin-top: 20px;
+    padding: 30px o;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.header-nav {
+    font-size: 30px;
+    font-weight: 400;
+    padding-left: 20px;
+    padding-right: 20px;
+    
+}
+
+.header {
+    font-size: 40px;
+    box-shadow: 10px 6px 6px black;
+    padding: 20px;
+    min-width: 512px;
+    
+}
+
+.personal-links {
+    list-style: none;
+    display: inline-block;
+    margin: 6px 8px;
+}
+
+.personal-links a {
+    text-decoration: none;
+    color: white;
+    size: 50px
+
+}
+.personal-links a:hover {
+    color: red;
+    transition: 0.1s;
+}
+
+.personal-links i {
+    height: 60px;
+    width: 60px;
+}
+
+
+button {
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  outline: inherit;
+}
+
+.game-menu {
+  margin: 5px;
+  display: flex;
+  align-items: center;
+  margin-left: auto;
+  margin-right: auto;
+  width: 1080px;
+  font-size: x-large;
+  color: white;
+}
+
+.game-box {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  font-size: 12px;
+}
+
+.game-box > button {
+  padding: 5px;
+}
+
+.game-box > button:hover {
+  cursor: pointer;
+  padding: 5px;
+  color: black;
+  background-color: rgb(108, 19, 19);
+}
+
+/* INSTRUCTIONS */
+.instructions {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) scale(0);
+  border: 2px solid #ff6766;
+  border-radius: 10px;
+  background-color: black;
+  width: 500px;
+  height: 300px;
+  max-width: 100%;
+  z-index: 3;
+}
+
+.instructions.active {
+  transform: translate(-50%, -50%) scale(1);
+  z-index: 4;
+}
+a
+.instructions-header {
+  padding: 10px 10px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 2px solid #ff6766;
+}
+
+.instructions-header > * {
+  font-size: 23px;
+  font-weight: bold;
+}
+
+.instructions-header > button:hover {
+  cursor: pointer;
+}
+
+.instructions-body {
+  padding: 10px 10px;
+  position: fixed;
+  width: 500px;
+  font-size: 12px;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -45%);
+}
+
+#instructions-button {
+  margin-right: auto;
+}
+/* AUDIO */
+#mute-button {
+    margin-left: auto;
+}

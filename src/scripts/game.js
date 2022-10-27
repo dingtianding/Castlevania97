@@ -114,7 +114,7 @@ export default class Game {
         }
     });
 
-let timer = 20
+let timer = 30
 let timerId
 
 export function countDown() {

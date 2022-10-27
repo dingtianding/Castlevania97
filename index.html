@@ -14,167 +14,117 @@
     crossorigin="anonymous"
     referrerpolicy="no-referrer"
   ></script>
+  <script
+  src="https://kit.fontawesome.com/817099719e.js"
+  crossorigin="anonymous"
+></script>
   <script src="./dist/main.js"></script>
 
-  <style>
-    * {
-      box-sizing: border-box;
-      font-family: 'Press Start 2P', cursive;
-    }
-  </style>
+
 </head>
   <body>
-
     <div>
-      <h1 class="title">Castlevania97</h1>
-      <h3 class="createdby">Created by Dean Ding</h3>
-    </div>
-    
-    <!-- Personal Links -->
-    <!-- <div class="links">
-      <a href="https://github.com/dingtianding" target="_blank">
-        <img src="./assets/github.png" alt="github-profile">
-      </a>
-    
-      <a href="https://www.linkedin.com/in/deanding/" target="_blank">
-        <img src="./assets/linkedin.png" alt="linkedin-profile">
-      </a>
-    </div>
-     -->
-    <!-- Game Menu -->
-    <!-- <div class="game-menu">
-      <div class="game-box">
-        <button id="instructions-button">Instructions</button>
-        <div id="instructions" class="instructions">
-          <div class="instructions-header">
-            <div class="instructions-title">Instructions</div>
-            <button id="instructions-exit">&times;</button>
-          </div> -->
-          <!-- <div class="instructions-body">
-            Castlevania97 is a javascript 2D fighting game rendered with HTML canvas inspired by arcade classics like KOF97 and Castlevania.
-            <br>
-            <br>
-            Press "Mute" to mute the music or the press "Insert Coin" to restart.
+      <header class="navbar">
+        <!-- Game Menu -->
+        <div class="game-menu">
+          
+          <div class="game-box">
+            <button id="start-button" onClick="window.location.reload();">Insert Coin</button>
+          </div>
+          <audio id="game-music" loop src="./assets/heart of fire.mp3" type="audio/mpeg"></audio>
+          <div class="game-box">
+            <button id="mute-button">Play Music</button>
+          </div>
+        </div>
+        <!-- Header -->
+        <nav class="header-nav">
+          <div class="header">Castlevania97</div>
+        </nav>
 
-          </div> -->
-        <!-- </div>
-      </div>
-      <div class="game-box">
-        <button id="start-button">Insert Coin</button>
-      </div>
-      <audio id="game-music" loop src="./assets/heart of fire.mp3" type="audio/mpeg"></audio>
-      <div class="game-box">
-        <button id="mute-button">Play Music</button>
-      </div>
-    </div> -->
+        <div class="game-menu">
+          <div class="game-box">
+            <button id="instructions-button">Instructions</button>
+            <div id="instructions" class="instructions">
+              <div class="instructions-header">
+                <div class="instructions-title">Instructions</div>
+                <button id="instructions-exit">&times;</button>
+              </div>
+              <div class="instructions-body">
+                Castlevania97 is a javascript 2D fighting game rendered with HTML canvas inspired by arcade classics like KOF97 and Castlevania.
+                <br>
+                <br>
+                <br>
+                <br>
+                Player 1 uses W to Jump, A and D to move left and right and S to attack.
+                <br>
+                <br>
+                <br>
+
+                Player 2 uses UpArrow to Jump, LeftArrow and RightArrow to move left and right and DownArrow to attack.
+                <br>
+                <br>
+                <br>
+                <br>
+                Press "Play" to play the music or the press "Insert Coin" to restart.
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Personal Links -->
+          <div class="personal-links">
+            <a href="https://deanding.com/" 
+            target="_blank">
+              <i class="fa-solid fa-user fa-3x"></i>
+            </a>
+          </div>
+
+          <div class="personal-links">
+            <a href="https://www.linkedin.com/in/deanding/"
+              target="_blank"
+              >
+              <i class="fa-brands fa-linkedin fa-3x"></i>
+            </a>
+          </div>
+
+          <div class="personal-links">
+            <a href="https://github.com/dingtianding" 
+            target="_blank">
+              <i class="fa-brands fa-github fa-3x"></i>
+            </a>
+          </div>
+      </header>      
+
+    </div>
+
     <!-- red container div -->
-    <div class="container-canvas" >
-    <div style="position: relative; display: inline-block">
+    <div class="canvas-container" >
+    <div class="big-red" style="">
       <!-- smaller red container div -->
-      <div
-        style="
-          position: absolute;
-          display: flex;
-          width: 100%;
-          align-items: center;
-          padding: 20px;
-        "
-      >
+      <div class="small-red">
         <!-- player health -->
-        <div
-          style="
-            position: relative;
-            width: 100%;
-            display: flex;
-            justify-content: flex-end;
-            border-top: 4px solid white;
-            border-left: 4px solid white;
-            border-bottom: 4px solid white;
-          "
-        >
-          <div style="background-color: red; height: 30px; width: 100%"></div>
-          <div
-            id="playerHealth"
-            style="
-              position: absolute;
-              background: #818cf8;
-              top: 0;
-              right: 0;
-              bottom: 0;
-              width: 100%;
-            "
-          ></div>
+        <div class="player-health">
+          <div class="player-health-dmg"></div>
+          <div class="player-health-bar" id="playerHealth"></div>
         </div>
   
         <!-- timer -->
-        <div
-          id="timer"
-          style="
-            background-color: black;
-            width: 100px;
-            height: 50px;
-            flex-shrink: 0;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: white;
-            border: 4px solid white;
-          "
-        >
+        <div class="timer" id="timer">
         60
         </div>
+
         <!-- enemy health -->
-        <div
-          style="
-            position: relative;
-            width: 100%;
-            border-top: 4px solid white;
-            border-bottom: 4px solid white;
-            border-right: 4px solid white;
-          "
-        >
-          <div style="background-color: red; height: 30px"></div>
-          <div
-            id="enemyHealth"
-            style="
-              position: absolute;
-              background: #818cf8;
-              top: 0;
-              right: 0;
-              bottom: 0;
-              left: 0;
-            "
-          ></div>
+        <div class="enemy-health">
+          <div class="enemy-health-dmg"></div>
+          <div class="enemy-health-bar"id="enemyHealth"></div>
         </div>
-        <div></div>
+
       </div>
-      <div
-        id="displayText"
-        style="
-          position: absolute;
-          color: white;
-          align-items: center;
-          justify-content: center;
-          top: 0;
-          right: 0;
-          bottom: 0;
-          left: 0;
-          display: none;
-        "
-      >
-        Tie
-      </div>
+        <!-- Game Over Text -->
+        <div class="display-text" id="displayText">
+          Tie
+        </div>
       <canvas></canvas>
       </div>
     </div>
-    <!-- <script
-    src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.9.1/gsap.min.js"
-    integrity="sha512-H6cPm97FAsgIKmlBA4s774vqoN24V5gSQL4yBTDOY2su2DeXZVhQPxFK4P6GPdnZqM9fg1G3cMv5wD7e6cFLZQ=="
-    crossorigin="anonymous"
-    referrerpolicy="no-referrer"
-  ></script>
-    <script src="src/utils.js"></script>
-    <script src="src/classes.js"></script>
-    <script src="index.js"></script> -->
-
 </body>
