@@ -4,7 +4,7 @@
 
 ## Background
 
-![Game Screen](https://github.com/dingtianding/Castlevania97/blob/main/assets/background.png)
+![Game Screen](https://github.com/dingtianding/Castlevania97/blob/main/assets/readme.png)
 
 Castlevania97 is a javascript 2D fighting game rendered with HTML canvas inspired by arcade classics like KOF97 and Castlevania. The players will able to control the movements of the fighters and execute attacks to damage the opponenet. You win by either reducing the opponent's health bar to 0 or to have more health at the end of the timer countdown. This simple game involves some classic fighting game mechanics, and with integration with open source professional sprite sheets and graphics.
 
