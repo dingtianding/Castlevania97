@@ -1,0 +1,50 @@
+// Every asset is imported so Vite content-hashes it and rewrites the URL for
+// the '/Castlevania97/' base path. Never reference './assets/...' by string —
+// hardcoded paths 404 under the GitHub Pages subpath.
+
+import stageBg from '../../assets/background2.png'
+import stageShop from '../../assets/shop.png'
+
+import mackIdle from '../../assets/samuraiMack/Idle.png'
+import mackRun from '../../assets/samuraiMack/Run.png'
+import mackJump from '../../assets/samuraiMack/Jump.png'
+import mackFall from '../../assets/samuraiMack/Fall.png'
+import mackAttack1 from '../../assets/samuraiMack/Attack1.png'
+import mackAttack2 from '../../assets/samuraiMack/Attack2.png'
+import mackTakeHit from '../../assets/samuraiMack/Take Hit.png'
+import mackDeath from '../../assets/samuraiMack/Death.png'
+
+import kenjiIdle from '../../assets/kenji/Idle.png'
+import kenjiRun from '../../assets/kenji/Run.png'
+import kenjiJump from '../../assets/kenji/Jump.png'
+import kenjiFall from '../../assets/kenji/Fall.png'
+import kenjiAttack1 from '../../assets/kenji/Attack1.png'
+import kenjiAttack2 from '../../assets/kenji/Attack2.png'
+import kenjiTakeHit from '../../assets/kenji/Take hit.png'
+import kenjiDeath from '../../assets/kenji/Death.png'
+
+/** key -> hashed URL. Keys are stable; AssetManager loads each into an Image. */
+export const IMAGE_MANIFEST = {
+  'stage.bg': stageBg,
+  'stage.shop': stageShop,
+
+  'mack.idle': mackIdle,
+  'mack.run': mackRun,
+  'mack.jump': mackJump,
+  'mack.fall': mackFall,
+  'mack.attack1': mackAttack1,
+  'mack.attack2': mackAttack2,
+  'mack.takeHit': mackTakeHit,
+  'mack.death': mackDeath,
+
+  'kenji.idle': kenjiIdle,
+  'kenji.run': kenjiRun,
+  'kenji.jump': kenjiJump,
+  'kenji.fall': kenjiFall,
+  'kenji.attack1': kenjiAttack1,
+  'kenji.attack2': kenjiAttack2,
+  'kenji.takeHit': kenjiTakeHit,
+  'kenji.death': kenjiDeath,
+} as const satisfies Record<string, string>
+
+export type ImageKey = keyof typeof IMAGE_MANIFEST
