@@ -16,15 +16,22 @@ The full approved plan lives at: `/Users/deanding/.claude/plans/elegant-splashin
 ## Current state (where we are)
 
 - **Branch:** `rebuild/ts-engine` (off `main`). The original game is untouched on `main`.
-- **Phase:** P0 (tooling) — *in progress, not yet committed.*
-- **Done so far:** removed the old toolchain/source so the tree is clean for the rebuild.
-  Deleted (staged as deletions, NOT committed): `package.json`, `package-lock.json`,
-  `webpack.config.js`, `babel.config.json`, `index.html`, `src/index.js`, `src/index.scss`,
-  `src/scripts/*`, `src/styles/*`, `dist/*`.
-- **Kept:** `assets/` (all art + 2 mp3s — DO NOT delete), `favicon.ico`, `.gitignore`
-  (`node_modules/`, `.DS_Store`), `.vscode/`, `README.md` (still the old one — update in P9),
-  `HANDOFF.md` (this file).
-- **No new files written yet.** `src/` is empty. Nothing has been committed on this branch.
+- **Phase:** P0 (tooling) — **DONE & committed** (`7f979f7`). **P1 is next.**
+- **P0 delivered:** Vite + TypeScript-strict skeleton replacing the old Webpack/JS toolchain.
+  Wrote `package.json` (`type: module`; scripts dev/build/preview/typecheck; devDeps `typescript`
+  + `vite`, no runtime deps), `tsconfig.json` (strict + `noUncheckedIndexedAccess`,
+  `exactOptionalPropertyTypes`, `noImplicitOverride`, `verbatimModuleSyntax`), `vite.config.ts`
+  (`base: '/Castlevania97/'`), root `index.html` (canvas/`#hud`/`#overlay` + Press Start 2P font),
+  `src/main.ts` (1024×576 placeholder canvas, `imageSmoothingEnabled=false`), `src/style.css`,
+  `src/vite-env.d.ts`, `.github/workflows/deploy.yml` (Actions Pages deploy on push to `main`).
+  Moved `favicon.ico` → `public/favicon.ico` (Vite serves it under the base path). Added `dist/`
+  + `*.local` to `.gitignore`.
+- **Verified:** `npm install` clean (14 pkgs), `npm run typecheck` clean, `npm run build` clean —
+  built `dist/index.html` references all assets under `/Castlevania97/` (JS/CSS/favicon). `npm run
+  dev` serves the canvas under the subpath (`/Castlevania97/src/main.ts` → 200).
+- **Kept:** `assets/` (all art + 2 mp3s — DO NOT delete), `.gitignore`, `.vscode/`, `README.md`
+  (still the old one — update in P9), `HANDOFF.md` (this file).
+- **Env:** Node v22.14.0, Vite 6.4.3, TypeScript 5.x.
 
 ### Verified environment
 - Node v22.14.0, npm 10.9.2.
@@ -44,32 +51,28 @@ The full approved plan lives at: `/Users/deanding/.claude/plans/elegant-splashin
 
 ## Resume instructions (next steps, in order)
 
-### Finish P0 — tooling & deploy skeleton
-Write these files, then `npm install`, then verify `npm run dev` shows a canvas under the base path,
-then commit.
+### P1 — Loop + renderer + assets (NEXT)
+Build the engine foundation so samuraiMack's idle animates frame-rate-independent. Per the plan:
+- `src/core/loop.ts` — fixed-timestep accumulator @ **60 Hz** logical tick, render decoupled with
+  interpolation `alpha`, accumulator clamped against the spiral-of-death. Hitstop/slow-mo later
+  scale/skip *ticks*, never `FIXED_DT`.
+- `src/core/` — `Time.ts`, `math.ts`, `rng.ts`, `events.ts`, `GameContext.ts` service bag.
+- `src/render/` — `Renderer.ts` (+ `Camera.ts`, `SpriteRenderer.ts`, `layers.ts`).
+- `src/assets/` — `AssetManager.ts` + `manifest.ts`; **all assets `import`-ed** (Vite-hashed,
+  base-path-safe) — see ASSET PATHS footgun below. A LoadScene-style preload (full SceneManager
+  lands in P2) decodes everything before first draw to kill the first-frame race.
+- Demo target: samuraiMack idle sprite animates at a constant rate regardless of refresh rate.
 
-1. `package.json` — `"type": "module"`, scripts `dev: vite`, `build: tsc --noEmit && vite build`,
-   `preview`, `typecheck: tsc --noEmit`. devDeps: `typescript`, `vite`. No runtime deps (drop GSAP &
-   FontAwesome — they were CDN `<script>`s in the old `index.html`).
-2. `tsconfig.json` — strict, `module/moduleResolution: bundler`, `target: ES2020`, `noEmit`,
-   `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, `noImplicitOverride`.
-3. `vite.config.ts` — **`base: '/Castlevania97/'`** (critical for GitHub Pages subpath).
-4. `index.html` — at repo root (Vite entry). Single `<canvas id="game">` + `<div id="hud">` +
-   `<div id="overlay">`, loads Press Start 2P font, `<script type="module" src="/src/main.ts">`.
-5. `src/main.ts` — minimal: grab canvas, size to 1024×576, `imageSmoothingEnabled=false`, draw
-   "CASTLEVANIA 97" placeholder text. (Replaced by the real loop in P1.)
-6. `src/style.css` — page reset, center the canvas, pixel-art `image-rendering: pixelated`.
-7. `.github/workflows/deploy.yml` — on push to `main`: setup-node → `npm ci` → `npm run build` →
-   `actions/upload-pages-artifact` (`dist/`) → `actions/deploy-pages`.
-   `permissions: { pages: write, id-token: write }`, `concurrency: pages`.
-8. **ASSET PATHS:** never hardcode `./assets/...`. Either `import url from '../assets/...png'` (Vite
-   hashes + fixes base path) or build URLs with `import.meta.env.BASE_URL`. Hardcoded paths 404
-   under `/Castlevania97/`. This is the #1 migration footgun.
+### ASSET PATHS (the #1 migration footgun — applies every phase)
+Never hardcode `./assets/...`. Either `import url from '../../assets/...png'` (Vite hashes + fixes
+the base path) or build URLs with `import.meta.env.BASE_URL`. Hardcoded paths 404 under
+`/Castlevania97/`.
 
-Commit P0: `git add -A && git commit` (message: why, one sentence per line, **no AI co-author
-trailer** per Dean's standards). Stay on `rebuild/ts-engine`.
+### Commit discipline
+Commit after each meaningful step (message: why, one sentence per line, **no AI co-author trailer**
+per Dean's standards). Stay on `rebuild/ts-engine`. Each phase = a deployable commit.
 
-### Then P1–P9
+### Then P2–P9
 Follow the phase list in the plan file. Each phase = a deployable commit. Playable 2P at P3.
 Build order: P1 loop/renderer/assets → P2 scenes/Fighter FSM/keyboard → P3 combat MVP →
 P4 rounds/result → P5 game feel (hitstop/shake/sparks/SFX) → P6 title/character-select/skill kits/
