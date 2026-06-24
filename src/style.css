@@ -1,0 +1,41 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html,
+body {
+  width: 100%;
+  height: 100%;
+  background: #000;
+  overflow: hidden;
+}
+
+body {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Press Start 2P', monospace;
+}
+
+#game-root {
+  position: relative;
+  line-height: 0;
+}
+
+#game {
+  display: block;
+  image-rendering: pixelated;
+  max-width: 100vw;
+  max-height: 100vh;
+}
+
+/* DOM overlays sit on top of the canvas in logical-space; they pass clicks
+   through to the page by default (HUD/touch controls opt back in later). */
+#hud,
+#overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
