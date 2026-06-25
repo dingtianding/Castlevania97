@@ -11,6 +11,7 @@ interface ModeOption {
 const OPTIONS: ModeOption[] = [
   { label: 'LOCAL 2P', mode: 'local', blurb: 'Two players, one keyboard' },
   { label: 'VS CPU', mode: 'ai', blurb: 'Fight the computer' },
+  { label: 'ARCADE', mode: 'arcade', blurb: 'Climb the CPU gauntlet' },
 ]
 
 /** Mode menu. Up/Down to choose, Enter to confirm, Esc back to title. */

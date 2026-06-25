@@ -14,17 +14,20 @@ import { HUD } from '../ui/HUD.ts'
 import { AUDIO_MANIFEST } from '../assets/manifest.ts'
 import { ROSTER } from '../data/characters/registry.ts'
 import type { CharacterDef } from '../data/characters/CharacterDef.ts'
+import type { ArcadeRun } from '../data/arcade.ts'
 import type { GameContext } from '../core/GameContext.ts'
 import { FLOOR_Y } from '../constants.ts'
 import { TICK_RATE } from '../core/Time.ts'
 import type { Rect } from '../types.ts'
 
-/** Which characters fill the two player slots, and who controls P2. */
+/** Which characters fill the two player slots, and who controls P2. When part
+ *  of an arcade run, `arcade` carries the ladder state for the result screen. */
 export interface BattleConfig {
   p1: CharacterDef
   p2: CharacterDef
   p2Controller?: 'human' | 'ai'
   aiDifficulty?: AIDifficulty
+  arcade?: ArcadeRun
 }
 
 const ROUND_TICKS = 60 * TICK_RATE

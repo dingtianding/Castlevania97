@@ -2,6 +2,7 @@ import { Scene } from './Scene.ts'
 import { BattleScene } from './BattleScene.ts'
 import { ModeSelectScene } from './ModeSelectScene.ts'
 import { ROSTER } from '../data/characters/registry.ts'
+import { startArcadeRun, arcadeDifficulty } from '../data/arcade.ts'
 import { KeyboardSource } from '../input/KeyboardSource.ts'
 import { PLAYER1_KEYS, PLAYER2_KEYS } from '../input/bindings.ts'
 import { makeSheet, drawSprite, type SpriteSheet } from '../render/SpriteRenderer.ts'
@@ -12,7 +13,7 @@ const CELL_W = 190
 const CELL_H = 230
 const GAP = 36
 
-export type SelectMode = 'local' | 'ai'
+export type SelectMode = 'local' | 'ai' | 'arcade'
 
 interface Selector {
   index: number
@@ -65,6 +66,12 @@ export class CharacterSelectScene extends Scene {
   update(): void {
     this.tick += 1
 
+    if (this.mode === 'arcade') {
+      if (!this.p1.locked) this.step(this.p1, this.input1)
+      else this.startArcade()
+      return
+    }
+
     if (this.mode === 'local') {
       this.step(this.p1, this.input1)
       if (this.input2) this.step(this.p2, this.input2)
@@ -84,6 +91,19 @@ export class CharacterSelectScene extends Scene {
         }),
       )
     }
+  }
+
+  private startArcade(): void {
+    const run = startArcadeRun(ROSTER[this.p1.index]!)
+    this.ctx.scenes.replace(
+      new BattleScene(this.ctx, {
+        p1: run.player,
+        p2: run.ladder[0]!,
+        p2Controller: 'ai',
+        aiDifficulty: arcadeDifficulty(0),
+        arcade: run,
+      }),
+    )
   }
 
   private step(s: Selector, source: KeyboardSource): void {
@@ -119,16 +139,22 @@ export class CharacterSelectScene extends Scene {
 
     ROSTER.forEach((_def, i) => this.drawCell(startX + i * (CELL_W + GAP), cellY, i))
     this.drawCursor(this.p1, startX, cellY, -6)
-    this.drawCursor(this.p2, startX, cellY, 6)
+    if (this.mode !== 'arcade') this.drawCursor(this.p2, startX, cellY, 6)
 
     ctx.font = '12px "Press Start 2P", monospace'
     ctx.textAlign = 'left'
     ctx.fillStyle = this.p1.color
     ctx.fillText(`P1 ${ROSTER[this.p1.index]!.name}`, 40, height - 56)
-    ctx.textAlign = 'right'
-    ctx.fillStyle = this.p2.color
-    const p2Tag = this.mode === 'ai' ? 'CPU' : 'P2'
-    ctx.fillText(`${ROSTER[this.p2.index]!.name} ${p2Tag}`, width - 40, height - 56)
+    if (this.mode !== 'arcade') {
+      ctx.textAlign = 'right'
+      ctx.fillStyle = this.p2.color
+      const p2Tag = this.mode === 'ai' ? 'CPU' : 'P2'
+      ctx.fillText(`${ROSTER[this.p2.index]!.name} ${p2Tag}`, width - 40, height - 56)
+    } else {
+      ctx.textAlign = 'right'
+      ctx.fillStyle = '#8a8aa0'
+      ctx.fillText('ARCADE LADDER', width - 40, height - 56)
+    }
 
     if (Math.floor(this.tick / (TICK_RATE / 2)) % 2 === 0) {
       ctx.textAlign = 'center'
@@ -136,7 +162,9 @@ export class CharacterSelectScene extends Scene {
       const hint =
         this.mode === 'ai'
           ? 'A/D MOVE   F LOCK (PICK YOURS, THEN CPU)   ESC BACK'
-          : 'MOVE A/D · J-L     LOCK F · .     ESC BACK'
+          : this.mode === 'arcade'
+            ? 'A/D MOVE     F START ARCADE     ESC BACK'
+            : 'MOVE A/D · J-L     LOCK F · .     ESC BACK'
       ctx.fillText(hint, width / 2, height - 26)
     }
   }

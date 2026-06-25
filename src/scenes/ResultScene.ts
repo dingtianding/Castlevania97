@@ -1,6 +1,7 @@
 import { Scene } from './Scene.ts'
 import { TitleScene } from './TitleScene.ts'
 import { BattleScene, type BattleConfig } from './BattleScene.ts'
+import { arcadeDifficulty } from '../data/arcade.ts'
 import { TICK_RATE } from '../core/Time.ts'
 import type { GameContext } from '../core/GameContext.ts'
 import type { MatchWinner } from '../combat/RoundManager.ts'
@@ -11,10 +12,11 @@ export interface MatchResult {
   p2Wins: number
 }
 
-/** Post-match screen: result, round tally, rematch or back to title. */
+/** Post-match screen. For a normal match it offers rematch or title; inside an
+ *  arcade run it advances the ladder, declares a clear, or ends the run. */
 export class ResultScene extends Scene {
   private tick = 0
-  private choice: 'rematch' | 'title' | null = null
+  private done = false
 
   constructor(
     ctx: GameContext,
@@ -24,12 +26,24 @@ export class ResultScene extends Scene {
     super(ctx)
   }
 
+  private get playerWon(): boolean {
+    return this.result.winner === 'p1'
+  }
+
+  private get hasNextStage(): boolean {
+    const arc = this.config.arcade
+    return arc !== undefined && this.playerWon && arc.stage + 1 < arc.ladder.length
+  }
+
   private readonly onKeyDown = (e: KeyboardEvent): void => {
+    if (this.done) return
     if (e.code === 'Enter' || e.code === 'Space') {
       e.preventDefault()
-      this.choice = 'rematch'
+      this.done = true
+      this.advance()
     } else if (e.code === 'Escape') {
-      this.choice = 'title'
+      this.done = true
+      this.ctx.scenes.replace(new TitleScene(this.ctx))
     }
   }
 
@@ -43,8 +57,27 @@ export class ResultScene extends Scene {
 
   update(): void {
     this.tick += 1
-    if (this.choice === 'rematch') this.ctx.scenes.replace(new BattleScene(this.ctx, this.config))
-    else if (this.choice === 'title') this.ctx.scenes.replace(new TitleScene(this.ctx))
+  }
+
+  private advance(): void {
+    const arc = this.config.arcade
+    if (arc && this.hasNextStage) {
+      const stage = arc.stage + 1
+      this.ctx.scenes.replace(
+        new BattleScene(this.ctx, {
+          p1: arc.player,
+          p2: arc.ladder[stage]!,
+          p2Controller: 'ai',
+          aiDifficulty: arcadeDifficulty(stage),
+          arcade: { player: arc.player, ladder: arc.ladder, stage },
+        }),
+      )
+    } else if (arc) {
+      // Arcade cleared or game over — back to title either way.
+      this.ctx.scenes.replace(new TitleScene(this.ctx))
+    } else {
+      this.ctx.scenes.replace(new BattleScene(this.ctx, this.config))
+    }
   }
 
   render(): void {
@@ -59,21 +92,25 @@ export class ResultScene extends Scene {
     ctx.textBaseline = 'middle'
 
     ctx.fillStyle = '#e8d4a0'
-    ctx.font = '48px "Press Start 2P", monospace'
+    ctx.font = '44px "Press Start 2P", monospace'
     ctx.fillText(this.headline(), width / 2, height / 2 - 60)
 
     ctx.fillStyle = '#b91d2b'
-    ctx.font = '20px "Press Start 2P", monospace'
-    ctx.fillText(`${this.result.p1Wins} - ${this.result.p2Wins}`, width / 2, height / 2 + 8)
+    ctx.font = '16px "Press Start 2P", monospace'
+    ctx.fillText(this.subtitle(), width / 2, height / 2 + 8)
 
     if (Math.floor(this.tick / (TICK_RATE / 2)) % 2 === 0) {
       ctx.fillStyle = '#e8d4a0'
       ctx.font = '12px "Press Start 2P", monospace'
-      ctx.fillText('ENTER: REMATCH    ESC: TITLE', width / 2, height / 2 + 72)
+      ctx.fillText(this.prompt(), width / 2, height / 2 + 72)
     }
   }
 
   private headline(): string {
+    if (this.config.arcade) {
+      if (!this.playerWon) return 'GAME OVER'
+      return this.hasNextStage ? 'WINNER' : 'ARCADE CLEAR'
+    }
     switch (this.result.winner) {
       case 'p1':
         return 'P1 WINS'
@@ -82,5 +119,21 @@ export class ResultScene extends Scene {
       default:
         return 'DRAW'
     }
+  }
+
+  private subtitle(): string {
+    const arc = this.config.arcade
+    if (arc) {
+      if (this.hasNextStage) return `NEXT: ${arc.ladder[arc.stage + 1]!.name}`
+      if (this.playerWon) return `STAGE ${arc.ladder.length}/${arc.ladder.length}`
+      return `STAGE ${arc.stage + 1}/${arc.ladder.length}`
+    }
+    return `${this.result.p1Wins} - ${this.result.p2Wins}`
+  }
+
+  private prompt(): string {
+    if (this.config.arcade && this.hasNextStage) return 'ENTER: NEXT FIGHT'
+    if (this.config.arcade) return 'ENTER: TITLE'
+    return 'ENTER: REMATCH    ESC: TITLE'
   }
 }
