@@ -16,7 +16,18 @@ The full approved plan lives at: `/Users/deanding/.claude/plans/elegant-splashin
 ## Current state (where we are)
 
 - **Branch:** `rebuild/ts-engine` (off `main`). The original game is untouched on `main`.
-- **Phase:** P0 (tooling) — **DONE & committed** (`7f979f7`). **P1 is next.**
+- **Phase:** P0–P3 **DONE & committed**. **P4 (rounds + result) is next.**
+  - `7f979f7` P0 tooling/deploy skeleton.
+  - `b0fb3d9` P1 fixed-timestep loop, renderer, asset pipeline (animated idle).
+  - `222769b` P2 scene stack, intent-based input, Fighter FSM (move/jump/fall).
+  - `4f8ab65` P3 playable 2P combat: frame-data hitboxes, health, KO, DOM HUD, pushboxes.
+- **Playable now:** Title → battle, two keyboard fighters (P1: A/D/W/F · P2: J/L/I/N), light
+  attack, health bars + 60s timer, KO with win banner. Append `?hitbox` to the URL for a
+  hit/hurtbox debug overlay.
+- **Headless verification harness:** `playwright-core` (system Chrome, no download) is installed in
+  the session scratchpad with smoke scripts (`smoke.mjs`, `smoke-p3.mjs`, `smoke-ko.mjs`) that drive
+  the preview build and screenshot each state. Use it to verify visuals every phase. The scratchpad
+  is session-local (not in the repo).
 - **P0 delivered:** Vite + TypeScript-strict skeleton replacing the old Webpack/JS toolchain.
   Wrote `package.json` (`type: module`; scripts dev/build/preview/typecheck; devDeps `typescript`
   + `vite`, no runtime deps), `tsconfig.json` (strict + `noUncheckedIndexedAccess`,
@@ -51,17 +62,20 @@ The full approved plan lives at: `/Users/deanding/.claude/plans/elegant-splashin
 
 ## Resume instructions (next steps, in order)
 
-### P1 — Loop + renderer + assets (NEXT)
-Build the engine foundation so samuraiMack's idle animates frame-rate-independent. Per the plan:
-- `src/core/loop.ts` — fixed-timestep accumulator @ **60 Hz** logical tick, render decoupled with
-  interpolation `alpha`, accumulator clamped against the spiral-of-death. Hitstop/slow-mo later
-  scale/skip *ticks*, never `FIXED_DT`.
-- `src/core/` — `Time.ts`, `math.ts`, `rng.ts`, `events.ts`, `GameContext.ts` service bag.
-- `src/render/` — `Renderer.ts` (+ `Camera.ts`, `SpriteRenderer.ts`, `layers.ts`).
-- `src/assets/` — `AssetManager.ts` + `manifest.ts`; **all assets `import`-ed** (Vite-hashed,
-  base-path-safe) — see ASSET PATHS footgun below. A LoadScene-style preload (full SceneManager
-  lands in P2) decodes everything before first draw to kill the first-frame race.
-- Demo target: samuraiMack idle sprite animates at a constant rate regardless of refresh rate.
+### P4 — Rounds + Result (NEXT)
+Per the plan: best-of-3 `RoundManager` (extract round/timer/KO logic out of `BattleScene`), round
+pips in the HUD, READY/FIGHT banner, a `ResultScene` with rematch, and reset between rounds.
+Current `BattleScene` already has a single-round timer + win banner inline — refactor that into a
+`combat/RoundManager.ts` and add a `scenes/ResultScene.ts`. Then P5 game feel (hitstop/shake/
+sparks/SFX), P6 title/select/heavy+special/super-meter/roster, P7 AI+arcade/boss, P8 mobile/gamepad/
+settings, P9 polish.
+
+### Combat tuning knobs (where things live)
+- Per-character visuals/hurtboxes + light-attack frame data are inline consts in
+  `scenes/BattleScene.ts` (`MACK_VISUAL`, `KENJI_VISUAL`, `MACK_LIGHT`, `KENJI_LIGHT`). These move
+  into `data/characters/*.ts` `CharacterDef`s in P6.
+- Physics constants (gravity, move speed, jump, hurt timing) are top-of-file consts in
+  `entities/Fighter.ts`. Floor line + stage size in `constants.ts`.
 
 ### ASSET PATHS (the #1 migration footgun — applies every phase)
 Never hardcode `./assets/...`. Either `import url from '../../assets/...png'` (Vite hashes + fixes
