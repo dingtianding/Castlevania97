@@ -1,5 +1,6 @@
 import { Scene } from './Scene.ts'
 import { ResultScene } from './ResultScene.ts'
+import { PauseScene } from './PauseScene.ts'
 import { Fighter } from '../entities/Fighter.ts'
 import { createFighter } from '../entities/createFighter.ts'
 import { KeyboardSource } from '../input/KeyboardSource.ts'
@@ -97,9 +98,20 @@ export class BattleScene extends Scene {
     this.syncHud()
 
     this.ctx.audio.startBgm(AUDIO_MANIFEST['bgm.battle'])
+    window.addEventListener('keydown', this.onPauseKey)
+  }
+
+  /** Esc pauses, but only while the battle is the active scene (so it doesn't
+   *  stack a second pause over the existing overlay). */
+  private readonly onPauseKey = (e: KeyboardEvent): void => {
+    if (e.code === 'Escape' && this.ctx.scenes.current === this) {
+      e.preventDefault()
+      this.ctx.scenes.push(new PauseScene(this.ctx))
+    }
   }
 
   override exit(): void {
+    window.removeEventListener('keydown', this.onPauseKey)
     this.input1.dispose?.()
     this.input2.dispose?.()
     this.hud.dispose()
