@@ -50,6 +50,10 @@ export interface AttackMove {
   hitbox: HitboxSpec
   /** Forward velocity (px/tick) applied while the move winds up — a lunge/dash. */
   lunge?: number
+  /** Pops the defender upward for aerial follow-up routes. */
+  launch?: boolean
+  /** Grants the attacker a short jump-cancel window on hit. */
+  jumpCancelableOnHit?: boolean
   /** Meter (0–100) spent to perform the move; supers cost, others don't. */
   meterCost?: number
   projectile?: ProjectileSpec

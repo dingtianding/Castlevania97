@@ -23,13 +23,16 @@ export class GamepadSource implements InputSource {
     const moveX: -1 | 0 | 1 = left === right ? 0 : right ? 1 : -1
 
     // Face buttons: A=jump, X=light, Y=heavy, B=special (also Up/dpad for jump).
-    const jump = pressed(pad, 0) || pressed(pad, 12) || (pad.axes[1] ?? 0) < -DEADZONE
+    const axisY = pad.axes[1] ?? 0
+    const jump = pressed(pad, 0) || pressed(pad, 12) || axisY < -DEADZONE
+    const down = pressed(pad, 13) || axisY > DEADZONE
     const light = pressed(pad, 2)
     const heavy = pressed(pad, 3)
     const special = pressed(pad, 1)
 
     const intent: IntentState = {
       moveX,
+      downHeld: down,
       jumpHeld: jump,
       jumpPressed: jump && !this.prevJump,
       lightPressed: light && !this.prevLight,

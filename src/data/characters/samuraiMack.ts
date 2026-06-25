@@ -48,8 +48,10 @@ export const samuraiMack: CharacterDef = {
       recovery: 22,
       damage: 16,
       knockbackX: 11,
-      knockbackY: -7,
+      knockbackY: -12,
       hitstop: 10,
+      launch: true,
+      jumpCancelableOnHit: true,
       hitbox: { forward: 15, top: 192, width: 135, height: 112 },
     },
     special: {

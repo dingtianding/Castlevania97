@@ -11,6 +11,7 @@
 export interface IntentState {
   /** -1 left, 0 none, 1 right. */
   moveX: -1 | 0 | 1
+  downHeld: boolean
   jumpHeld: boolean
   jumpPressed: boolean
   /** Rising edges for the three attack buttons. Super is derived from special
@@ -30,6 +31,7 @@ export interface InputSource {
 export function neutralIntent(): IntentState {
   return {
     moveX: 0,
+    downHeld: false,
     jumpHeld: false,
     jumpPressed: false,
     lightPressed: false,

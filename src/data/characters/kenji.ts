@@ -47,8 +47,10 @@ export const kenji: CharacterDef = {
       recovery: 22,
       damage: 15,
       knockbackX: 11,
-      knockbackY: -7,
+      knockbackY: -12,
       hitstop: 10,
+      launch: true,
+      jumpCancelableOnHit: true,
       hitbox: { forward: 18, top: 188, width: 128, height: 108 },
     },
     special: {

@@ -17,6 +17,7 @@ export class KeyboardSource implements InputSource {
     this.bound = new Set([
       ...keys.left,
       ...keys.right,
+      ...keys.down,
       ...keys.jump,
       ...keys.light,
       ...keys.heavy,
@@ -55,6 +56,7 @@ export class KeyboardSource implements InputSource {
 
     const intent: IntentState = {
       moveX,
+      downHeld: this.anyHeld(this.keys.down),
       jumpHeld: this.anyHeld(this.keys.jump),
       jumpPressed: this.anyPressed(this.keys.jump),
       lightPressed: this.anyPressed(this.keys.light),

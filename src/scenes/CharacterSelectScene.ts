@@ -1,6 +1,7 @@
 import { Scene } from './Scene.ts'
 import { BattleScene } from './BattleScene.ts'
 import { ModeSelectScene } from './ModeSelectScene.ts'
+import { MoveListScene } from './MoveListScene.ts'
 import { ROSTER } from '../data/characters/registry.ts'
 import { startArcadeRun, startBossRush, arcadeDifficulty } from '../data/arcade.ts'
 import { KeyboardSource } from '../input/KeyboardSource.ts'
@@ -45,6 +46,10 @@ export class CharacterSelectScene extends Scene {
 
   private readonly onKeyDown = (e: KeyboardEvent): void => {
     if (e.code === 'Escape') this.ctx.scenes.replace(new ModeSelectScene(this.ctx))
+    else if (e.code === 'KeyM') {
+      e.preventDefault()
+      this.ctx.scenes.replace(new MoveListScene(this.ctx, this.mode))
+    }
   }
 
   private readonly onPointerDown = (e: PointerEvent): void => {
@@ -208,7 +213,7 @@ export class CharacterSelectScene extends Scene {
             ? 'A/D MOVE     F START ARCADE     ESC BACK'
             : this.mode === 'boss'
               ? 'A/D MOVE     F START BOSS RUSH     ESC BACK'
-            : 'MOVE A/D · J-L     LOCK F · .     ESC BACK'
+            : 'MOVE A/D · J-L     LOCK F · .     M MOVES     ESC BACK'
       ctx.fillText(hint, width / 2, height - 26)
     }
   }

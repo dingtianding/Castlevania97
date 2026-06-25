@@ -25,6 +25,11 @@ The full approved plan lives at: `/Users/deanding/.claude/plans/elegant-splashin
   (polish + PR)**.
   Latest local pass: Training Mode route + rules, passive dummy, full meter, reset/refill controls,
   and a damage/combo/distance overlay for tuning.
+  Latest local follow-up: Move List scene wired from Mode Select and `M` on Character Select.
+  Latest combat follow-up: universal double jump, airborne attacks, double-tap dash/backdash, fast
+  fall, and aerial landing recovery are enabled in `Fighter`.
+  Latest combo follow-up: playable heavy attacks are launchers and grant a short jump-cancel window
+  on hit.
   - `7f979f7` P0 tooling/deploy skeleton.
   - `b0fb3d9` P1 fixed-timestep loop, renderer, asset pipeline (animated idle).
   - `222769b` P2 scene stack, intent-based input, Fighter FSM (move/jump/fall).
@@ -48,6 +53,14 @@ The full approved plan lives at: `/Users/deanding/.claude/plans/elegant-splashin
   - Local training follow-up: ModeSelect → CharacterSelect → Battle with `rules: 'training'`,
     passive dummy input, infinite timer, full meter, `R` reset, `M` refill, and an overlay showing
     move name / last damage / combo hits / distance.
+  - Local move-list follow-up: `scenes/MoveListScene.ts` renders roster archetype, bio, stat bars,
+    and move names from `CharacterDef.meta`; open from Mode Select or press `M` on Character Select.
+  - Local combat follow-up: fighters have one refreshed air jump, can start light/heavy/special
+    attacks while airborne, can fast fall with down while falling, can dash/backdash with a
+    double-tap direction, and get brief landing recovery after aerial attacks. Next tuning pass
+    should check aerial hitbox fairness and dash speed in Training Mode.
+  - Local combo follow-up: `AttackMove.launch` and `jumpCancelableOnHit` support launcher routes;
+    Mack/Kenji/Gothic Hero heavy attacks use it. Tune in Training Mode with heavy → jump → aerial.
   - `324d4f8` README rewritten for the engine, with `docs/` screenshots.
 - **Playable now (full loop):** Title → ModeSelect (Local 2P / VS CPU / Training / Arcade / Boss Rush) → CharacterSelect →
   best-of-3 Battle → Result (rematch / arcade-advance / title). Three selectable fighters

@@ -22,6 +22,13 @@ import type { ProjectileSpawn } from '../combat/Projectile.ts'
 const GRAVITY = 0.8
 const MOVE_SPEED = 4.2
 const JUMP_VELOCITY = -16
+const AIR_JUMPS = 1
+const FAST_FALL_SPEED = 13
+const DASH_SPEED = 9
+const DASH_TICKS = 12
+const DASH_TAP_WINDOW = 14
+const LANDING_RECOVERY_TICKS = 10
+const JUMP_CANCEL_TICKS = 18
 const WALL_MARGIN = 70
 const HURT_TICKS = 22
 const HURT_FRICTION = 0.88
@@ -82,6 +89,16 @@ export class Fighter {
   private readonly prevPosition: Vec2
   private stateId: FighterStateId = 'idle'
   private grounded = true
+  private airJumpsLeft = AIR_JUMPS
+  private prevMoveX: -1 | 0 | 1 = 0
+  private dashTapDir: -1 | 0 | 1 = 0
+  private dashTapTicks = 0
+  private dashTicks = 0
+  private dashDir: Facing = 1
+  private landingRecovery = 0
+  private jumpCancelTicks = 0
+  private attackStartedAirborne = false
+  private pendingLandingRecovery = false
   private readonly animator: Animator
 
   // Action-state bookkeeping.
@@ -118,6 +135,16 @@ export class Fighter {
     this.facing = facing
     this.health = this.maxHealth
     this.grounded = true
+    this.airJumpsLeft = AIR_JUMPS
+    this.prevMoveX = 0
+    this.dashTapDir = 0
+    this.dashTapTicks = 0
+    this.dashTicks = 0
+    this.dashDir = facing
+    this.landingRecovery = 0
+    this.jumpCancelTicks = 0
+    this.attackStartedAirborne = false
+    this.pendingLandingRecovery = false
     this.attackMove = null
     this.attackTick = 0
     this.attackConnected = false
@@ -147,7 +174,7 @@ export class Fighter {
         this.updateHurt()
         return
       case 'attack':
-        this.updateAttack()
+        this.updateAttack(intent)
         return
       default:
         this.updateLocomotion(intent, opponentX)
@@ -155,25 +182,36 @@ export class Fighter {
   }
 
   private updateLocomotion(intent: IntentState, opponentX: number): void {
-    if (this.grounded) {
-      const move = this.selectAttack(intent)
-      if (move) {
-        this.enterAttack(move, opponentX)
-        return
-      }
+    this.tickJumpCancel()
+    this.tickDashTap()
+    if (this.landingRecovery > 0) {
+      this.landingRecovery -= 1
+      this.velocity.x = 0
+      this.integrateVertical()
+      this.animator.update()
+      return
     }
 
-    this.velocity.x = intent.moveX * MOVE_SPEED
+    const move = this.selectAttack(intent)
+    if (move) {
+      this.enterAttack(move, opponentX)
+      return
+    }
+
+    this.updateDash(intent.moveX)
+    this.velocity.x = this.dashTicks > 0 ? this.dashDir * DASH_SPEED : intent.moveX * MOVE_SPEED
     if (intent.moveX > 0) this.facing = 1
     else if (intent.moveX < 0) this.facing = -1
     else this.facing = opponentX >= this.position.x ? 1 : -1
 
-    if (intent.jumpPressed && this.grounded) {
-      this.velocity.y = JUMP_VELOCITY
-      this.grounded = false
+    if (intent.jumpPressed) this.tryJump()
+    if (!this.grounded && intent.downHeld && this.velocity.y > 0 && this.velocity.y < FAST_FALL_SPEED) {
+      this.velocity.y = Math.max(this.velocity.y, FAST_FALL_SPEED)
     }
 
     this.integrate()
+    if (this.dashTicks > 0) this.dashTicks -= 1
+    this.prevMoveX = intent.moveX
 
     const current: LocomotionState = isLocomotion(this.stateId) ? this.stateId : 'idle'
     const next = nextState(current, {
@@ -202,7 +240,12 @@ export class Fighter {
     return null
   }
 
-  private updateAttack(): void {
+  private updateAttack(intent: IntentState): void {
+    this.tickJumpCancel()
+    if (intent.jumpPressed && this.jumpCancelTicks > 0) {
+      this.tryJump()
+      return
+    }
     this.attackTick += 1
     const move = this.attackMove
     if (move?.projectile && !this.projectileSpawned) {
@@ -228,12 +271,18 @@ export class Fighter {
 
     if (move && this.attackTick >= totalFrames(move)) {
       this.attackMove = null
+      if (this.attackStartedAirborne) {
+        if (this.grounded) this.landingRecovery = LANDING_RECOVERY_TICKS
+        else this.pendingLandingRecovery = true
+      }
+      this.attackStartedAirborne = false
       this.enterLocomotion(this.grounded ? 'idle' : 'fall')
     }
     this.animator.update()
   }
 
   private updateHurt(): void {
+    this.jumpCancelTicks = 0
     this.hurtTick += 1
     this.velocity.x *= HURT_FRICTION
     this.integrate()
@@ -252,13 +301,42 @@ export class Fighter {
   }
 
   private integrateVertical(): void {
+    const wasGrounded = this.grounded
     this.velocity.y += GRAVITY
     this.position.y += this.velocity.y
     if (this.position.y >= this.floorY) {
       this.position.y = this.floorY
       this.velocity.y = 0
       this.grounded = true
+      this.airJumpsLeft = AIR_JUMPS
+      if (!wasGrounded && this.pendingLandingRecovery) {
+        this.landingRecovery = LANDING_RECOVERY_TICKS
+        this.pendingLandingRecovery = false
+      }
     }
+  }
+
+  private tryJump(): void {
+    if (this.jumpCancelTicks > 0) {
+      this.jumpCancelTicks = 0
+      this.attackMove = null
+      this.attackStartedAirborne = false
+      this.pendingLandingRecovery = false
+      this.stateId = 'jump'
+      this.velocity.y = JUMP_VELOCITY
+      this.grounded = false
+      this.airJumpsLeft = AIR_JUMPS
+      this.animator.play(this.anims.jump, LOCO_ANIM.jump.hold, false)
+      return
+    }
+    if (this.grounded) {
+      this.velocity.y = JUMP_VELOCITY
+      this.grounded = false
+      return
+    }
+    if (this.airJumpsLeft <= 0) return
+    this.airJumpsLeft -= 1
+    this.velocity.y = JUMP_VELOCITY * 0.88
   }
 
   // ---- state entry --------------------------------------------------------
@@ -276,6 +354,9 @@ export class Fighter {
     this.attackConnected = false
     this.projectileSpawned = false
     this.pendingProjectileSpawn = null
+    this.attackStartedAirborne = !this.grounded
+    this.pendingLandingRecovery = false
+    this.dashTicks = 0
     this.velocity.x = 0
     this.facing = opponentX >= this.position.x ? 1 : -1
 
@@ -292,7 +373,12 @@ export class Fighter {
     const dir: Facing = this.position.x >= fromX ? 1 : -1
     this.velocity.x = dir * move.knockbackX
     this.velocity.y = move.knockbackY
-    if (move.knockbackY < 0) this.grounded = false
+    this.landingRecovery = 0
+    this.pendingLandingRecovery = false
+    this.attackStartedAirborne = false
+    this.jumpCancelTicks = 0
+    this.dashTicks = 0
+    if (move.launch || move.knockbackY < 0) this.grounded = false
 
     if (this.health <= 0) {
       this.stateId = 'death'
@@ -312,6 +398,29 @@ export class Fighter {
     this.meter = clamp(this.meter + amount, 0, MAX_METER)
   }
 
+  private tickJumpCancel(): void {
+    if (this.jumpCancelTicks > 0) this.jumpCancelTicks -= 1
+  }
+
+  private tickDashTap(): void {
+    if (this.dashTapTicks > 0) this.dashTapTicks -= 1
+    else this.dashTapDir = 0
+  }
+
+  private updateDash(moveX: -1 | 0 | 1): void {
+    if (!this.grounded || this.dashTicks > 0) return
+    if (moveX === 0 || this.prevMoveX !== 0) return
+    if (this.dashTapDir === moveX && this.dashTapTicks > 0) {
+      this.dashDir = moveX
+      this.dashTicks = DASH_TICKS
+      this.dashTapDir = 0
+      this.dashTapTicks = 0
+    } else {
+      this.dashTapDir = moveX
+      this.dashTapTicks = DASH_TAP_WINDOW
+    }
+  }
+
   // ---- combat queries -----------------------------------------------------
 
   /** The live attack this tick (geometry + data), or null if none is active. */
@@ -326,7 +435,11 @@ export class Fighter {
   /** Called when this fighter's attack connects — rewards super meter. */
   markAttackConnected(): void {
     this.attackConnected = true
-    if (this.attackMove) this.addMeter(this.attackMove.damage * METER_PER_DAMAGE_DEALT)
+    if (!this.attackMove) return
+    this.addMeter(this.attackMove.damage * METER_PER_DAMAGE_DEALT)
+    if (this.attackMove.jumpCancelableOnHit && this.grounded) {
+      this.jumpCancelTicks = JUMP_CANCEL_TICKS
+    }
   }
 
   consumeProjectileSpawn(): ProjectileSpawn | null {

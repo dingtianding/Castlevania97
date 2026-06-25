@@ -3,6 +3,7 @@
 export interface KeyBindings {
   left: string[]
   right: string[]
+  down: string[]
   jump: string[]
   light: string[]
   heavy: string[]
@@ -12,6 +13,7 @@ export interface KeyBindings {
 export const PLAYER1_KEYS: KeyBindings = {
   left: ['KeyA'],
   right: ['KeyD'],
+  down: ['KeyS'],
   jump: ['KeyW'],
   light: ['KeyF'],
   heavy: ['KeyG'],
@@ -21,6 +23,7 @@ export const PLAYER1_KEYS: KeyBindings = {
 export const PLAYER2_KEYS: KeyBindings = {
   left: ['ArrowLeft'],
   right: ['ArrowRight'],
+  down: ['ArrowDown'],
   jump: ['ArrowUp'],
   light: ['Period'],
   heavy: ['Comma'],

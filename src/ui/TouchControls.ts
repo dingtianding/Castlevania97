@@ -34,6 +34,16 @@ export class TouchControls {
         press: () => this.pressDirection(1),
         release: () => this.releaseDirection(1),
       }),
+      this.button({
+        className: 'touch-button touch-button--dir',
+        label: 'v',
+        press: () => {
+          this.state.downHeld = true
+        },
+        release: () => {
+          this.state.downHeld = false
+        },
+      }),
     )
 
     const actions = document.createElement('div')
@@ -81,6 +91,7 @@ export class TouchControls {
     this.root.remove()
     this.activeDirections.clear()
     this.state.moveX = 0
+    this.state.downHeld = false
     this.state.jumpHeld = false
   }
 

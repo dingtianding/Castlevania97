@@ -49,8 +49,10 @@ export const gothicHero: CharacterDef = {
       recovery: 20,
       damage: 15,
       knockbackX: 12,
-      knockbackY: -8,
+      knockbackY: -13,
       hitstop: 10,
+      launch: true,
+      jumpCancelableOnHit: true,
       hitbox: { forward: 24, top: 160, width: 126, height: 92 },
     },
     special: {
