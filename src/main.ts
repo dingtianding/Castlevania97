@@ -10,8 +10,28 @@ import { BootScene } from './scenes/BootScene.ts'
 import type { GameContext } from './core/GameContext.ts'
 import { GAME_WIDTH, GAME_HEIGHT } from './constants.ts'
 
-const canvas = document.querySelector<HTMLCanvasElement>('#game')
-if (!canvas) throw new Error('Canvas element #game not found')
+const maybeCanvas = document.querySelector<HTMLCanvasElement>('#game')
+if (!maybeCanvas) throw new Error('Canvas element #game not found')
+const canvas: HTMLCanvasElement = maybeCanvas
+
+const root = document.querySelector<HTMLElement>('#game-root')
+
+// Scale the fixed-resolution canvas to fill the window while preserving 16:9
+// (letterboxed). The internal resolution stays 1024×576; only CSS size changes,
+// and the DOM HUD overlay (sized to #game-root) scales with it.
+function fitToWindow(): void {
+  const scale = Math.min(window.innerWidth / GAME_WIDTH, window.innerHeight / GAME_HEIGHT)
+  const w = `${Math.round(GAME_WIDTH * scale)}px`
+  const h = `${Math.round(GAME_HEIGHT * scale)}px`
+  canvas.style.width = w
+  canvas.style.height = h
+  if (root) {
+    root.style.width = w
+    root.style.height = h
+  }
+}
+fitToWindow()
+window.addEventListener('resize', fitToWindow)
 
 const camera = new Camera()
 camera.reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches

@@ -3,6 +3,8 @@ import { ResultScene } from './ResultScene.ts'
 import { Fighter } from '../entities/Fighter.ts'
 import { createFighter } from '../entities/createFighter.ts'
 import { KeyboardSource } from '../input/KeyboardSource.ts'
+import { GamepadSource } from '../input/GamepadSource.ts'
+import { CompositeSource } from '../input/CompositeSource.ts'
 import { AISource, type AIDifficulty } from '../input/AISource.ts'
 import { PLAYER1_KEYS, PLAYER2_KEYS } from '../input/bindings.ts'
 import { neutralIntent, type InputSource } from '../input/InputSource.ts'
@@ -53,7 +55,7 @@ const DEBUG_HITBOXES = new URLSearchParams(location.search).has('hitbox')
 export class BattleScene extends Scene {
   private p1!: Fighter
   private p2!: Fighter
-  private input1!: KeyboardSource
+  private input1!: InputSource
   private input2!: InputSource
   private hud!: HUD
   private readonly combat = new CombatSystem()
@@ -78,14 +80,15 @@ export class BattleScene extends Scene {
 
     this.p1 = createFighter(this.config.p1, assets, P1_SPAWN, 1, FLOOR_Y, this.ctx.width)
     this.p2 = createFighter(this.config.p2, assets, P2_SPAWN, -1, FLOOR_Y, this.ctx.width)
-    this.input1 = new KeyboardSource(PLAYER1_KEYS)
+    // Each human slot accepts keyboard or gamepad interchangeably.
+    this.input1 = new CompositeSource([new KeyboardSource(PLAYER1_KEYS), new GamepadSource(0)])
 
     if (this.config.p2Controller === 'ai') {
       const ai = new AISource(this.config.aiDifficulty ?? 'normal', this.ctx.rng)
       ai.bind(this.p2, this.p1)
       this.input2 = ai
     } else {
-      this.input2 = new KeyboardSource(PLAYER2_KEYS)
+      this.input2 = new CompositeSource([new KeyboardSource(PLAYER2_KEYS), new GamepadSource(1)])
     }
 
     const container = document.querySelector<HTMLElement>('#hud')
@@ -97,7 +100,7 @@ export class BattleScene extends Scene {
   }
 
   override exit(): void {
-    this.input1.dispose()
+    this.input1.dispose?.()
     this.input2.dispose?.()
     this.hud.dispose()
     this.ctx.audio.stopBgm()
