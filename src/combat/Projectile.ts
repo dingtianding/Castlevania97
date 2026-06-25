@@ -12,6 +12,7 @@ export interface ProjectileHitEvent {
   point: Vec2
   dir: Facing
   hitstop: number
+  damage: number
 }
 
 export interface ProjectileSpawn {
@@ -61,6 +62,7 @@ class Projectile {
       point: overlapCenter(box, hurt),
       dir: this.spawn.facing,
       hitstop: this.spawn.move.hitstop,
+      damage: this.spawn.move.damage,
     }
   }
 

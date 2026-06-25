@@ -11,6 +11,7 @@ export interface HitEvent {
   dir: number
   /** Ticks of hitstop the connecting move requests. */
   hitstop: number
+  damage: number
 }
 
 /**
@@ -44,6 +45,7 @@ export class CombatSystem {
       point: overlapCenter(move.box, hurt),
       dir,
       hitstop: move.spec.hitstop,
+      damage: move.spec.damage,
     })
   }
 }

@@ -30,6 +30,8 @@ The full approved plan lives at: `/Users/deanding/.claude/plans/elegant-splashin
   fall, and aerial landing recovery are enabled in `Fighter`.
   Latest combo follow-up: playable heavy attacks are launchers and grant a short jump-cancel window
   on hit.
+  Latest scoring follow-up: match results show score/grade from damage, time, health, perfects, and
+  super hits.
   - `7f979f7` P0 tooling/deploy skeleton.
   - `b0fb3d9` P1 fixed-timestep loop, renderer, asset pipeline (animated idle).
   - `222769b` P2 scene stack, intent-based input, Fighter FSM (move/jump/fall).
@@ -61,6 +63,8 @@ The full approved plan lives at: `/Users/deanding/.claude/plans/elegant-splashin
     should check aerial hitbox fairness and dash speed in Training Mode.
   - Local combo follow-up: `AttackMove.launch` and `jumpCancelableOnHit` support launcher routes;
     Mack/Kenji/Gothic Hero heavy attacks use it. Tune in Training Mode with heavy → jump → aerial.
+  - Local scoring follow-up: `MatchScore` is passed from `BattleScene` to `ResultScene`; score
+    tracks player-one damage, time/health bonuses, perfect rounds, super hits, and a letter grade.
   - `324d4f8` README rewritten for the engine, with `docs/` screenshots.
 - **Playable now (full loop):** Title → ModeSelect (Local 2P / VS CPU / Training / Arcade / Boss Rush) → CharacterSelect →
   best-of-3 Battle → Result (rematch / arcade-advance / title). Three selectable fighters

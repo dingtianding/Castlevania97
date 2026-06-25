@@ -1,5 +1,5 @@
 import { Scene } from './Scene.ts'
-import { ResultScene } from './ResultScene.ts'
+import { ResultScene, type MatchScore } from './ResultScene.ts'
 import { PauseScene } from './PauseScene.ts'
 import { Fighter } from '../entities/Fighter.ts'
 import { createFighter } from '../entities/createFighter.ts'
@@ -53,6 +53,7 @@ const BIG_HIT_FLASH_TICKS = 10
 
 const P1_SPAWN = 320
 const P2_SPAWN = 704
+const SUPER_HITSTOP = 16
 
 const DEBUG_HITBOXES = new URLSearchParams(location.search).has('hitbox')
 
@@ -81,6 +82,11 @@ export class BattleScene extends Scene {
   private trainingLastDamage = 0
   private trainingComboHits = 0
   private trainingComboTicks = 0
+  private p1DamageDealt = 0
+  private p1SupersLanded = 0
+  private p1PerfectRounds = 0
+  private lastRoundP1Health = 100
+  private lastRoundTimeSeconds = 0
 
   constructor(
     ctx: GameContext,
@@ -185,6 +191,7 @@ export class BattleScene extends Scene {
     const i1 = fighting ? this.input1.poll() : neutralIntent()
     const i2 = fighting ? this.input2.poll() : neutralIntent()
 
+    const p1HealthBefore = this.p1.health
     const p2HealthBefore = this.p2.health
     this.p1.update(i1, this.p2.position.x)
     this.p2.update(i2, this.p1.position.x)
@@ -202,6 +209,10 @@ export class BattleScene extends Scene {
         this.hitstop = Math.max(this.hitstop, hit.hitstop)
         if (hit.hitstop >= 12 || hit.defender.isDead) this.flashTicks = BIG_HIT_FLASH_TICKS
         if (hit.defender.isDead) this.slowmoLeft = KO_SLOWMO_TICKS
+        if (!this.isTraining && hit.attacker === this.p1 && hit.defender === this.p2) {
+          this.p1DamageDealt += hit.damage
+          if (hit.hitstop >= SUPER_HITSTOP) this.p1SupersLanded += 1
+        }
       }
       if (this.isTraining) this.updateTrainingDamage(p2HealthBefore)
     }
@@ -214,7 +225,14 @@ export class BattleScene extends Scene {
       this.resetTraining(true)
     }
 
+    const beforePhase = this.rounds.phase
+    const beforeP1Wins = this.rounds.p1Wins
+    const beforeP2Wins = this.rounds.p2Wins
+    const beforeTime = this.rounds.timeLeftSeconds
     const signal = this.isTraining ? 'none' : this.rounds.update(this.p1, this.p2)
+    if (!this.isTraining && beforePhase === 'fight' && this.rounds.phase === 'roundOver') {
+      this.captureRoundScore(beforeP1Wins, beforeP2Wins, beforeTime, p1HealthBefore)
+    }
     if (signal === 'newRound') {
       this.p1.reset(P1_SPAWN, 1)
       this.p2.reset(P2_SPAWN, -1)
@@ -233,6 +251,7 @@ export class BattleScene extends Scene {
               winner: this.rounds.matchWinner,
               p1Wins: this.rounds.p1Wins,
               p2Wins: this.rounds.p2Wins,
+              score: this.buildScore(),
             },
             this.config,
           ),
@@ -331,6 +350,39 @@ export class BattleScene extends Scene {
     this.trainingComboTicks = 150
   }
 
+  private captureRoundScore(
+    beforeP1Wins: number,
+    beforeP2Wins: number,
+    timeLeftSeconds: number,
+    p1HealthBefore: number,
+  ): void {
+    this.lastRoundTimeSeconds = Math.max(0, timeLeftSeconds)
+    this.lastRoundP1Health = this.p1.health
+    const p1WonRound = this.rounds.p1Wins > beforeP1Wins
+    const p2WonRound = this.rounds.p2Wins > beforeP2Wins
+    if (p1WonRound && !p2WonRound && p1HealthBefore >= this.p1.maxHealth) {
+      this.p1PerfectRounds += 1
+    }
+  }
+
+  private buildScore(): MatchScore {
+    const damage = Math.round(this.p1DamageDealt * 10)
+    const timeBonus = this.rounds.matchWinner === 'p1' ? Math.round(this.lastRoundTimeSeconds * 25) : 0
+    const healthBonus = this.rounds.matchWinner === 'p1' ? Math.round(this.lastRoundP1Health * 20) : 0
+    const perfectBonus = this.p1PerfectRounds * 2500
+    const superBonus = this.p1SupersLanded * 750
+    const total = damage + timeBonus + healthBonus + perfectBonus + superBonus
+    return {
+      total,
+      grade: gradeForScore(total, this.rounds.matchWinner),
+      damage,
+      timeBonus,
+      healthBonus,
+      perfectBonus,
+      superBonus,
+    }
+  }
+
   private drawStage(): void {
     const { renderer, assets, width, height } = this.ctx
     const ctx = renderer.ctx
@@ -420,4 +472,13 @@ function moveNameFor(def: CharacterDef, moveId: string): string {
   if (moveId === def.moves.special.id) return def.meta.moveNames.special
   if (moveId === def.moves.super.id) return def.meta.moveNames.super
   return moveId.toUpperCase()
+}
+
+function gradeForScore(score: number, winner: 'p1' | 'p2' | 'draw'): string {
+  if (winner !== 'p1') return 'D'
+  if (score >= 9000) return 'S'
+  if (score >= 7000) return 'A'
+  if (score >= 5000) return 'B'
+  if (score >= 3000) return 'C'
+  return 'D'
 }

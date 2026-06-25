@@ -11,6 +11,17 @@ export interface MatchResult {
   winner: MatchWinner
   p1Wins: number
   p2Wins: number
+  score?: MatchScore
+}
+
+export interface MatchScore {
+  total: number
+  grade: string
+  damage: number
+  timeBonus: number
+  healthBonus: number
+  perfectBonus: number
+  superBonus: number
 }
 
 /** Post-match screen. For a normal match it offers rematch or title; inside an
@@ -111,11 +122,44 @@ export class ResultScene extends Scene {
     ctx.font = '16px "Press Start 2P", monospace'
     ctx.fillText(this.subtitle(), width / 2, height / 2 + 8)
 
+    this.drawScore()
+
     if (Math.floor(this.tick / (TICK_RATE / 2)) % 2 === 0) {
       ctx.fillStyle = '#e8d4a0'
       ctx.font = '12px "Press Start 2P", monospace'
-      ctx.fillText(this.prompt(), width / 2, height / 2 + 72)
+      ctx.fillText(this.prompt(), width / 2, height - 54)
     }
+  }
+
+  private drawScore(): void {
+    const score = this.result.score
+    if (!score) return
+    const { ctx } = this.ctx.renderer
+    const x = this.ctx.width / 2 - 230
+    const y = this.ctx.height / 2 + 48
+
+    ctx.textAlign = 'left'
+    ctx.fillStyle = 'rgba(8, 6, 14, 0.62)'
+    ctx.fillRect(x - 22, y - 22, 460, 150)
+    ctx.strokeStyle = '#5a567a'
+    ctx.lineWidth = 2
+    ctx.strokeRect(x - 22, y - 22, 460, 150)
+
+    ctx.fillStyle = '#e8d4a0'
+    ctx.font = '14px "Press Start 2P", monospace'
+    ctx.fillText(`SCORE ${score.total}`, x, y)
+    ctx.textAlign = 'right'
+    ctx.font = '34px "Press Start 2P", monospace'
+    ctx.fillText(score.grade, x + 410, y - 8)
+
+    ctx.textAlign = 'left'
+    ctx.fillStyle = '#8a8aa0'
+    ctx.font = '8px "Press Start 2P", monospace'
+    ctx.fillText(`DAMAGE ${score.damage}`, x, y + 36)
+    ctx.fillText(`TIME ${score.timeBonus}`, x, y + 56)
+    ctx.fillText(`HEALTH ${score.healthBonus}`, x, y + 76)
+    ctx.fillText(`PERFECT ${score.perfectBonus}`, x + 220, y + 56)
+    ctx.fillText(`SUPER ${score.superBonus}`, x + 220, y + 76)
   }
 
   private headline(): string {
