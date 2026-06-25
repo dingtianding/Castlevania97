@@ -30,6 +30,9 @@ The full approved plan lives at: `/Users/deanding/.claude/plans/elegant-splashin
     super meter, character select.
   - `c9718c0` P7 AISource (CPU as an InputSource), mode menu (Local 2P / VS CPU).
   - `fa3891e` P7 arcade ladder (escalating CPU gauntlet, mirror finale).
+  - `21476bf` P8 gamepad support (GamepadSource + CompositeSource), responsive letterbox scaling.
+  - `bd324b5` P8 pause overlay (transparent scene stack; Esc pause / resume / quit).
+  - `324d4f8` README rewritten for the engine, with `docs/` screenshots.
 - **Playable now (full loop):** Title → ModeSelect (Local 2P / VS CPU / Arcade) → CharacterSelect →
   best-of-3 Battle → Result (rematch / arcade-advance / title). Two fighters (samuraiMack, kenji),
   each with light/heavy/special/super + super meter, game feel, and BGM.
@@ -86,19 +89,18 @@ system, give the demon a `CharacterDef` whose **super** spawns a `breath-fire` p
 it at the end of the arcade ladder as a boss. It's a `CharacterDef` + one projectile move — no
 engine special-casing. Higher-risk due to irregular sprites; budget a measurement pass first.
 
-### P8 — Mobile/touch + gamepad + settings
-- `input/GamepadSource.ts` implementing `InputSource` (clean win — mirrors `AISource`/`KeyboardSource`;
-  read `navigator.getGamepads()` each poll, map sticks/buttons to `IntentState` with edge buffering).
-- `input/TouchSource.ts` + `ui/TouchControls.ts` (on-screen dpad/buttons, coarse-pointer only).
-- `settings/SettingsStore.ts` → `localStorage` (volumes, reduce-motion, difficulty; schema-versioned),
-  a Pause overlay (transparent Scene — the SceneManager stack already supports it) and Settings scene.
-- Responsive letterbox scaling of the canvas to the window.
+### P8 — remaining (gamepad, scaling, pause already DONE)
+Done: `GamepadSource` + `CompositeSource` (keyboard/gamepad per slot), responsive letterbox scaling,
+and the pause overlay. Still to do:
+- `input/TouchSource.ts` + `ui/TouchControls.ts` (on-screen dpad/buttons, coarse-pointer only) for mobile.
+- `settings/SettingsStore.ts` → `localStorage` (volumes, reduce-motion, difficulty; schema-versioned)
+  + a Settings scene; wire it to `AudioManager` gains and `Camera.reduceMotion` (currently set once
+  from `matchMedia` in `main.ts`).
 
 ### P9 — Polish + ship
-Parallax stage layers, screen flash on big hits, key-remap UI, honor reduce-motion everywhere
-(camera shake already does), particle-pool perf caps, **rewrite `README.md`** (still the OLD game's —
-add new controls, modes, screenshots/GIF), then open the **PR** (see Shipping gate). Flip Pages
-source to "GitHub Actions" note goes in the PR body.
+README is DONE (`324d4f8`). Remaining: parallax stage layers, screen flash on big hits, key-remap UI,
+particle-pool perf caps, then open the **PR** (see Shipping gate). Reduce-motion is already honored by
+the camera shake. The Pages-source-to-"GitHub Actions" note goes in the PR body.
 
 ### Where things live (tuning knobs)
 - Characters are **data**: `data/characters/{samuraiMack,kenji}.ts` (`CharacterDef` = sprites + frame
