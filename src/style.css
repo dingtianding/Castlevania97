@@ -39,3 +39,69 @@ body {
   inset: 0;
   pointer-events: none;
 }
+
+/* ---- battle HUD --------------------------------------------------------- */
+
+.hud-root {
+  position: absolute;
+  inset: 0;
+  font-family: 'Press Start 2P', monospace;
+  color: #e8d4a0;
+}
+
+.hud-bar {
+  position: absolute;
+  top: 3.5%;
+  width: 40%;
+  height: 4.2%;
+  background: #2a1014;
+  border: 2px solid #e8d4a0;
+  box-shadow: 0 0 0 2px #000;
+}
+
+.hud-bar--p1 {
+  left: 4%;
+}
+
+.hud-bar--p2 {
+  right: 4%;
+}
+
+.hud-fill {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 100%;
+  background: linear-gradient(#e64b3c, #b91d2b);
+  transition: width 200ms linear;
+}
+
+/* Both bars deplete toward the center of the screen. */
+.hud-bar--p1 .hud-fill {
+  right: 0;
+}
+
+.hud-bar--p2 .hud-fill {
+  left: 0;
+}
+
+.hud-timer {
+  position: absolute;
+  top: 2.5%;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: clamp(16px, 3.4vw, 34px);
+  text-shadow: 0 2px 0 #000;
+}
+
+.hud-banner {
+  position: absolute;
+  top: 38%;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: clamp(24px, 6vw, 64px);
+  color: #e8d4a0;
+  text-shadow: 0 3px 0 #000;
+  text-align: center;
+  white-space: nowrap;
+}

@@ -1,13 +1,17 @@
 import type { InputSource, IntentState } from './InputSource.ts'
 import type { KeyBindings } from './bindings.ts'
 
-/** Tracks held keys via window events and emits per-tick intents with edges
- *  computed against the previous poll. */
+/**
+ * Tracks held keys and buffers fresh key-presses between polls.
+ *
+ * Edges are taken from buffered keydown events, not from sampling the held set
+ * — so a tap that goes down and up within a single 60 Hz tick is still seen as
+ * a press. Sampling held state for edges would silently drop sub-frame taps.
+ */
 export class KeyboardSource implements InputSource {
   private readonly held = new Set<string>()
+  private readonly pressed = new Set<string>()
   private readonly bound: Set<string>
-  private prevJump = false
-  private prevAttack = false
 
   constructor(private readonly keys: KeyBindings) {
     this.bound = new Set([...keys.left, ...keys.right, ...keys.jump, ...keys.attack])
@@ -19,6 +23,7 @@ export class KeyboardSource implements InputSource {
     if (!this.bound.has(e.code)) return
     // Stop game keys (arrows, space) from scrolling the page.
     e.preventDefault()
+    if (!e.repeat) this.pressed.add(e.code)
     this.held.add(e.code)
   }
 
@@ -31,24 +36,31 @@ export class KeyboardSource implements InputSource {
     return false
   }
 
+  private anyPressed(codes: string[]): boolean {
+    for (const code of codes) if (this.pressed.has(code)) return true
+    return false
+  }
+
   poll(): IntentState {
     const left = this.anyHeld(this.keys.left)
     const right = this.anyHeld(this.keys.right)
-    const jump = this.anyHeld(this.keys.jump)
-    const attack = this.anyHeld(this.keys.attack)
+    const moveX: -1 | 0 | 1 = left === right ? 0 : right ? 1 : -1
 
-    const moveX: -1 | 0 | 1 = right === left ? 0 : right ? 1 : -1
-    const jumpPressed = jump && !this.prevJump
-    const attackPressed = attack && !this.prevAttack
-    this.prevJump = jump
-    this.prevAttack = attack
-
-    return { moveX, jumpHeld: jump, jumpPressed, attackHeld: attack, attackPressed }
+    const intent: IntentState = {
+      moveX,
+      jumpHeld: this.anyHeld(this.keys.jump),
+      jumpPressed: this.anyPressed(this.keys.jump),
+      attackHeld: this.anyHeld(this.keys.attack),
+      attackPressed: this.anyPressed(this.keys.attack),
+    }
+    this.pressed.clear()
+    return intent
   }
 
   dispose(): void {
     window.removeEventListener('keydown', this.onKeyDown)
     window.removeEventListener('keyup', this.onKeyUp)
     this.held.clear()
+    this.pressed.clear()
   }
 }

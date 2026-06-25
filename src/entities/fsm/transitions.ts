@@ -1,4 +1,4 @@
-import type { FighterStateId } from './FighterState.ts'
+import type { LocomotionState } from './FighterState.ts'
 
 /** Everything a transition guard is allowed to look at. Each Fighter evaluates
  *  its OWN context — which is precisely why the original copy-paste bug (the
@@ -12,7 +12,7 @@ export interface TransitionContext {
 type Guard = (c: TransitionContext) => boolean
 
 interface Transition {
-  to: FighterStateId
+  to: LocomotionState
   when: Guard
 }
 
@@ -23,7 +23,7 @@ const groundedStill: Guard = (c) => c.grounded && c.moveX === 0
 
 /** Ordered guard table. The first matching transition from the current state
  *  wins; if none match, the state is unchanged. */
-const TABLE: Record<FighterStateId, Transition[]> = {
+const TABLE: Record<LocomotionState, Transition[]> = {
   idle: [
     { to: 'jump', when: airborneRising },
     { to: 'fall', when: airborneFalling },
@@ -45,7 +45,7 @@ const TABLE: Record<FighterStateId, Transition[]> = {
   ],
 }
 
-export function nextState(current: FighterStateId, ctx: TransitionContext): FighterStateId {
+export function nextState(current: LocomotionState, ctx: TransitionContext): LocomotionState {
   for (const transition of TABLE[current]) {
     if (transition.when(ctx)) return transition.to
   }
