@@ -15,12 +15,18 @@ export class TitleScene extends Scene {
     }
   }
 
+  private readonly onPointerDown = (): void => {
+    this.start = true
+  }
+
   override enter(): void {
     window.addEventListener('keydown', this.onKeyDown)
+    this.ctx.renderer.canvas.addEventListener('pointerdown', this.onPointerDown)
   }
 
   override exit(): void {
     window.removeEventListener('keydown', this.onKeyDown)
+    this.ctx.renderer.canvas.removeEventListener('pointerdown', this.onPointerDown)
   }
 
   update(): void {

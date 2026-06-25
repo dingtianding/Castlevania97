@@ -25,6 +25,17 @@ import kenjiAttack2 from '../../assets/kenji/Attack2.png'
 import kenjiTakeHit from '../../assets/kenji/Take hit.png'
 import kenjiDeath from '../../assets/kenji/Death.png'
 
+import heroIdle from '../../assets/hero/Idle.png'
+import heroRun from '../../assets/hero/Run.png'
+import heroJump from '../../assets/hero/gothic-hero-jump.png'
+import heroAttack from '../../assets/hero/Attack.png'
+import heroJumpAttack from '../../assets/hero/gothic-hero-jump-attack.png'
+import heroHurt from '../../assets/hero/Hurt.png'
+
+import demonIdle from '../../assets/demon-Files/demon-idle.png'
+import demonAttack from '../../assets/demon-Files/demon-attack-no-breath.png'
+import demonBreathFire from '../../assets/demon-Files/breath-fire.png'
+
 /** key -> hashed URL. Keys are stable; AssetManager loads each into an Image. */
 export const IMAGE_MANIFEST = {
   'stage.bg': stageBg,
@@ -47,6 +58,17 @@ export const IMAGE_MANIFEST = {
   'kenji.attack2': kenjiAttack2,
   'kenji.takeHit': kenjiTakeHit,
   'kenji.death': kenjiDeath,
+
+  'hero.idle': heroIdle,
+  'hero.run': heroRun,
+  'hero.jump': heroJump,
+  'hero.attack': heroAttack,
+  'hero.jumpAttack': heroJumpAttack,
+  'hero.hurt': heroHurt,
+
+  'demon.idle': demonIdle,
+  'demon.attack': demonAttack,
+  'demon.breathFire': demonBreathFire,
 } as const satisfies Record<string, string>
 
 export type ImageKey = keyof typeof IMAGE_MANIFEST

@@ -16,9 +16,15 @@ The full approved plan lives at: `/Users/deanding/.claude/plans/elegant-splashin
 ## Current state (where we are)
 
 - **Branch:** `rebuild/ts-engine` (off `main`). The original game is untouched on `main`.
-- **Phase:** **P0–P7 DONE & committed.** Next: **P8 (mobile/touch + gamepad + settings)**, then
-  **P9 (polish + README + PR)**. One P7 stretch remains: the **demon boss + breath-fire projectile
-  super** (see Resume).
+- **Phase:** **P0–P8 DONE locally.** The demon-boss stretch is implemented locally after
+  `9090e09`: optional projectile move data, a projectile system, and a boss-only demon finale for
+  Arcade. P8 mobile/touch + settings is also implemented locally. P9 content/polish pass has
+  started locally with Gothic Hero, Boss Rush, stage prop rendering, big-hit flash, and projectile
+  debug boxes. The next design pass adds character metadata, richer select panels, HUD names, a
+  match-start versus splash, and result-screen return-to-select. Next: continue **P9
+  (polish + PR)**.
+  Latest local pass: Training Mode route + rules, passive dummy, full meter, reset/refill controls,
+  and a damage/combo/distance overlay for tuning.
   - `7f979f7` P0 tooling/deploy skeleton.
   - `b0fb3d9` P1 fixed-timestep loop, renderer, asset pipeline (animated idle).
   - `222769b` P2 scene stack, intent-based input, Fighter FSM (move/jump/fall).
@@ -29,13 +35,24 @@ The full approved plan lives at: `/Users/deanding/.claude/plans/elegant-splashin
   - `6b9fb19` P6 data-driven roster + registry, four-move movesets (light/heavy/special/super),
     super meter, character select.
   - `c9718c0` P7 AISource (CPU as an InputSource), mode menu (Local 2P / VS CPU).
-  - `fa3891e` P7 arcade ladder (escalating CPU gauntlet, mirror finale).
+  - `fa3891e` P7 arcade ladder (escalating CPU gauntlet).
   - `21476bf` P8 gamepad support (GamepadSource + CompositeSource), responsive letterbox scaling.
   - `bd324b5` P8 pause overlay (transparent scene stack; Esc pause / resume / quit).
+  - Local P8 follow-up: persistent settings scene, audio/reduce-motion/VS-CPU difficulty wiring,
+    pointer menu navigation, and coarse-pointer P1 touch battle controls.
+  - Local P9 follow-up: Gothic Hero playable roster entry from existing hero assets, Boss Rush mode,
+    shop stage prop rendering, big-hit screen flash, and `?hitbox` projectile debug boxes.
+  - Local design follow-up: `CharacterDef.meta` for archetype/bio/stats/move names, richer character
+    select panels, fighter names in the HUD, a first-round versus splash, and `C` from results back
+    to character select.
+  - Local training follow-up: ModeSelect → CharacterSelect → Battle with `rules: 'training'`,
+    passive dummy input, infinite timer, full meter, `R` reset, `M` refill, and an overlay showing
+    move name / last damage / combo hits / distance.
   - `324d4f8` README rewritten for the engine, with `docs/` screenshots.
-- **Playable now (full loop):** Title → ModeSelect (Local 2P / VS CPU / Arcade) → CharacterSelect →
-  best-of-3 Battle → Result (rematch / arcade-advance / title). Two fighters (samuraiMack, kenji),
-  each with light/heavy/special/super + super meter, game feel, and BGM.
+- **Playable now (full loop):** Title → ModeSelect (Local 2P / VS CPU / Training / Arcade / Boss Rush) → CharacterSelect →
+  best-of-3 Battle → Result (rematch / arcade-advance / title). Three selectable fighters
+  (samuraiMack, kenji, Gothic Hero), each with light/heavy/special/super + super meter, plus a boss-only demon
+  finale in Arcade with a breath-fire projectile super.
   - **Controls:** P1 A/D move · W jump · F light · G heavy · H special (super when meter full).
     P2 Arrow keys · Up jump · `.` light · `,` heavy · `/` special. Menus: W/S + Enter; Esc back.
   - Append `?hitbox` to the URL for a hit/hurtbox/pushbox debug overlay.
@@ -73,42 +90,42 @@ The full approved plan lives at: `/Users/deanding/.claude/plans/elegant-splashin
   TakeHit=3, Death=7.
 - `assets/hero/` — gothic hero, **partial** set, **48px** frame scale (Idle/Run/Attack/Hurt/jump/
   jump-attack only; no death/fall). Stretch character — substitute missing states.
-- `assets/demon-Files/` — **boss only**: idle/attack + `breath`/`breath-fire` (800×96) → use as a
-  **projectile super**.
+- `assets/demon-Files/` — **boss only**: idle/attack + `breath`/`breath-fire` (800×96). The current
+  implementation uses `demon-idle`, `demon-attack-no-breath`, and `breath-fire`.
 - `assets/background2.png` (stage), `assets/shop.png` (parallax prop),
   `assets/heart of fire.mp3` + `assets/giorno theme.mp3` (BGM).
 
 ## Resume instructions (next steps, in order)
 
-### P7 stretch — Demon boss + breath-fire projectile super (optional, do before/with P8)
-The only unbuilt P7 item. `assets/demon-Files/` is **boss only**: `demon-idle` (960×144),
-`demon-attack` (2640×192), `demon-attack-no-breath` (1536×176), `breath`/`breath-fire` (800×96).
-Frames are **not 200×200** and don't all divide cleanly — measure with PIL like the others
-(`Image.crop().getbbox()`) before authoring. Plan: add a `Projectile` entity + a small projectile
-system, give the demon a `CharacterDef` whose **super** spawns a `breath-fire` projectile, and put
-it at the end of the arcade ladder as a boss. It's a `CharacterDef` + one projectile move — no
-engine special-casing. Higher-risk due to irregular sprites; budget a measurement pass first.
+### P7 stretch — Demon boss + breath-fire projectile super
+Implemented locally after `9090e09`. The generic pieces are `combat/Projectile.ts`,
+`AttackMove.projectile`, and `Fighter.consumeProjectileSpawn()`. The boss data lives in
+`data/characters/demon.ts`, and `data/arcade.ts` appends the demon as the final CPU opponent.
+Next tuning pass: verify sprite anchor/hurtbox/projectile hitbox in-browser with `?hitbox`.
 
-### P8 — remaining (gamepad, scaling, pause already DONE)
+### P8 — done locally
 Done: `GamepadSource` + `CompositeSource` (keyboard/gamepad per slot), responsive letterbox scaling,
-and the pause overlay. Still to do:
-- `input/TouchSource.ts` + `ui/TouchControls.ts` (on-screen dpad/buttons, coarse-pointer only) for mobile.
-- `settings/SettingsStore.ts` → `localStorage` (volumes, reduce-motion, difficulty; schema-versioned)
-  + a Settings scene; wire it to `AudioManager` gains and `Camera.reduceMotion` (currently set once
-  from `matchMedia` in `main.ts`).
+pause overlay, `input/TouchSource.ts` + `ui/TouchControls.ts` for coarse-pointer P1 battle controls,
+pointer navigation through title/mode/select/settings/result, and `settings/SettingsStore.ts`
+persisted to `localStorage` for master/music/SFX volume, reduce motion, and VS-CPU difficulty.
 
 ### P9 — Polish + ship
-README is DONE (`324d4f8`). Remaining: parallax stage layers, screen flash on big hits, key-remap UI,
-particle-pool perf caps, then open the **PR** (see Shipping gate). Reduce-motion is already honored by
-the camera shake. The Pages-source-to-"GitHub Actions" note goes in the PR body.
+README is DONE (`324d4f8`) and updated locally for P8/P9. Done locally: stage prop rendering,
+screen flash on big hits, Gothic Hero, Boss Rush, projectile debug hitboxes, character identity
+metadata/select panels, HUD names, versus splash, result-screen return-to-select, and Training Mode.
+Remaining: use Training Mode to tune hero sprite anchors/move boxes in-browser, tune demon projectile with `?hitbox`, key-remap UI,
+particle-pool perf caps, fresh screenshots/GIFs, then open the **PR** (see Shipping gate).
+Reduce-motion is honored by camera shake and lowers big-hit flash strength. The
+Pages-source-to-"GitHub Actions" note goes in the PR body.
 
 ### Where things live (tuning knobs)
-- Characters are **data**: `data/characters/{samuraiMack,kenji}.ts` (`CharacterDef` = sprites + frame
-  counts + `visual` anchor/hurtbox + full `moves`), collected by `data/characters/registry.ts`.
+- Characters are **data**: `data/characters/{samuraiMack,kenji,demon}.ts` (`CharacterDef` = sprites + frame
+  counts + `visual` anchor/hurtbox + full `moves`). Playable characters are collected by `data/characters/registry.ts`;
+  the demon is imported directly by Arcade as a boss-only opponent.
   Adding a fighter = one file + a registry line + its sprites in `assets/manifest.ts`. `createFighter`
   (`entities/createFighter.ts`) resolves a def into a `Fighter`.
 - Movesets: `combat/AttackMove.ts` (`AttackMove` has startup/active/recovery, hitbox, knockback,
-  hitstop, optional `lunge` + `meterCost`). Super is meter-gated on the special button.
+  hitstop, optional `lunge`, `meterCost`, and `projectile`). Super is meter-gated on the special button.
 - Physics constants (gravity, move speed, jump, hurt timing, meter rates) are top-of-file consts in
   `entities/Fighter.ts`. Floor line + stage size in `constants.ts`. Round/feel timing constants are
   top of `scenes/BattleScene.ts`. AI difficulty tiers in `input/AISource.ts`. Arcade ladder/difficulty

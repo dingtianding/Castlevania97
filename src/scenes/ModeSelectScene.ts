@@ -1,17 +1,22 @@
 import { Scene } from './Scene.ts'
 import { CharacterSelectScene, type SelectMode } from './CharacterSelectScene.ts'
 import { TitleScene } from './TitleScene.ts'
+import { SettingsScene } from './SettingsScene.ts'
 
 interface ModeOption {
   label: string
-  mode: SelectMode
+  mode?: SelectMode
+  settings?: true
   blurb: string
 }
 
 const OPTIONS: ModeOption[] = [
   { label: 'LOCAL 2P', mode: 'local', blurb: 'Two players, one keyboard' },
   { label: 'VS CPU', mode: 'ai', blurb: 'Fight the computer' },
+  { label: 'TRAINING', mode: 'training', blurb: 'Tune moves and hitboxes' },
   { label: 'ARCADE', mode: 'arcade', blurb: 'Climb the CPU gauntlet' },
+  { label: 'BOSS RUSH', mode: 'boss', blurb: 'Challenge the demon' },
+  { label: 'SETTINGS', settings: true, blurb: 'Audio, motion, CPU level' },
 ]
 
 /** Mode menu. Up/Down to choose, Enter to confirm, Esc back to title. */
@@ -31,7 +36,7 @@ export class ModeSelectScene extends Scene {
       case 'Enter':
       case 'Space':
         e.preventDefault()
-        this.ctx.scenes.replace(new CharacterSelectScene(this.ctx, OPTIONS[this.index]!.mode))
+        this.choose()
         break
       case 'Escape':
         this.ctx.scenes.replace(new TitleScene(this.ctx))
@@ -39,12 +44,33 @@ export class ModeSelectScene extends Scene {
     }
   }
 
+  private readonly onPointerDown = (e: PointerEvent): void => {
+    const point = this.toGamePoint(e)
+    const hit = OPTIONS.findIndex((_opt, i) => {
+      const y = 172 + i * 58
+      return point.y >= y - 28 && point.y <= y + 34
+    })
+    if (hit >= 0) {
+      this.index = hit
+      this.choose()
+    }
+  }
+
   override enter(): void {
     window.addEventListener('keydown', this.onKeyDown)
+    this.ctx.renderer.canvas.addEventListener('pointerdown', this.onPointerDown)
   }
 
   override exit(): void {
     window.removeEventListener('keydown', this.onKeyDown)
+    this.ctx.renderer.canvas.removeEventListener('pointerdown', this.onPointerDown)
+  }
+
+  private choose(): void {
+    const option = OPTIONS[this.index]
+    if (!option) return
+    if (option.settings) this.ctx.scenes.replace(new SettingsScene(this.ctx))
+    else if (option.mode) this.ctx.scenes.replace(new CharacterSelectScene(this.ctx, option.mode))
   }
 
   update(): void {}
@@ -64,7 +90,7 @@ export class ModeSelectScene extends Scene {
     ctx.fillText('SELECT MODE', width / 2, 110)
 
     OPTIONS.forEach((opt, i) => {
-      const y = 230 + i * 80
+      const y = 172 + i * 58
       const selected = i === this.index
       ctx.fillStyle = selected ? '#e8d4a0' : '#6c6c8c'
       ctx.font = '20px "Press Start 2P", monospace'
@@ -79,5 +105,13 @@ export class ModeSelectScene extends Scene {
     ctx.fillStyle = '#5a567a'
     ctx.font = '11px "Press Start 2P", monospace'
     ctx.fillText('W/S MOVE     ENTER SELECT     ESC BACK', width / 2, height - 30)
+  }
+
+  private toGamePoint(e: PointerEvent): { x: number; y: number } {
+    const rect = this.ctx.renderer.canvas.getBoundingClientRect()
+    return {
+      x: ((e.clientX - rect.left) / rect.width) * this.ctx.width,
+      y: ((e.clientY - rect.top) / rect.height) * this.ctx.height,
+    }
   }
 }

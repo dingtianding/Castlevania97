@@ -3,6 +3,7 @@ import type { Camera } from '../render/Camera.ts'
 import type { AssetManager } from '../assets/AssetManager.ts'
 import type { AudioManager } from '../audio/AudioManager.ts'
 import type { SceneManager } from '../scenes/SceneManager.ts'
+import type { SettingsStore } from '../settings/SettingsStore.ts'
 import type { Rng } from './rng.ts'
 
 /** Service bag handed to every scene. Grows as subsystems land (audio,
@@ -13,6 +14,7 @@ export interface GameContext {
   readonly camera: Camera
   readonly assets: AssetManager
   readonly audio: AudioManager
+  readonly settings: SettingsStore
   readonly scenes: SceneManager
   readonly rng: Rng
   readonly width: number

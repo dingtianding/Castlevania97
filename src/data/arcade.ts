@@ -1,4 +1,5 @@
 import { ROSTER } from './characters/registry.ts'
+import { demon } from './characters/demon.ts'
 import type { CharacterDef } from './characters/CharacterDef.ts'
 import type { AIDifficulty } from '../input/AISource.ts'
 
@@ -17,9 +18,13 @@ export function arcadeDifficulty(stage: number): AIDifficulty {
 }
 
 /** Build the gauntlet for a chosen fighter: every other roster member first,
- *  then a mirror match against the player's own character as the finale. */
+ *  then the demon boss as the finale. */
 export function startArcadeRun(player: CharacterDef): ArcadeRun {
   const others = ROSTER.filter((c) => c.id !== player.id)
-  const ladder: readonly CharacterDef[] = others.length > 0 ? [...others, player] : ROSTER
+  const ladder: readonly CharacterDef[] = [...others, demon]
   return { player, ladder, stage: 0 }
+}
+
+export function startBossRush(player: CharacterDef): ArcadeRun {
+  return { player, ladder: [demon], stage: 0 }
 }

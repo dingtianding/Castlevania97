@@ -40,6 +40,60 @@ body {
   pointer-events: none;
 }
 
+.touch-controls {
+  position: absolute;
+  inset: 0;
+  display: none;
+  pointer-events: none;
+  user-select: none;
+  touch-action: none;
+}
+
+.touch-controls__dpad,
+.touch-controls__actions {
+  position: absolute;
+  bottom: 4%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  pointer-events: auto;
+}
+
+.touch-controls__dpad {
+  left: 4%;
+}
+
+.touch-controls__actions {
+  right: 4%;
+}
+
+.touch-button {
+  width: clamp(48px, 10vw, 72px);
+  height: clamp(48px, 10vw, 72px);
+  border: 2px solid #e8d4a0;
+  background: rgba(20, 18, 31, 0.72);
+  color: #e8d4a0;
+  font: 14px 'Press Start 2P', monospace;
+  line-height: 1;
+  box-shadow: 0 0 0 2px #000;
+}
+
+.touch-button:active {
+  background: rgba(185, 29, 43, 0.86);
+}
+
+.touch-button--jump,
+.touch-button--special {
+  border-color: #5ad0ff;
+  color: #5ad0ff;
+}
+
+@media (pointer: coarse) {
+  .touch-controls {
+    display: block;
+  }
+}
+
 /* ---- battle HUD --------------------------------------------------------- */
 
 .hud-root {
@@ -117,6 +171,27 @@ body {
 
 .hud-meter--p2 .hud-meter-fill {
   right: 0;
+}
+
+.hud-name {
+  position: absolute;
+  top: 1.2%;
+  max-width: 34%;
+  overflow: hidden;
+  color: #e8d4a0;
+  font-size: clamp(8px, 1.2vw, 12px);
+  line-height: 1.2;
+  text-shadow: 0 2px 0 #000;
+  white-space: nowrap;
+}
+
+.hud-name--p1 {
+  left: 4%;
+}
+
+.hud-name--p2 {
+  right: 4%;
+  text-align: right;
 }
 
 /* Charged super flashes gold. */
