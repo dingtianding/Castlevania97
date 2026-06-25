@@ -297,6 +297,10 @@ export class Fighter {
     return this.stateId === 'death'
   }
 
+  get isAttacking(): boolean {
+    return this.stateId === 'attack'
+  }
+
   get healthFraction(): number {
     return this.health / this.maxHealth
   }
