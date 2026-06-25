@@ -85,6 +85,34 @@ body {
   left: 0;
 }
 
+.hud-pips {
+  position: absolute;
+  top: 9%;
+  display: flex;
+  gap: 8px;
+}
+
+.hud-pips--p1 {
+  left: 4%;
+}
+
+.hud-pips--p2 {
+  right: 4%;
+  flex-direction: row-reverse;
+}
+
+.hud-pip {
+  width: 14px;
+  height: 14px;
+  background: #2a1014;
+  border: 2px solid #e8d4a0;
+  transform: rotate(45deg);
+}
+
+.hud-pip--on {
+  background: #e8d4a0;
+}
+
 .hud-timer {
   position: absolute;
   top: 2.5%;

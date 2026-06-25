@@ -98,6 +98,26 @@ export class Fighter {
 
   // ---- simulation ---------------------------------------------------------
 
+  /** Restore to a fresh round state at the given spawn. */
+  reset(spawnX: number, facing: Facing): void {
+    this.position.x = spawnX
+    this.position.y = this.floorY
+    this.prevPosition.x = spawnX
+    this.prevPosition.y = this.floorY
+    this.velocity.x = 0
+    this.velocity.y = 0
+    this.facing = facing
+    this.health = this.maxHealth
+    this.grounded = true
+    this.attackMove = null
+    this.attackTick = 0
+    this.attackConnected = false
+    this.hurtTick = 0
+    this.stateId = 'idle'
+    this.animator.play(this.anims.idle, LOCO_ANIM.idle.hold, true)
+    this.animator.reset()
+  }
+
   update(intent: IntentState, opponentX: number): void {
     this.prevPosition.x = this.position.x
     this.prevPosition.y = this.position.y

@@ -1,17 +1,26 @@
 import { Scene } from './Scene.ts'
+import { ResultScene } from './ResultScene.ts'
 import { Fighter, type FighterAnimations, type FighterVisual } from '../entities/Fighter.ts'
 import { KeyboardSource } from '../input/KeyboardSource.ts'
 import { PLAYER1_KEYS, PLAYER2_KEYS } from '../input/bindings.ts'
+import { neutralIntent } from '../input/InputSource.ts'
 import { makeSheet } from '../render/SpriteRenderer.ts'
 import { CombatSystem } from '../combat/CombatSystem.ts'
 import type { AttackMove } from '../combat/AttackMove.ts'
+import { RoundManager } from '../combat/RoundManager.ts'
 import { HUD } from '../ui/HUD.ts'
 import { FLOOR_Y } from '../constants.ts'
 import { TICK_RATE } from '../core/Time.ts'
 import type { Rect } from '../types.ts'
 
-const ROUND_SECONDS = 60
-const ROUND_TICKS = ROUND_SECONDS * TICK_RATE
+const ROUND_TICKS = 60 * TICK_RATE
+const INTRO_TICKS = 110
+const ROUND_OVER_TICKS = 130
+/** How long the match-result banner holds before the ResultScene takes over. */
+const MATCH_OVER_HOLD = 120
+
+const P1_SPAWN = 320
+const P2_SPAWN = 704
 
 // Anchors/hurtboxes measured from the sprite cells' non-transparent bounds.
 const MACK_VISUAL: FighterVisual = {
@@ -65,8 +74,8 @@ export class BattleScene extends Scene {
   private input2!: KeyboardSource
   private hud!: HUD
   private readonly combat = new CombatSystem()
-  private ticksLeft = ROUND_TICKS
-  private over = false
+  private readonly rounds = new RoundManager(ROUND_TICKS, INTRO_TICKS, ROUND_OVER_TICKS)
+  private matchOverHold = MATCH_OVER_HOLD
 
   override enter(): void {
     const { assets } = this.ctx
@@ -90,8 +99,8 @@ export class BattleScene extends Scene {
       death: makeSheet(assets.image('kenji.death'), 7),
     }
 
-    this.p1 = new Fighter(mackAnims, MACK_VISUAL, MACK_LIGHT, 320, 1, FLOOR_Y, this.ctx.width)
-    this.p2 = new Fighter(kenjiAnims, KENJI_VISUAL, KENJI_LIGHT, 704, -1, FLOOR_Y, this.ctx.width)
+    this.p1 = new Fighter(mackAnims, MACK_VISUAL, MACK_LIGHT, P1_SPAWN, 1, FLOOR_Y, this.ctx.width)
+    this.p2 = new Fighter(kenjiAnims, KENJI_VISUAL, KENJI_LIGHT, P2_SPAWN, -1, FLOOR_Y, this.ctx.width)
     this.input1 = new KeyboardSource(PLAYER1_KEYS)
     this.input2 = new KeyboardSource(PLAYER2_KEYS)
 
@@ -108,19 +117,36 @@ export class BattleScene extends Scene {
   }
 
   update(): void {
-    if (this.over) return
+    // Players only act during the fight phase; otherwise neutral input keeps
+    // KO/idle animations playing while banners (READY/FIGHT/K.O.) show.
+    const fighting = this.rounds.isFighting
+    const i1 = fighting ? this.input1.poll() : neutralIntent()
+    const i2 = fighting ? this.input2.poll() : neutralIntent()
 
-    this.p1.update(this.input1.poll(), this.p2.position.x)
-    this.p2.update(this.input2.poll(), this.p1.position.x)
+    this.p1.update(i1, this.p2.position.x)
+    this.p2.update(i2, this.p1.position.x)
     this.separateBodies()
-    this.combat.resolve(this.p1, this.p2)
+    if (fighting) this.combat.resolve(this.p1, this.p2)
 
-    this.ticksLeft -= 1
+    const signal = this.rounds.update(this.p1, this.p2)
+    if (signal === 'newRound') {
+      this.p1.reset(P1_SPAWN, 1)
+      this.p2.reset(P2_SPAWN, -1)
+    }
+
     this.syncHud()
 
-    if (this.p1.isDead || this.p2.isDead || this.ticksLeft <= 0) {
-      this.over = true
-      this.hud.setBanner(this.resultText())
+    if (this.rounds.isMatchOver) {
+      this.matchOverHold -= 1
+      if (this.matchOverHold <= 0) {
+        this.ctx.scenes.replace(
+          new ResultScene(this.ctx, {
+            winner: this.rounds.matchWinner,
+            p1Wins: this.rounds.p1Wins,
+            p2Wins: this.rounds.p2Wins,
+          }),
+        )
+      }
     }
   }
 
@@ -138,16 +164,11 @@ export class BattleScene extends Scene {
     this.p2.nudgeX(dir * push)
   }
 
-  private resultText(): string {
-    if (this.p1.isDead && this.p2.isDead) return 'DRAW'
-    if (this.p2.isDead || this.p1.health > this.p2.health) return 'P1 WINS'
-    if (this.p1.isDead || this.p2.health > this.p1.health) return 'P2 WINS'
-    return 'TIME'
-  }
-
   private syncHud(): void {
     this.hud.setHealth(this.p1.healthFraction, this.p2.healthFraction)
-    this.hud.setTimer(this.ticksLeft / TICK_RATE)
+    this.hud.setTimer(this.rounds.timeLeftSeconds)
+    this.hud.setRounds(this.rounds.p1Wins, this.rounds.p2Wins)
+    this.hud.setBanner(this.rounds.bannerText)
   }
 
   render(alpha: number): void {
