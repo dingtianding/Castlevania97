@@ -1,5 +1,5 @@
 import { Scene } from './Scene.ts'
-import { CharacterSelectScene } from './CharacterSelectScene.ts'
+import { ModeSelectScene } from './ModeSelectScene.ts'
 import { TICK_RATE } from '../core/Time.ts'
 
 /** Title card. Press Enter/Space to drop into the battle (the full mode menu
@@ -26,7 +26,7 @@ export class TitleScene extends Scene {
   update(): void {
     this.tick += 1
     if (this.start) {
-      this.ctx.scenes.replace(new CharacterSelectScene(this.ctx))
+      this.ctx.scenes.replace(new ModeSelectScene(this.ctx))
     }
   }
 
