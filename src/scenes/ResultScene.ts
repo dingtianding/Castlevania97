@@ -3,6 +3,7 @@ import { TitleScene } from './TitleScene.ts'
 import { CharacterSelectScene } from './CharacterSelectScene.ts'
 import { BattleScene, type BattleConfig } from './BattleScene.ts'
 import { arcadeDifficulty } from '../data/arcade.ts'
+import { recordHighScore } from '../data/highScores.ts'
 import { TICK_RATE } from '../core/Time.ts'
 import type { GameContext } from '../core/GameContext.ts'
 import type { MatchWinner } from '../combat/RoundManager.ts'
@@ -29,6 +30,7 @@ export interface MatchScore {
 export class ResultScene extends Scene {
   private tick = 0
   private done = false
+  private scoreSaved = false
 
   constructor(
     ctx: GameContext,
@@ -69,6 +71,7 @@ export class ResultScene extends Scene {
   }
 
   override enter(): void {
+    this.saveScore()
     window.addEventListener('keydown', this.onKeyDown)
     this.ctx.renderer.canvas.addEventListener('pointerdown', this.onPointerDown)
   }
@@ -80,6 +83,12 @@ export class ResultScene extends Scene {
 
   update(): void {
     this.tick += 1
+  }
+
+  private saveScore(): void {
+    if (this.scoreSaved || !this.result.score || this.result.winner !== 'p1') return
+    this.scoreSaved = true
+    recordHighScore(this.result.score, this.config.p1, modeLabel(this.config))
   }
 
   private advance(): void {
@@ -192,4 +201,12 @@ export class ResultScene extends Scene {
     if (this.config.arcade) return this.config.selectMode ? 'ENTER: TITLE    C: SELECT' : 'ENTER: TITLE'
     return this.config.selectMode ? 'ENTER: REMATCH    C: SELECT    ESC: TITLE' : 'ENTER: REMATCH    ESC: TITLE'
   }
+}
+
+function modeLabel(config: BattleConfig): string {
+  if (config.selectMode === 'boss') return 'Boss Rush'
+  if (config.selectMode === 'arcade') return 'Arcade'
+  if (config.selectMode === 'ai') return 'VS CPU'
+  if (config.selectMode === 'local') return 'Local'
+  return 'Match'
 }

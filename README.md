@@ -16,6 +16,7 @@ Originally a small vanilla-JS prototype, it was rebuilt from the ground up into 
 - **Arcade** — climb a gauntlet of CPU fighters that get tougher each stage, ending in a demon-boss finale with a breath-fire super.
 - **Boss Rush** — pick a fighter and challenge the demon finale directly.
 - **Moves** — browse each fighter's archetype, stats, and named attacks.
+- **Scores** — view local score records saved in the browser.
 
 Every match is best-of-3 rounds with a 60-second timer.
 
@@ -51,6 +52,7 @@ The rebuild fixes the original's real problems by construction and adds the syst
 - **Air combat foundation** — universal double jump, fast fall, dash/backdash, landing recovery, and airborne attacks push the game toward platform-fighter movement and Marvel-style jump-in pressure.
 - **Launcher routes** — heavy attacks pop opponents upward and open a short jump-cancel window for air follow-ups.
 - **Score chase** — results grade player-one performance using damage, time, health, perfect rounds, and super hits.
+- **Local records** — score results are saved to a browser-local high score table.
 - **Explicit Fighter FSM** — a transition table drives locomotion and time-driven action states (attack / hurt / death), so each fighter reasons about its own state (the original had a copy-paste bug where the enemy animated off the player's velocity).
 - **Input abstraction** — keyboard, gamepad, and AI all implement one `InputSource` that emits a per-tick intent; the AI is "just another controller," so 1P-vs-CPU needed zero combat-code changes.
 - **Data-driven roster** — each fighter is a `CharacterDef` (sprites, hurtbox, full moveset) collected by a registry; adding a character is one file.

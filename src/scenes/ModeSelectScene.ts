@@ -3,12 +3,14 @@ import { CharacterSelectScene, type SelectMode } from './CharacterSelectScene.ts
 import { TitleScene } from './TitleScene.ts'
 import { SettingsScene } from './SettingsScene.ts'
 import { MoveListScene } from './MoveListScene.ts'
+import { HighScoresScene } from './HighScoresScene.ts'
 
 interface ModeOption {
   label: string
   mode?: SelectMode
   settings?: true
   moves?: true
+  scores?: true
   blurb: string
 }
 
@@ -19,6 +21,7 @@ const OPTIONS: ModeOption[] = [
   { label: 'ARCADE', mode: 'arcade', blurb: 'Climb the CPU gauntlet' },
   { label: 'BOSS RUSH', mode: 'boss', blurb: 'Challenge the demon' },
   { label: 'MOVES', moves: true, blurb: 'Read fighter kits' },
+  { label: 'SCORES', scores: true, blurb: 'View local records' },
   { label: 'SETTINGS', settings: true, blurb: 'Audio, motion, CPU level' },
 ]
 
@@ -50,7 +53,7 @@ export class ModeSelectScene extends Scene {
   private readonly onPointerDown = (e: PointerEvent): void => {
     const point = this.toGamePoint(e)
     const hit = OPTIONS.findIndex((_opt, i) => {
-      const y = 152 + i * 54
+      const y = 142 + i * 48
       return point.y >= y - 28 && point.y <= y + 34
     })
     if (hit >= 0) {
@@ -74,6 +77,7 @@ export class ModeSelectScene extends Scene {
     if (!option) return
     if (option.settings) this.ctx.scenes.replace(new SettingsScene(this.ctx))
     else if (option.moves) this.ctx.scenes.replace(new MoveListScene(this.ctx))
+    else if (option.scores) this.ctx.scenes.replace(new HighScoresScene(this.ctx))
     else if (option.mode) this.ctx.scenes.replace(new CharacterSelectScene(this.ctx, option.mode))
   }
 
@@ -94,7 +98,7 @@ export class ModeSelectScene extends Scene {
     ctx.fillText('SELECT MODE', width / 2, 110)
 
     OPTIONS.forEach((opt, i) => {
-      const y = 152 + i * 54
+      const y = 142 + i * 48
       const selected = i === this.index
       ctx.fillStyle = selected ? '#e8d4a0' : '#6c6c8c'
       ctx.font = '20px "Press Start 2P", monospace'
