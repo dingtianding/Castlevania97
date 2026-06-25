@@ -11,6 +11,9 @@ export class AudioManager {
   private musicGain: GainNode | null = null
   private sfxGain: GainNode | null = null
   private noise: AudioBuffer | null = null
+  private masterVolume = 0.85
+  private musicVolume = 0.35
+  private sfxVolume = 0.6
 
   private bgmUrl: string | null = null
   private bgmBuffer: AudioBuffer | null = null
@@ -31,12 +34,13 @@ export class AudioManager {
     const ctx = new Ctor()
     this.ctx = ctx
     this.master = ctx.createGain()
+    this.master.gain.value = this.masterVolume
     this.master.connect(ctx.destination)
     this.musicGain = ctx.createGain()
-    this.musicGain.gain.value = 0.35
+    this.musicGain.gain.value = this.musicVolume
     this.musicGain.connect(this.master)
     this.sfxGain = ctx.createGain()
-    this.sfxGain.gain.value = 0.6
+    this.sfxGain.gain.value = this.sfxVolume
     this.sfxGain.connect(this.master)
 
     void ctx.resume()
@@ -60,6 +64,15 @@ export class AudioManager {
       }
       this.bgmSource = null
     }
+  }
+
+  setVolumes(master: number, music: number, sfx: number): void {
+    this.masterVolume = master
+    this.musicVolume = music
+    this.sfxVolume = sfx
+    if (this.master) this.master.gain.value = master
+    if (this.musicGain) this.musicGain.gain.value = music
+    if (this.sfxGain) this.sfxGain.gain.value = sfx
   }
 
   hit(): void {

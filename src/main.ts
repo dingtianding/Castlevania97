@@ -7,6 +7,7 @@ import { AudioManager } from './audio/AudioManager.ts'
 import { SceneManager } from './scenes/SceneManager.ts'
 import { Rng } from './core/rng.ts'
 import { BootScene } from './scenes/BootScene.ts'
+import { SettingsStore } from './settings/SettingsStore.ts'
 import type { GameContext } from './core/GameContext.ts'
 import { GAME_WIDTH, GAME_HEIGHT } from './constants.ts'
 
@@ -34,15 +35,20 @@ fitToWindow()
 window.addEventListener('resize', fitToWindow)
 
 const camera = new Camera()
-camera.reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+const settings = new SettingsStore(window.matchMedia('(prefers-reduced-motion: reduce)').matches)
 
 const audio = new AudioManager()
+settings.subscribe((next) => {
+  audio.setVolumes(next.masterVolume, next.musicVolume, next.sfxVolume)
+  camera.reduceMotion = next.reduceMotion
+})
 
 const ctx: GameContext = {
   renderer: new Renderer(canvas, GAME_WIDTH, GAME_HEIGHT),
   camera,
   assets: new AssetManager(),
   audio,
+  settings,
   scenes: new SceneManager(),
   rng: new Rng(0x9e3779b1),
   width: GAME_WIDTH,

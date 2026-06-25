@@ -5,6 +5,17 @@ import type { CharacterDef } from './CharacterDef.ts'
 export const samuraiMack: CharacterDef = {
   id: 'samuraiMack',
   name: 'SAMURAI MACK',
+  meta: {
+    archetype: 'BALANCED DUELIST',
+    bio: 'Clean sword fundamentals, strong confirms, and a dangerous meter dash.',
+    stats: { power: 3, speed: 3, range: 3, technique: 2 },
+    moveNames: {
+      light: 'Quick Draw',
+      heavy: 'Iron Overhead',
+      special: 'Ronin Step',
+      super: 'Moonlit Rend',
+    },
+  },
   sprites: {
     idle: { key: 'mack.idle', frames: 8 },
     run: { key: 'mack.run', frames: 8 },

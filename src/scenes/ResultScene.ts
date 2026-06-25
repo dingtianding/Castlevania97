@@ -1,5 +1,6 @@
 import { Scene } from './Scene.ts'
 import { TitleScene } from './TitleScene.ts'
+import { CharacterSelectScene } from './CharacterSelectScene.ts'
 import { BattleScene, type BattleConfig } from './BattleScene.ts'
 import { arcadeDifficulty } from '../data/arcade.ts'
 import { TICK_RATE } from '../core/Time.ts'
@@ -44,15 +45,26 @@ export class ResultScene extends Scene {
     } else if (e.code === 'Escape') {
       this.done = true
       this.ctx.scenes.replace(new TitleScene(this.ctx))
+    } else if (e.code === 'KeyC' && this.config.selectMode) {
+      this.done = true
+      this.ctx.scenes.replace(new CharacterSelectScene(this.ctx, this.config.selectMode))
     }
+  }
+
+  private readonly onPointerDown = (): void => {
+    if (this.done) return
+    this.done = true
+    this.advance()
   }
 
   override enter(): void {
     window.addEventListener('keydown', this.onKeyDown)
+    this.ctx.renderer.canvas.addEventListener('pointerdown', this.onPointerDown)
   }
 
   override exit(): void {
     window.removeEventListener('keydown', this.onKeyDown)
+    this.ctx.renderer.canvas.removeEventListener('pointerdown', this.onPointerDown)
   }
 
   update(): void {
@@ -133,7 +145,7 @@ export class ResultScene extends Scene {
 
   private prompt(): string {
     if (this.config.arcade && this.hasNextStage) return 'ENTER: NEXT FIGHT'
-    if (this.config.arcade) return 'ENTER: TITLE'
-    return 'ENTER: REMATCH    ESC: TITLE'
+    if (this.config.arcade) return this.config.selectMode ? 'ENTER: TITLE    C: SELECT' : 'ENTER: TITLE'
+    return this.config.selectMode ? 'ENTER: REMATCH    C: SELECT    ESC: TITLE' : 'ENTER: REMATCH    ESC: TITLE'
   }
 }

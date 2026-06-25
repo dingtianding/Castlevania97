@@ -1,3 +1,4 @@
+import type { ImageKey } from '../assets/manifest.ts'
 import type { Rect, Facing } from '../types.ts'
 
 /** Hitbox placement relative to a fighter's feet point, authored facing-right
@@ -9,6 +10,23 @@ export interface HitboxSpec {
   top: number
   width: number
   height: number
+}
+
+/** Optional projectile spawned by a move, authored facing-right. */
+export interface ProjectileSpec {
+  sprite: ImageKey
+  frames: number
+  scale: number
+  /** Logical ticks each projectile animation frame is held. */
+  hold: number
+  /** Tick of the parent move when the projectile appears. Defaults to startup. */
+  spawnTick?: number
+  /** Projectile origin relative to the fighter's feet point. */
+  offsetX: number
+  offsetY: number
+  speedX: number
+  lifetime: number
+  hitbox: { offsetX: number; offsetY: number; width: number; height: number }
 }
 
 /**
@@ -34,6 +52,7 @@ export interface AttackMove {
   lunge?: number
   /** Meter (0–100) spent to perform the move; supers cost, others don't. */
   meterCost?: number
+  projectile?: ProjectileSpec
 }
 
 /** A character's four attacks. Super is meter-gated; the rest are free. */

@@ -18,6 +18,27 @@ export type AnimName =
   | 'takeHit'
   | 'death'
 
+export interface CharacterStats {
+  power: number
+  speed: number
+  range: number
+  technique: number
+}
+
+export interface CharacterMoveNames {
+  light: string
+  heavy: string
+  special: string
+  super: string
+}
+
+export interface CharacterMeta {
+  archetype: string
+  bio: string
+  stats: CharacterStats
+  moveNames: CharacterMoveNames
+}
+
 /**
  * A playable fighter as pure data. Adding a character to the roster is one of
  * these object literals registered in `registry.ts` — no engine changes. Sprite
@@ -27,6 +48,7 @@ export type AnimName =
 export interface CharacterDef {
   id: string
   name: string
+  meta: CharacterMeta
   sprites: Record<AnimName, SpriteDef>
   visual: FighterVisual
   moves: Moveset

@@ -16,6 +16,7 @@ import {
   type AttackMove,
   type Moveset,
 } from '../combat/AttackMove.ts'
+import type { ProjectileSpawn } from '../combat/Projectile.ts'
 
 // Per-tick physics. Stable across refresh rates thanks to the fixed timestep.
 const GRAVITY = 0.8
@@ -87,6 +88,8 @@ export class Fighter {
   private attackMove: AttackMove | null = null
   private attackTick = 0
   private attackConnected = false
+  private projectileSpawned = false
+  private pendingProjectileSpawn: ProjectileSpawn | null = null
   private hurtTick = 0
 
   constructor(
@@ -118,10 +121,16 @@ export class Fighter {
     this.attackMove = null
     this.attackTick = 0
     this.attackConnected = false
+    this.projectileSpawned = false
+    this.pendingProjectileSpawn = null
     this.hurtTick = 0
     this.stateId = 'idle'
     this.animator.play(this.anims.idle, LOCO_ANIM.idle.hold, true)
     this.animator.reset()
+  }
+
+  fillMeter(): void {
+    this.meter = MAX_METER
   }
 
   // ---- simulation ---------------------------------------------------------
@@ -196,6 +205,20 @@ export class Fighter {
   private updateAttack(): void {
     this.attackTick += 1
     const move = this.attackMove
+    if (move?.projectile && !this.projectileSpawned) {
+      const spawnTick = move.projectile.spawnTick ?? move.startup
+      if (this.attackTick >= spawnTick) {
+        this.projectileSpawned = true
+        this.pendingProjectileSpawn = {
+          owner: this,
+          move,
+          spec: move.projectile,
+          x: this.position.x + this.facing * move.projectile.offsetX,
+          y: this.position.y + move.projectile.offsetY,
+          facing: this.facing,
+        }
+      }
+    }
     // A lunging move carries the fighter forward through its active window.
     const lunging = move?.lunge !== undefined && this.attackTick <= move.startup + move.active
     this.velocity.x = lunging && move ? this.facing * (move.lunge ?? 0) : 0
@@ -251,6 +274,8 @@ export class Fighter {
     this.attackMove = move
     this.attackTick = 0
     this.attackConnected = false
+    this.projectileSpawned = false
+    this.pendingProjectileSpawn = null
     this.velocity.x = 0
     this.facing = opponentX >= this.position.x ? 1 : -1
 
@@ -302,6 +327,16 @@ export class Fighter {
   markAttackConnected(): void {
     this.attackConnected = true
     if (this.attackMove) this.addMeter(this.attackMove.damage * METER_PER_DAMAGE_DEALT)
+  }
+
+  consumeProjectileSpawn(): ProjectileSpawn | null {
+    const spawn = this.pendingProjectileSpawn
+    this.pendingProjectileSpawn = null
+    return spawn
+  }
+
+  get currentMove(): AttackMove | null {
+    return this.attackMove
   }
 
   /** Shift horizontally (pushbox separation), clamped to the stage. */

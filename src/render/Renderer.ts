@@ -2,6 +2,7 @@
  *  resolution. All drawing happens in this logical space; CSS letterbox-scales
  *  the canvas element to the window. */
 export class Renderer {
+  readonly canvas: HTMLCanvasElement
   readonly ctx: CanvasRenderingContext2D
   readonly width: number
   readonly height: number
@@ -12,6 +13,7 @@ export class Renderer {
 
     canvas.width = width
     canvas.height = height
+    this.canvas = canvas
     this.ctx = ctx
     this.width = width
     this.height = height

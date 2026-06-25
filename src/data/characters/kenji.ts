@@ -4,6 +4,17 @@ import type { CharacterDef } from './CharacterDef.ts'
 export const kenji: CharacterDef = {
   id: 'kenji',
   name: 'KENJI',
+  meta: {
+    archetype: 'FAST STRIKER',
+    bio: 'Quicker buttons and sharp movement reward pressure and whiff punishes.',
+    stats: { power: 2, speed: 4, range: 3, technique: 3 },
+    moveNames: {
+      light: 'Needle Slash',
+      heavy: 'Rising Cut',
+      special: 'Phantom Rush',
+      super: 'Dragon Wake',
+    },
+  },
   sprites: {
     idle: { key: 'kenji.idle', frames: 4 },
     run: { key: 'kenji.run', frames: 8 },

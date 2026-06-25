@@ -12,6 +12,8 @@ export class HUD {
   private readonly p2Fill: HTMLElement
   private readonly p1Meter: HTMLElement
   private readonly p2Meter: HTMLElement
+  private readonly p1Name: HTMLElement
+  private readonly p2Name: HTMLElement
   private readonly timer: HTMLElement
   private readonly banner: HTMLElement
   private readonly p1Pips: HTMLElement[] = []
@@ -36,6 +38,9 @@ export class HUD {
     this.p2Meter = el('div', 'hud-meter-fill')
     p2MeterBar.appendChild(this.p2Meter)
 
+    this.p1Name = el('div', 'hud-name hud-name--p1')
+    this.p2Name = el('div', 'hud-name hud-name--p2')
+
     const p1PipRow = el('div', 'hud-pips hud-pips--p1')
     const p2PipRow = el('div', 'hud-pips hud-pips--p2')
     for (let i = 0; i < PIPS_PER_SIDE; i += 1) {
@@ -55,12 +60,19 @@ export class HUD {
       p2Bar,
       p1MeterBar,
       p2MeterBar,
+      this.p1Name,
+      this.p2Name,
       p1PipRow,
       p2PipRow,
       this.timer,
       this.banner,
     )
     container.appendChild(this.root)
+  }
+
+  setNames(p1: string, p2: string): void {
+    this.p1Name.textContent = p1
+    this.p2Name.textContent = p2
   }
 
   setRounds(p1Wins: number, p2Wins: number): void {
@@ -80,8 +92,8 @@ export class HUD {
     this.p2Fill.style.width = `${Math.max(0, p2Fraction) * 100}%`
   }
 
-  setTimer(seconds: number): void {
-    this.timer.textContent = String(Math.max(0, Math.ceil(seconds)))
+  setTimer(seconds: number | string): void {
+    this.timer.textContent = typeof seconds === 'number' ? String(Math.max(0, Math.ceil(seconds))) : seconds
   }
 
   setBanner(text: string): void {
