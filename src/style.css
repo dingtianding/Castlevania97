@@ -85,9 +85,59 @@ body {
   left: 0;
 }
 
+.hud-meter {
+  position: absolute;
+  top: 8.6%;
+  width: 26%;
+  height: 2.1%;
+  background: #14121f;
+  border: 2px solid #5a567a;
+}
+
+.hud-meter--p1 {
+  left: 4%;
+}
+
+.hud-meter--p2 {
+  right: 4%;
+}
+
+.hud-meter-fill {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 0%;
+  background: linear-gradient(#5ad0ff, #2b8ad0);
+  transition: width 120ms linear;
+}
+
+.hud-meter--p1 .hud-meter-fill {
+  left: 0;
+}
+
+.hud-meter--p2 .hud-meter-fill {
+  right: 0;
+}
+
+/* Charged super flashes gold. */
+.hud-meter-fill--full {
+  background: linear-gradient(#ffe08a, #ffae3b);
+  animation: hud-meter-pulse 0.6s ease-in-out infinite;
+}
+
+@keyframes hud-meter-pulse {
+  0%,
+  100% {
+    filter: brightness(1);
+  }
+  50% {
+    filter: brightness(1.6);
+  }
+}
+
 .hud-pips {
   position: absolute;
-  top: 9%;
+  top: 11.5%;
   display: flex;
   gap: 8px;
 }

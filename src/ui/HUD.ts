@@ -10,6 +10,8 @@ export class HUD {
   private readonly root: HTMLElement
   private readonly p1Fill: HTMLElement
   private readonly p2Fill: HTMLElement
+  private readonly p1Meter: HTMLElement
+  private readonly p2Meter: HTMLElement
   private readonly timer: HTMLElement
   private readonly banner: HTMLElement
   private readonly p1Pips: HTMLElement[] = []
@@ -26,6 +28,14 @@ export class HUD {
     this.p2Fill = el('div', 'hud-fill')
     p2Bar.appendChild(this.p2Fill)
 
+    const p1MeterBar = el('div', 'hud-meter hud-meter--p1')
+    this.p1Meter = el('div', 'hud-meter-fill')
+    p1MeterBar.appendChild(this.p1Meter)
+
+    const p2MeterBar = el('div', 'hud-meter hud-meter--p2')
+    this.p2Meter = el('div', 'hud-meter-fill')
+    p2MeterBar.appendChild(this.p2Meter)
+
     const p1PipRow = el('div', 'hud-pips hud-pips--p1')
     const p2PipRow = el('div', 'hud-pips hud-pips--p2')
     for (let i = 0; i < PIPS_PER_SIDE; i += 1) {
@@ -40,13 +50,29 @@ export class HUD {
     this.timer = el('div', 'hud-timer')
     this.banner = el('div', 'hud-banner')
 
-    this.root.append(p1Bar, p2Bar, p1PipRow, p2PipRow, this.timer, this.banner)
+    this.root.append(
+      p1Bar,
+      p2Bar,
+      p1MeterBar,
+      p2MeterBar,
+      p1PipRow,
+      p2PipRow,
+      this.timer,
+      this.banner,
+    )
     container.appendChild(this.root)
   }
 
   setRounds(p1Wins: number, p2Wins: number): void {
     this.p1Pips.forEach((pip, i) => pip.classList.toggle('hud-pip--on', i < p1Wins))
     this.p2Pips.forEach((pip, i) => pip.classList.toggle('hud-pip--on', i < p2Wins))
+  }
+
+  setMeter(p1Fraction: number, p2Fraction: number): void {
+    this.p1Meter.style.width = `${clamp01(p1Fraction) * 100}%`
+    this.p2Meter.style.width = `${clamp01(p2Fraction) * 100}%`
+    this.p1Meter.classList.toggle('hud-meter-fill--full', p1Fraction >= 1)
+    this.p2Meter.classList.toggle('hud-meter-fill--full', p2Fraction >= 1)
   }
 
   setHealth(p1Fraction: number, p2Fraction: number): void {
@@ -71,4 +97,8 @@ function el(tag: string, className: string): HTMLElement {
   const node = document.createElement(tag)
   node.className = className
   return node
+}
+
+function clamp01(v: number): number {
+  return v < 0 ? 0 : v > 1 ? 1 : v
 }

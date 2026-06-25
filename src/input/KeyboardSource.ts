@@ -14,7 +14,14 @@ export class KeyboardSource implements InputSource {
   private readonly bound: Set<string>
 
   constructor(private readonly keys: KeyBindings) {
-    this.bound = new Set([...keys.left, ...keys.right, ...keys.jump, ...keys.attack])
+    this.bound = new Set([
+      ...keys.left,
+      ...keys.right,
+      ...keys.jump,
+      ...keys.light,
+      ...keys.heavy,
+      ...keys.special,
+    ])
     window.addEventListener('keydown', this.onKeyDown)
     window.addEventListener('keyup', this.onKeyUp)
   }
@@ -50,8 +57,9 @@ export class KeyboardSource implements InputSource {
       moveX,
       jumpHeld: this.anyHeld(this.keys.jump),
       jumpPressed: this.anyPressed(this.keys.jump),
-      attackHeld: this.anyHeld(this.keys.attack),
-      attackPressed: this.anyPressed(this.keys.attack),
+      lightPressed: this.anyPressed(this.keys.light),
+      heavyPressed: this.anyPressed(this.keys.heavy),
+      specialPressed: this.anyPressed(this.keys.special),
     }
     this.pressed.clear()
     return intent

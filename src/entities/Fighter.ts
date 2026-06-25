@@ -14,6 +14,7 @@ import {
   isActiveAt,
   totalFrames,
   type AttackMove,
+  type Moveset,
 } from '../combat/AttackMove.ts'
 
 // Per-tick physics. Stable across refresh rates thanks to the fixed timestep.
@@ -24,12 +25,18 @@ const WALL_MARGIN = 70
 const HURT_TICKS = 22
 const HURT_FRICTION = 0.88
 
+export const MAX_METER = 100
+// Meter earned per point of damage dealt / taken.
+const METER_PER_DAMAGE_DEALT = 1.2
+const METER_PER_DAMAGE_TAKEN = 0.8
+
 export interface FighterAnimations {
   idle: SpriteSheet
   run: SpriteSheet
   jump: SpriteSheet
   fall: SpriteSheet
   attack1: SpriteSheet
+  attack2: SpriteSheet
   takeHit: SpriteSheet
   death: SpriteSheet
 }
@@ -69,6 +76,7 @@ export class Fighter {
   facing: Facing
   readonly maxHealth = 100
   health = 100
+  meter = 0
 
   private readonly prevPosition: Vec2
   private stateId: FighterStateId = 'idle'
@@ -84,7 +92,7 @@ export class Fighter {
   constructor(
     private readonly anims: FighterAnimations,
     private readonly visual: FighterVisual,
-    private readonly lightMove: AttackMove,
+    private readonly moves: Moveset,
     spawnX: number,
     facing: Facing,
     private readonly floorY: number,
@@ -96,9 +104,7 @@ export class Fighter {
     this.animator = new Animator(anims.idle, LOCO_ANIM.idle.hold, true)
   }
 
-  // ---- simulation ---------------------------------------------------------
-
-  /** Restore to a fresh round state at the given spawn. */
+  /** Restore to a fresh round state at the given spawn. Meter carries over. */
   reset(spawnX: number, facing: Facing): void {
     this.position.x = spawnX
     this.position.y = this.floorY
@@ -117,6 +123,8 @@ export class Fighter {
     this.animator.play(this.anims.idle, LOCO_ANIM.idle.hold, true)
     this.animator.reset()
   }
+
+  // ---- simulation ---------------------------------------------------------
 
   update(intent: IntentState, opponentX: number): void {
     this.prevPosition.x = this.position.x
@@ -138,9 +146,12 @@ export class Fighter {
   }
 
   private updateLocomotion(intent: IntentState, opponentX: number): void {
-    if (intent.attackPressed && this.grounded) {
-      this.enterAttack(opponentX)
-      return
+    if (this.grounded) {
+      const move = this.selectAttack(intent)
+      if (move) {
+        this.enterAttack(move, opponentX)
+        return
+      }
     }
 
     this.velocity.x = intent.moveX * MOVE_SPEED
@@ -166,14 +177,33 @@ export class Fighter {
     this.animator.update()
   }
 
+  /** Map attack buttons to a move; special upgrades to super when meter allows
+   *  (and spends it). Returns null if no attack was requested. */
+  private selectAttack(intent: IntentState): AttackMove | null {
+    if (intent.lightPressed) return this.moves.light
+    if (intent.heavyPressed) return this.moves.heavy
+    if (intent.specialPressed) {
+      const cost = this.moves.super.meterCost ?? 0
+      if (this.meter >= cost) {
+        this.meter -= cost
+        return this.moves.super
+      }
+      return this.moves.special
+    }
+    return null
+  }
+
   private updateAttack(): void {
     this.attackTick += 1
-    // Grounded attacks root the fighter in place; gravity still applies so an
-    // attack interrupted in air keeps falling.
-    this.velocity.x = 0
+    const move = this.attackMove
+    // A lunging move carries the fighter forward through its active window.
+    const lunging = move?.lunge !== undefined && this.attackTick <= move.startup + move.active
+    this.velocity.x = lunging && move ? this.facing * (move.lunge ?? 0) : 0
+    this.position.x += this.velocity.x
+    this.position.x = clamp(this.position.x, WALL_MARGIN, this.stageWidth - WALL_MARGIN)
     this.integrateVertical()
 
-    if (this.attackMove && this.attackTick >= totalFrames(this.attackMove)) {
+    if (move && this.attackTick >= totalFrames(move)) {
       this.attackMove = null
       this.enterLocomotion(this.grounded ? 'idle' : 'fall')
     }
@@ -216,16 +246,16 @@ export class Fighter {
     this.animator.play(this.anims[cfg.key], cfg.hold, cfg.loop)
   }
 
-  private enterAttack(opponentX: number): void {
+  private enterAttack(move: AttackMove, opponentX: number): void {
     this.stateId = 'attack'
-    this.attackMove = this.lightMove
+    this.attackMove = move
     this.attackTick = 0
     this.attackConnected = false
     this.velocity.x = 0
     this.facing = opponentX >= this.position.x ? 1 : -1
 
-    const sheet = this.anims.attack1
-    const hold = Math.max(1, Math.floor(totalFrames(this.lightMove) / sheet.frameCount))
+    const sheet = move.animKey === 'attack2' ? this.anims.attack2 : this.anims.attack1
+    const hold = Math.max(1, Math.floor(totalFrames(move) / sheet.frameCount))
     this.animator.play(sheet, hold, false)
   }
 
@@ -233,6 +263,7 @@ export class Fighter {
     if (this.stateId === 'death') return
 
     this.health = Math.max(0, this.health - move.damage)
+    this.addMeter(move.damage * METER_PER_DAMAGE_TAKEN)
     const dir: Facing = this.position.x >= fromX ? 1 : -1
     this.velocity.x = dir * move.knockbackX
     this.velocity.y = move.knockbackY
@@ -241,8 +272,7 @@ export class Fighter {
     if (this.health <= 0) {
       this.stateId = 'death'
       this.velocity.x = 0
-      const death = this.anims.death
-      this.animator.play(death, 6, false)
+      this.animator.play(this.anims.death, 6, false)
       return
     }
 
@@ -251,6 +281,10 @@ export class Fighter {
     const takeHit = this.anims.takeHit
     const hold = Math.max(1, Math.floor(HURT_TICKS / takeHit.frameCount))
     this.animator.play(takeHit, hold, false)
+  }
+
+  private addMeter(amount: number): void {
+    this.meter = clamp(this.meter + amount, 0, MAX_METER)
   }
 
   // ---- combat queries -----------------------------------------------------
@@ -264,8 +298,10 @@ export class Fighter {
     return { box, spec: this.attackMove }
   }
 
+  /** Called when this fighter's attack connects — rewards super meter. */
   markAttackConnected(): void {
     this.attackConnected = true
+    if (this.attackMove) this.addMeter(this.attackMove.damage * METER_PER_DAMAGE_DEALT)
   }
 
   /** Shift horizontally (pushbox separation), clamped to the stage. */
@@ -273,20 +309,13 @@ export class Fighter {
     this.position.x = clamp(this.position.x + dx, WALL_MARGIN, this.stageWidth - WALL_MARGIN)
   }
 
-  /** Half-width of the body pushbox (fighters can't overlap closer than the
-   *  sum of their half-widths). */
   get pushHalfWidth(): number {
     return this.visual.hurtbox.width / 2
   }
 
   hurtbox(): Rect {
     const { width, height } = this.visual.hurtbox
-    return {
-      x: this.position.x - width / 2,
-      y: this.position.y - height,
-      width,
-      height,
-    }
+    return { x: this.position.x - width / 2, y: this.position.y - height, width, height }
   }
 
   canBeHit(): boolean {
@@ -303,6 +332,10 @@ export class Fighter {
 
   get healthFraction(): number {
     return this.health / this.maxHealth
+  }
+
+  get meterFraction(): number {
+    return this.meter / MAX_METER
   }
 
   // ---- rendering ----------------------------------------------------------

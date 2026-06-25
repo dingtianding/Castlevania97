@@ -16,6 +16,8 @@ export interface HitboxSpec {
  * magic: an attack is `startup` ticks of wind-up, `active` ticks where the
  * hitbox is live, then `recovery` ticks of cool-down — all refresh-rate-stable.
  */
+export type AttackType = 'light' | 'heavy' | 'special' | 'super'
+
 export interface AttackMove {
   id: string
   animKey: 'attack1' | 'attack2'
@@ -25,9 +27,21 @@ export interface AttackMove {
   damage: number
   knockbackX: number
   knockbackY: number
-  /** Ticks of hitstop applied on connect (consumed in P5). */
+  /** Ticks of hitstop applied on connect. */
   hitstop: number
   hitbox: HitboxSpec
+  /** Forward velocity (px/tick) applied while the move winds up — a lunge/dash. */
+  lunge?: number
+  /** Meter (0–100) spent to perform the move; supers cost, others don't. */
+  meterCost?: number
+}
+
+/** A character's four attacks. Super is meter-gated; the rest are free. */
+export interface Moveset {
+  light: AttackMove
+  heavy: AttackMove
+  special: AttackMove
+  super: AttackMove
 }
 
 export function totalFrames(move: AttackMove): number {

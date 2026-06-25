@@ -1,20 +1,28 @@
 import { Scene } from './Scene.ts'
 import { ResultScene } from './ResultScene.ts'
-import { Fighter, type FighterAnimations, type FighterVisual } from '../entities/Fighter.ts'
+import { Fighter } from '../entities/Fighter.ts'
+import { createFighter } from '../entities/createFighter.ts'
 import { KeyboardSource } from '../input/KeyboardSource.ts'
 import { PLAYER1_KEYS, PLAYER2_KEYS } from '../input/bindings.ts'
 import { neutralIntent } from '../input/InputSource.ts'
-import { makeSheet } from '../render/SpriteRenderer.ts'
 import { CombatSystem } from '../combat/CombatSystem.ts'
-import type { AttackMove } from '../combat/AttackMove.ts'
 import { RoundManager } from '../combat/RoundManager.ts'
 import { ParticleSystem } from '../fx/ParticleSystem.ts'
 import { emitHitSparks } from '../fx/HitSparks.ts'
 import { HUD } from '../ui/HUD.ts'
 import { AUDIO_MANIFEST } from '../assets/manifest.ts'
+import { ROSTER } from '../data/characters/registry.ts'
+import type { CharacterDef } from '../data/characters/CharacterDef.ts'
+import type { GameContext } from '../core/GameContext.ts'
 import { FLOOR_Y } from '../constants.ts'
 import { TICK_RATE } from '../core/Time.ts'
 import type { Rect } from '../types.ts'
+
+/** Which characters fill the two player slots. */
+export interface BattleConfig {
+  p1: CharacterDef
+  p2: CharacterDef
+}
 
 const ROUND_TICKS = 60 * TICK_RATE
 const INTRO_TICKS = 110
@@ -29,45 +37,6 @@ const HIT_TRAUMA = 0.42
 
 const P1_SPAWN = 320
 const P2_SPAWN = 704
-
-// Anchors/hurtboxes measured from the sprite cells' non-transparent bounds.
-const MACK_VISUAL: FighterVisual = {
-  anchorX: 95,
-  anchorY: 123,
-  scale: 3.6,
-  hurtbox: { width: 74, height: 185 },
-}
-const KENJI_VISUAL: FighterVisual = {
-  anchorX: 102,
-  anchorY: 128,
-  scale: 3.5,
-  hurtbox: { width: 74, height: 190 },
-}
-
-const MACK_LIGHT: AttackMove = {
-  id: 'mack-light',
-  animKey: 'attack1',
-  startup: 8,
-  active: 6,
-  recovery: 16,
-  damage: 9,
-  knockbackX: 7,
-  knockbackY: -5,
-  hitstop: 6,
-  hitbox: { forward: 18, top: 185, width: 118, height: 95 },
-}
-const KENJI_LIGHT: AttackMove = {
-  id: 'kenji-light',
-  animKey: 'attack1',
-  startup: 7,
-  active: 5,
-  recovery: 15,
-  damage: 8,
-  knockbackX: 7,
-  knockbackY: -5,
-  hitstop: 6,
-  hitbox: { forward: 22, top: 182, width: 110, height: 95 },
-}
 
 const DEBUG_HITBOXES = new URLSearchParams(location.search).has('hitbox')
 
@@ -91,30 +60,18 @@ export class BattleScene extends Scene {
   private p1WasAttacking = false
   private p2WasAttacking = false
 
+  constructor(
+    ctx: GameContext,
+    private readonly config: BattleConfig = { p1: ROSTER[0]!, p2: ROSTER[1]! },
+  ) {
+    super(ctx)
+  }
+
   override enter(): void {
     const { assets } = this.ctx
 
-    const mackAnims: FighterAnimations = {
-      idle: makeSheet(assets.image('mack.idle'), 8),
-      run: makeSheet(assets.image('mack.run'), 8),
-      jump: makeSheet(assets.image('mack.jump'), 2),
-      fall: makeSheet(assets.image('mack.fall'), 2),
-      attack1: makeSheet(assets.image('mack.attack1'), 6),
-      takeHit: makeSheet(assets.image('mack.takeHit'), 4),
-      death: makeSheet(assets.image('mack.death'), 6),
-    }
-    const kenjiAnims: FighterAnimations = {
-      idle: makeSheet(assets.image('kenji.idle'), 4),
-      run: makeSheet(assets.image('kenji.run'), 8),
-      jump: makeSheet(assets.image('kenji.jump'), 2),
-      fall: makeSheet(assets.image('kenji.fall'), 2),
-      attack1: makeSheet(assets.image('kenji.attack1'), 4),
-      takeHit: makeSheet(assets.image('kenji.takeHit'), 3),
-      death: makeSheet(assets.image('kenji.death'), 7),
-    }
-
-    this.p1 = new Fighter(mackAnims, MACK_VISUAL, MACK_LIGHT, P1_SPAWN, 1, FLOOR_Y, this.ctx.width)
-    this.p2 = new Fighter(kenjiAnims, KENJI_VISUAL, KENJI_LIGHT, P2_SPAWN, -1, FLOOR_Y, this.ctx.width)
+    this.p1 = createFighter(this.config.p1, assets, P1_SPAWN, 1, FLOOR_Y, this.ctx.width)
+    this.p2 = createFighter(this.config.p2, assets, P2_SPAWN, -1, FLOOR_Y, this.ctx.width)
     this.input1 = new KeyboardSource(PLAYER1_KEYS)
     this.input2 = new KeyboardSource(PLAYER2_KEYS)
 
@@ -185,11 +142,15 @@ export class BattleScene extends Scene {
       this.matchOverHold -= 1
       if (this.matchOverHold <= 0) {
         this.ctx.scenes.replace(
-          new ResultScene(this.ctx, {
-            winner: this.rounds.matchWinner,
-            p1Wins: this.rounds.p1Wins,
-            p2Wins: this.rounds.p2Wins,
-          }),
+          new ResultScene(
+            this.ctx,
+            {
+              winner: this.rounds.matchWinner,
+              p1Wins: this.rounds.p1Wins,
+              p2Wins: this.rounds.p2Wins,
+            },
+            this.config,
+          ),
         )
       }
     }
@@ -219,6 +180,7 @@ export class BattleScene extends Scene {
 
   private syncHud(): void {
     this.hud.setHealth(this.p1.healthFraction, this.p2.healthFraction)
+    this.hud.setMeter(this.p1.meterFraction, this.p2.meterFraction)
     this.hud.setTimer(this.rounds.timeLeftSeconds)
     this.hud.setRounds(this.rounds.p1Wins, this.rounds.p2Wins)
     this.hud.setBanner(this.rounds.bannerText)

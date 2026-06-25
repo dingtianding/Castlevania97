@@ -13,8 +13,11 @@ export interface IntentState {
   moveX: -1 | 0 | 1
   jumpHeld: boolean
   jumpPressed: boolean
-  attackHeld: boolean
-  attackPressed: boolean
+  /** Rising edges for the three attack buttons. Super is derived from special
+   *  when the fighter has meter, so it needs no button of its own. */
+  lightPressed: boolean
+  heavyPressed: boolean
+  specialPressed: boolean
 }
 
 export interface InputSource {
@@ -29,7 +32,8 @@ export function neutralIntent(): IntentState {
     moveX: 0,
     jumpHeld: false,
     jumpPressed: false,
-    attackHeld: false,
-    attackPressed: false,
+    lightPressed: false,
+    heavyPressed: false,
+    specialPressed: false,
   }
 }

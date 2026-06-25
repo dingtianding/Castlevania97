@@ -1,6 +1,6 @@
 import { Scene } from './Scene.ts'
 import { TitleScene } from './TitleScene.ts'
-import { BattleScene } from './BattleScene.ts'
+import { BattleScene, type BattleConfig } from './BattleScene.ts'
 import { TICK_RATE } from '../core/Time.ts'
 import type { GameContext } from '../core/GameContext.ts'
 import type { MatchWinner } from '../combat/RoundManager.ts'
@@ -19,6 +19,7 @@ export class ResultScene extends Scene {
   constructor(
     ctx: GameContext,
     private readonly result: MatchResult,
+    private readonly config: BattleConfig,
   ) {
     super(ctx)
   }
@@ -42,7 +43,7 @@ export class ResultScene extends Scene {
 
   update(): void {
     this.tick += 1
-    if (this.choice === 'rematch') this.ctx.scenes.replace(new BattleScene(this.ctx))
+    if (this.choice === 'rematch') this.ctx.scenes.replace(new BattleScene(this.ctx, this.config))
     else if (this.choice === 'title') this.ctx.scenes.replace(new TitleScene(this.ctx))
   }
 
