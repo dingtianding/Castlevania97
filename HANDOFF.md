@@ -16,18 +16,33 @@ The full approved plan lives at: `/Users/deanding/.claude/plans/elegant-splashin
 ## Current state (where we are)
 
 - **Branch:** `rebuild/ts-engine` (off `main`). The original game is untouched on `main`.
-- **Phase:** P0–P3 **DONE & committed**. **P4 (rounds + result) is next.**
+- **Phase:** **P0–P7 DONE & committed.** Next: **P8 (mobile/touch + gamepad + settings)**, then
+  **P9 (polish + README + PR)**. One P7 stretch remains: the **demon boss + breath-fire projectile
+  super** (see Resume).
   - `7f979f7` P0 tooling/deploy skeleton.
   - `b0fb3d9` P1 fixed-timestep loop, renderer, asset pipeline (animated idle).
   - `222769b` P2 scene stack, intent-based input, Fighter FSM (move/jump/fall).
   - `4f8ab65` P3 playable 2P combat: frame-data hitboxes, health, KO, DOM HUD, pushboxes.
-- **Playable now:** Title → battle, two keyboard fighters (P1: A/D/W/F · P2: J/L/I/N), light
-  attack, health bars + 60s timer, KO with win banner. Append `?hitbox` to the URL for a
-  hit/hurtbox debug overlay.
-- **Headless verification harness:** `playwright-core` (system Chrome, no download) is installed in
-  the session scratchpad with smoke scripts (`smoke.mjs`, `smoke-p3.mjs`, `smoke-ko.mjs`) that drive
-  the preview build and screenshot each state. Use it to verify visuals every phase. The scratchpad
-  is session-local (not in the repo).
+  - `c623e97` P4 best-of-3 rounds, READY/FIGHT banners, round pips, ResultScene + rematch.
+  - `dd502fd` P5 game feel: hitstop, screen shake, hit sparks, KO slow-mo, WebAudio (procedural
+    SFX + streamed BGM).
+  - `6b9fb19` P6 data-driven roster + registry, four-move movesets (light/heavy/special/super),
+    super meter, character select.
+  - `c9718c0` P7 AISource (CPU as an InputSource), mode menu (Local 2P / VS CPU).
+  - `fa3891e` P7 arcade ladder (escalating CPU gauntlet, mirror finale).
+- **Playable now (full loop):** Title → ModeSelect (Local 2P / VS CPU / Arcade) → CharacterSelect →
+  best-of-3 Battle → Result (rematch / arcade-advance / title). Two fighters (samuraiMack, kenji),
+  each with light/heavy/special/super + super meter, game feel, and BGM.
+  - **Controls:** P1 A/D move · W jump · F light · G heavy · H special (super when meter full).
+    P2 Arrow keys · Up jump · `.` light · `,` heavy · `/` special. Menus: W/S + Enter; Esc back.
+  - Append `?hitbox` to the URL for a hit/hurtbox/pushbox debug overlay.
+- **Headless verification harness:** `playwright-core` (system Chrome via `executablePath`, no
+  browser download) is installed in the session scratchpad with per-phase smoke scripts that drive
+  the **preview build** (`npm run build && npm run preview`, port 4173) and screenshot each state,
+  reading the DOM HUD (`.hud-fill`, `.hud-meter-fill`, `.hud-pip--on`, `.hud-banner`) to assert
+  health/meter/rounds. The scratchpad is session-local (not in the repo) — rewrite scripts as
+  needed. Key gotcha: scripted KOs must **walk into range first** (spamming attacks roots the
+  fighter at spawn), and KeyboardSource buffers keydown edges so even fast taps register.
 - **P0 delivered:** Vite + TypeScript-strict skeleton replacing the old Webpack/JS toolchain.
   Wrote `package.json` (`type: module`; scripts dev/build/preview/typecheck; devDeps `typescript`
   + `vite`, no runtime deps), `tsconfig.json` (strict + `noUncheckedIndexedAccess`,
@@ -62,20 +77,40 @@ The full approved plan lives at: `/Users/deanding/.claude/plans/elegant-splashin
 
 ## Resume instructions (next steps, in order)
 
-### P4 — Rounds + Result (NEXT)
-Per the plan: best-of-3 `RoundManager` (extract round/timer/KO logic out of `BattleScene`), round
-pips in the HUD, READY/FIGHT banner, a `ResultScene` with rematch, and reset between rounds.
-Current `BattleScene` already has a single-round timer + win banner inline — refactor that into a
-`combat/RoundManager.ts` and add a `scenes/ResultScene.ts`. Then P5 game feel (hitstop/shake/
-sparks/SFX), P6 title/select/heavy+special/super-meter/roster, P7 AI+arcade/boss, P8 mobile/gamepad/
-settings, P9 polish.
+### P7 stretch — Demon boss + breath-fire projectile super (optional, do before/with P8)
+The only unbuilt P7 item. `assets/demon-Files/` is **boss only**: `demon-idle` (960×144),
+`demon-attack` (2640×192), `demon-attack-no-breath` (1536×176), `breath`/`breath-fire` (800×96).
+Frames are **not 200×200** and don't all divide cleanly — measure with PIL like the others
+(`Image.crop().getbbox()`) before authoring. Plan: add a `Projectile` entity + a small projectile
+system, give the demon a `CharacterDef` whose **super** spawns a `breath-fire` projectile, and put
+it at the end of the arcade ladder as a boss. It's a `CharacterDef` + one projectile move — no
+engine special-casing. Higher-risk due to irregular sprites; budget a measurement pass first.
 
-### Combat tuning knobs (where things live)
-- Per-character visuals/hurtboxes + light-attack frame data are inline consts in
-  `scenes/BattleScene.ts` (`MACK_VISUAL`, `KENJI_VISUAL`, `MACK_LIGHT`, `KENJI_LIGHT`). These move
-  into `data/characters/*.ts` `CharacterDef`s in P6.
-- Physics constants (gravity, move speed, jump, hurt timing) are top-of-file consts in
-  `entities/Fighter.ts`. Floor line + stage size in `constants.ts`.
+### P8 — Mobile/touch + gamepad + settings
+- `input/GamepadSource.ts` implementing `InputSource` (clean win — mirrors `AISource`/`KeyboardSource`;
+  read `navigator.getGamepads()` each poll, map sticks/buttons to `IntentState` with edge buffering).
+- `input/TouchSource.ts` + `ui/TouchControls.ts` (on-screen dpad/buttons, coarse-pointer only).
+- `settings/SettingsStore.ts` → `localStorage` (volumes, reduce-motion, difficulty; schema-versioned),
+  a Pause overlay (transparent Scene — the SceneManager stack already supports it) and Settings scene.
+- Responsive letterbox scaling of the canvas to the window.
+
+### P9 — Polish + ship
+Parallax stage layers, screen flash on big hits, key-remap UI, honor reduce-motion everywhere
+(camera shake already does), particle-pool perf caps, **rewrite `README.md`** (still the OLD game's —
+add new controls, modes, screenshots/GIF), then open the **PR** (see Shipping gate). Flip Pages
+source to "GitHub Actions" note goes in the PR body.
+
+### Where things live (tuning knobs)
+- Characters are **data**: `data/characters/{samuraiMack,kenji}.ts` (`CharacterDef` = sprites + frame
+  counts + `visual` anchor/hurtbox + full `moves`), collected by `data/characters/registry.ts`.
+  Adding a fighter = one file + a registry line + its sprites in `assets/manifest.ts`. `createFighter`
+  (`entities/createFighter.ts`) resolves a def into a `Fighter`.
+- Movesets: `combat/AttackMove.ts` (`AttackMove` has startup/active/recovery, hitbox, knockback,
+  hitstop, optional `lunge` + `meterCost`). Super is meter-gated on the special button.
+- Physics constants (gravity, move speed, jump, hurt timing, meter rates) are top-of-file consts in
+  `entities/Fighter.ts`. Floor line + stage size in `constants.ts`. Round/feel timing constants are
+  top of `scenes/BattleScene.ts`. AI difficulty tiers in `input/AISource.ts`. Arcade ladder/difficulty
+  in `data/arcade.ts`.
 
 ### ASSET PATHS (the #1 migration footgun — applies every phase)
 Never hardcode `./assets/...`. Either `import url from '../../assets/...png'` (Vite hashes + fixes
