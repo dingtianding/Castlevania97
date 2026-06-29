@@ -5,7 +5,7 @@
 import stageBg from '../../assets/background2.png'
 import stageShop from '../../assets/shop.png'
 
-import bgmBattle from '../../assets/heart of fire.mp3'
+import bgmHeartOfFire from '../../assets/heart of fire.mp3'
 
 import mackIdle from '../../assets/samuraiMack/Idle.png'
 import mackRun from '../../assets/samuraiMack/Run.png'
@@ -120,7 +120,7 @@ export type ImageKey = keyof typeof IMAGE_MANIFEST
 /** Audio URLs (decoded lazily by AudioManager after the audio context unlocks,
  *  not preloaded as images). */
 export const AUDIO_MANIFEST = {
-  'bgm.battle': bgmBattle,
+  'bgm.heartOfFire': bgmHeartOfFire,
 } as const satisfies Record<string, string>
 
 export type AudioKey = keyof typeof AUDIO_MANIFEST

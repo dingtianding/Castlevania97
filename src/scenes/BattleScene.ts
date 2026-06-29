@@ -142,7 +142,7 @@ export class BattleScene extends Scene {
     this.hud.setNames(this.config.p1.name, this.config.p2.name)
     this.syncHud()
 
-    this.ctx.audio.startBgm(AUDIO_MANIFEST['bgm.battle'])
+    this.ctx.audio.startBgm(AUDIO_MANIFEST['bgm.heartOfFire'])
     window.addEventListener('keydown', this.onPauseKey)
   }
 

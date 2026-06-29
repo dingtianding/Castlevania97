@@ -511,7 +511,7 @@ export class CampaignScene extends Scene {
   }
 
   override enter(): void {
-    this.ctx.audio.startBgm(AUDIO_MANIFEST['bgm.battle'])
+    this.ctx.audio.startBgm(AUDIO_MANIFEST['bgm.heartOfFire'])
     this.bindInput()
     window.addEventListener('keydown', this.onKeyDown)
     this.reloadFromSave()
