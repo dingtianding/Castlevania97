@@ -85,6 +85,7 @@ class CastleActor {
   grounded = true
   facing: Facing
   state: 'idle' | 'run' | 'jump' | 'fall' | 'attack' | 'hurt' | 'death' = 'idle'
+  private readonly sheets: SpriteSet
   private readonly animator: Animator
   private attackMove: AttackMove | null = null
   private attackTick = 0
@@ -95,7 +96,7 @@ class CastleActor {
 
   constructor(
     readonly def: CharacterDef,
-    private readonly assets: AssetManager,
+    assets: AssetManager,
     x: number,
     y: number,
     facing: Facing,
@@ -103,6 +104,7 @@ class CastleActor {
     this.position = { x, y }
     this.prevPosition = { x, y }
     this.facing = facing
+    this.sheets = buildSpriteSet(def, assets)
     this.animator = new Animator(this.sheets.idle, 8, true)
   }
 
@@ -112,20 +114,6 @@ class CastleActor {
 
   get currentMove(): AttackMove | null {
     return this.attackMove
-  }
-
-  get sheets(): SpriteSet {
-    const s = this.def.sprites
-    return {
-      idle: makeSheet(this.assets.image(s.idle.key), s.idle.frames),
-      run: makeSheet(this.assets.image(s.run.key), s.run.frames),
-      jump: makeSheet(this.assets.image(s.jump.key), s.jump.frames),
-      fall: makeSheet(this.assets.image(s.fall.key), s.fall.frames),
-      attack1: makeSheet(this.assets.image(s.attack1.key), s.attack1.frames),
-      attack2: makeSheet(this.assets.image(s.attack2.key), s.attack2.frames),
-      takeHit: makeSheet(this.assets.image(s.takeHit.key), s.takeHit.frames),
-      death: makeSheet(this.assets.image(s.death.key), s.death.frames),
-    }
   }
 
   reset(x: number, y: number, facing: Facing): void {
@@ -354,6 +342,20 @@ class CastleActor {
     if (this.state === 'hurt') return s.takeHit
     if (this.state === 'death') return s.death
     return this.state === 'run' ? s.run : s.idle
+  }
+}
+
+function buildSpriteSet(def: CharacterDef, assets: AssetManager): SpriteSet {
+  const s = def.sprites
+  return {
+    idle: makeSheet(assets.image(s.idle.key), s.idle.frames),
+    run: makeSheet(assets.image(s.run.key), s.run.frames),
+    jump: makeSheet(assets.image(s.jump.key), s.jump.frames),
+    fall: makeSheet(assets.image(s.fall.key), s.fall.frames),
+    attack1: makeSheet(assets.image(s.attack1.key), s.attack1.frames),
+    attack2: makeSheet(assets.image(s.attack2.key), s.attack2.frames),
+    takeHit: makeSheet(assets.image(s.takeHit.key), s.takeHit.frames),
+    death: makeSheet(assets.image(s.death.key), s.death.frames),
   }
 }
 
