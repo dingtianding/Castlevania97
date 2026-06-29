@@ -37,7 +37,14 @@ export class TitleScene extends Scene {
     }
   }
 
-  private readonly onPointerDown = (): void => {
+  private readonly onPointerDown = (e: PointerEvent): void => {
+    const point = this.toGamePoint(e)
+    const hit = this.options.findIndex((_option, i) => {
+      const y = this.ctx.height / 2 + 16 + i * 34
+      return point.y >= y - 18 && point.y <= y + 18
+    })
+    if (hit < 0) return
+    this.index = hit
     this.choose()
   }
 
@@ -113,5 +120,13 @@ export class TitleScene extends Scene {
   private saveIsFresh(): boolean {
     const save = loadCampaignSave()
     return save.completedNodeIds.length === 0 && save.currentNodeId === save.unlockedNodeIds[0] && !save.finished
+  }
+
+  private toGamePoint(e: PointerEvent): { x: number; y: number } {
+    const rect = this.ctx.renderer.canvas.getBoundingClientRect()
+    return {
+      x: ((e.clientX - rect.left) / rect.width) * this.ctx.width,
+      y: ((e.clientY - rect.top) / rect.height) * this.ctx.height,
+    }
   }
 }
