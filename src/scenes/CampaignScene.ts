@@ -35,6 +35,7 @@ const DEBUG_HITBOXES = new URLSearchParams(location.search).has('hitbox')
 const CONTACT_HIT_COOLDOWN = 24
 const BIG_HIT_FLASH_TICKS = 10
 const ROOM_CLEAR_AUTO_ADVANCE_TICKS = 240
+const DEFEAT_RETRY_TICKS = 120
 
 interface Platform {
   x: number
@@ -389,6 +390,7 @@ export class CampaignScene extends Scene {
   private hitstop = 0
   private flashTicks = 0
   private contactHitCooldown = 0
+  private defeatTicks = 0
   private readonly attackingLastTick = new Set<CastleActor>()
   private touchControls: TouchControls | null = null
   private readonly onKeyDown = (e: KeyboardEvent): void => {
@@ -396,6 +398,18 @@ export class CampaignScene extends Scene {
       e.preventDefault()
       this.ctx.scenes.replace(new TitleScene(this.ctx))
       return
+    }
+    if (this.defeatTicks > 0) {
+      if (e.code === 'Enter' || e.code === 'Space' || e.code === 'KeyR') {
+        e.preventDefault()
+        this.reloadNode(this.node.id, true)
+        return
+      }
+      if (e.code === 'Escape') {
+        e.preventDefault()
+        this.ctx.scenes.replace(new TitleScene(this.ctx))
+        return
+      }
     }
     if (!this.ending && this.isRoomClear && (e.code === 'Enter' || e.code === 'Space')) {
       e.preventDefault()
@@ -427,6 +441,11 @@ export class CampaignScene extends Scene {
     if (this.flashTicks > 0) this.flashTicks -= 1
     if (this.contactHitCooldown > 0) this.contactHitCooldown -= 1
     if (this.ending) return
+    if (this.defeatTicks > 0) {
+      this.defeatTicks += 1
+      if (this.defeatTicks > DEFEAT_RETRY_TICKS) this.reloadNode(this.node.id, true)
+      return
+    }
     if (this.hitstop > 0) {
       this.hitstop -= 1
       return
@@ -462,7 +481,11 @@ export class CampaignScene extends Scene {
     this.projectiles = this.projectiles.filter((p) => p.ticksLeft > 0 && !p.hasHit)
 
     if (this.player.isDead && this.player.hurtbox().y > 0) {
-      this.reloadNode(this.node.id, true)
+      this.defeatTicks = 1
+      this.hitstop = 0
+      this.contactHitCooldown = CONTACT_HIT_COOLDOWN
+      this.projectiles = []
+      return
     }
 
     if (!this.player.isDead && this.enemies.every((enemy) => enemy.isDead)) {
@@ -493,6 +516,7 @@ export class CampaignScene extends Scene {
     this.drawHud()
     this.drawStory()
     if (this.ending) this.drawEnding()
+    else if (this.defeatTicks > 0) this.drawDefeat()
     else if (this.isRoomClear) this.drawRoomClear()
     else if (Math.floor(this.blink / 30) % 2 === 0) this.drawPrompt()
     this.drawFlash()
@@ -540,6 +564,7 @@ export class CampaignScene extends Scene {
     this.hitstop = 0
     this.flashTicks = 0
     this.contactHitCooldown = 0
+    this.defeatTicks = 0
     this.attackingLastTick.clear()
     this.ending = false
     this.save = { ...this.save, currentNodeId: nodeId, finished: false }
@@ -748,6 +773,25 @@ export class CampaignScene extends Scene {
     ctx.fillStyle = '#8a8aa0'
     ctx.font = '8px "Press Start 2P", monospace'
     ctx.fillText('ENTER ADVANCE     OR WALK TO THE DOOR', this.ctx.width / 2, this.ctx.height - 42)
+    ctx.restore()
+  }
+
+  private drawDefeat(): void {
+    const { ctx } = this.ctx.renderer
+    ctx.save()
+    ctx.fillStyle = 'rgba(8, 6, 14, 0.78)'
+    ctx.fillRect(this.ctx.width / 2 - 270, this.ctx.height / 2 - 78, 540, 132)
+    ctx.strokeStyle = '#b91d2d'
+    ctx.lineWidth = 3
+    ctx.strokeRect(this.ctx.width / 2 - 270, this.ctx.height / 2 - 78, 540, 132)
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillStyle = '#e8d4a0'
+    ctx.font = '20px "Press Start 2P", monospace'
+    ctx.fillText('JULIUS FALLS', this.ctx.width / 2, this.ctx.height / 2 - 32)
+    ctx.fillStyle = '#8a8aa0'
+    ctx.font = '9px "Press Start 2P", monospace'
+    ctx.fillText('ENTER RETRY     ESC TITLE', this.ctx.width / 2, this.ctx.height / 2 + 18)
     ctx.restore()
   }
 
