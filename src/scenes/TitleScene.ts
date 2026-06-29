@@ -112,7 +112,7 @@ export class TitleScene extends Scene {
         this.ctx.scenes.replace(new ModeSelectScene(this.ctx))
         break
       case 'settings':
-        this.ctx.scenes.replace(new SettingsScene(this.ctx))
+        this.ctx.scenes.replace(new SettingsScene(this.ctx, 'title'))
         break
     }
   }

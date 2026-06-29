@@ -1,8 +1,11 @@
 import { Scene } from './Scene.ts'
 import { ModeSelectScene } from './ModeSelectScene.ts'
+import { TitleScene } from './TitleScene.ts'
 import type { AIDifficulty } from '../input/AISource.ts'
+import type { GameContext } from '../core/GameContext.ts'
 import type { GameSettings } from '../settings/SettingsStore.ts'
 
+type SettingsReturnTarget = 'archive' | 'title'
 type SettingKey = 'masterVolume' | 'musicVolume' | 'sfxVolume' | 'reduceMotion' | 'difficulty'
 
 interface SettingRow {
@@ -23,6 +26,13 @@ const DIFFICULTIES: AIDifficulty[] = ['easy', 'normal', 'hard']
 export class SettingsScene extends Scene {
   private index = 0
   private readonly rowRects: { x: number; y: number; w: number; h: number }[] = []
+
+  constructor(
+    ctx: GameContext,
+    private readonly returnTo: SettingsReturnTarget = 'archive',
+  ) {
+    super(ctx)
+  }
 
   private readonly onKeyDown = (e: KeyboardEvent): void => {
     switch (e.code) {
@@ -47,7 +57,7 @@ export class SettingsScene extends Scene {
         this.adjust(1)
         break
       case 'Escape':
-        this.ctx.scenes.replace(new ModeSelectScene(this.ctx))
+        this.goBack()
         break
     }
   }
@@ -95,6 +105,11 @@ export class SettingsScene extends Scene {
         break
       }
     }
+  }
+
+  private goBack(): void {
+    if (this.returnTo === 'title') this.ctx.scenes.replace(new TitleScene(this.ctx))
+    else this.ctx.scenes.replace(new ModeSelectScene(this.ctx))
   }
 
   render(): void {
