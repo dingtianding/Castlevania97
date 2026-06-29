@@ -294,7 +294,6 @@ export function completeCampaignBattle(save: CampaignSave): CampaignSave {
     if (nextChapter) {
       nextChapterId = nextChapter.id
       currentNodeId = nextChapter.nodeIds[0] ?? null
-      nextChapter.nodeIds.forEach((nextId) => unlocked.add(nextId))
       if (currentNodeId) unlocked.add(currentNodeId)
     } else {
       finished = true
