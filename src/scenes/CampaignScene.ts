@@ -1016,7 +1016,7 @@ export class CampaignScene extends Scene {
     ctx.fillText('CASTLEVANIA97 COMPLETE', this.ctx.width / 2, 190)
     ctx.fillStyle = '#b7c7e6'
     ctx.font = '10px "Press Start 2P", monospace'
-    wrapText(ctx, 'The 1999 Demon Castle War is over. Julius Belmont stands at the end of the bloodline and the beginning of a new silence.', this.ctx.width / 2 - 260, 234, 520, 16, 6)
+    wrapText(ctx, 'The 1997 hunt ends with Julius alive, warned, and changed. The war is still ahead, but the young Belmont now knows where the final road leads.', this.ctx.width / 2 - 260, 234, 520, 16, 6)
     ctx.fillStyle = '#5a567a'
     ctx.fillText('ENTER / SPACE / ESC RETURN TO TITLE', this.ctx.width / 2, this.ctx.height - 164)
     ctx.restore()

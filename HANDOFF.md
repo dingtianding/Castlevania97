@@ -33,8 +33,8 @@ The full approved plan lives at: `/Users/deanding/.claude/plans/elegant-splashin
   Latest scoring follow-up: match results show score/grade from damage, time, health, perfects, and
   super hits.
   Latest local follow-up: high scores persist in `localStorage` and are viewable from Mode Select.
-  Latest product pivot: the first-screen experience is now a Julius Belmont campaign for the
-  1997-1999 Demon Castle War. Title offers Start Campaign / Continue / Archive / Settings. Campaign
+  Latest product pivot: the first-screen experience is now a 1997 younger-Julius campaign set two
+  years before the war. Title offers Start Campaign / Continue / Archive / Settings. Campaign
   uses browser-local progress, chapter/node data, side-scrolling room encounters, Julius campaign
   sprites, campaign enemies, and stage identities. Archive keeps the legacy versus/arcade/training
   fighter modes available behind Mode Select.
@@ -81,7 +81,7 @@ The full approved plan lives at: `/Users/deanding/.claude/plans/elegant-splashin
   - Local high-score follow-up: `data/highScores.ts` stores top browser-local scores; `ResultScene`
     records player-one wins, and `HighScoresScene` displays them from Mode Select.
   - `324d4f8` README rewritten for the engine, with `docs/` screenshots.
-- **Playable now (full loop):** Title → Campaign room sequence (Julius vs castle enemies) with
+- **Playable now (full loop):** Title → Campaign room sequence (young Julius vs omen enemies) with
   persistent chapter/node progress. Archive path: Title → ModeSelect (Local 2P / VS CPU / Training /
   Arcade / Boss Rush) → CharacterSelect → best-of-3 Battle → Result (rematch / arcade-advance /
   title). Three selectable archive fighters (samuraiMack, kenji, Gothic Hero), each with
@@ -157,7 +157,7 @@ Primary files:
 
 Verified on 2026-06-29: `npm run build` clean; production preview serves under
 `/Castlevania97/`; headless Chrome entered Start Campaign and created the expected
-`1997-chapel` save; an advanced `1998-clock` save survived in-room `R` reset without being wiped.
+`1997-chapel` save; an advanced campaign save survived in-room reset without being wiped.
 
 Next campaign pass: manually play several campaign rooms in-browser, tune enemy count/health and
 Julius hitboxes, check story text wrapping on every node, then refresh screenshots/GIFs around the

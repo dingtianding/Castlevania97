@@ -19,13 +19,13 @@ export class TitleScene extends Scene {
 
   private get options(): TitleOption[] {
     const options: TitleOption[] = [
-      { label: 'START CAMPAIGN', action: 'start', blurb: 'Begin Julius Belmont\'s run through the castle' },
+      { label: 'START CAMPAIGN', action: 'start', blurb: 'Begin young Julius\' first 1997 hunt' },
     ]
     if (campaignHasProgress(this.save)) {
       options.push({
         label: this.save.finished ? 'CAMPAIGN CLEAR' : 'CONTINUE',
         action: 'continue',
-        blurb: this.save.finished ? 'Review the ending of the Demon Castle War' : continueBlurb(this.save),
+        blurb: this.save.finished ? 'Review the end of Julius\' 1997 hunt' : continueBlurb(this.save),
       })
     }
     options.push(
@@ -95,10 +95,10 @@ export class TitleScene extends Scene {
     ctx.font = '34px "Press Start 2P", monospace'
     ctx.fillText('CASTLEVANIA97', this.ctx.width / 2, this.ctx.height / 2 - 88)
     ctx.font = '18px "Press Start 2P", monospace'
-    ctx.fillText('Demon Castle War', this.ctx.width / 2, this.ctx.height / 2 - 50)
+    ctx.fillText('Young Julius', this.ctx.width / 2, this.ctx.height / 2 - 50)
     ctx.fillStyle = '#b7c7e6'
     ctx.font = '10px "Press Start 2P", monospace'
-    ctx.fillText('1997-1999', this.ctx.width / 2, this.ctx.height / 2 - 24)
+    ctx.fillText('1997', this.ctx.width / 2, this.ctx.height / 2 - 24)
 
     this.options.forEach((opt, i) => {
       const y = this.ctx.height / 2 + 16 + i * 34

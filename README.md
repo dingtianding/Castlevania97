@@ -2,15 +2,15 @@
 
 [**▶ Play Castlevania97**](https://dingtianding.github.io/Castlevania97/)
 
-A Castlevania-inspired action campaign centered on Julius Belmont and the 1999 Demon Castle War, built as a production-grade TypeScript canvas engine.
-The current build pivots the original fighter scaffold into a castle campaign with a node-based map, room encounters, chapter story text, and a legacy archive that preserves the old versus modes.
+A Castlevania-inspired action campaign centered on a younger Julius Belmont in 1997, built as a production-grade TypeScript canvas engine.
+The current build pivots the original fighter scaffold into a 1997 action campaign with a node-based route, room encounters, chapter story text, and a legacy archive that preserves the old versus modes.
 
 ![Character select](docs/select.png)
 ![Battle](docs/battle.png)
 
 ## Modes
 
-- **Campaign** — Julius travels through a node-based castle map, clears room encounters, and advances the 1997-1999 story.
+- **Campaign** — young Julius follows a 1997 omen, clears room encounters, and reaches the castle only at the final stage.
 - **Archive** — the legacy versus fighter modes remain available as a side menu.
 - **Settings** — audio, reduced motion, and CPU difficulty.
 - **Move Codices** — browse the legacy roster data and move lists.

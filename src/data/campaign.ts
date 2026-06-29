@@ -47,31 +47,31 @@ export const CAMPAIGN_CHAPTERS: readonly CampaignChapterDef[] = [
   {
     id: '1997-dusk',
     year: 1997,
-    title: 'The First Tremor',
+    title: 'The First Hunt',
     intro:
-      'Rumors move through the eastern provinces first: graves opened without tracks, bells ringing with no wind, and a castle-shaped shadow that should not exist yet.',
+      'In 1997, a younger Julius Belmont follows his first true lead: graves opened without tracks, bells ringing with no wind, and old seals warming beneath ruined chapels.',
     outro:
-      'Julius seals the first breach and learns the disturbance is not random. Someone is preparing the castle years before Dracula fully rises.',
+      'Julius seals the first breach and learns the disturbance is not random. Someone is testing the locks two years before the great war begins.',
     nodeIds: ['1997-chapel', '1997-library', '1997-seal'],
   },
   {
     id: '1998-ash',
-    year: 1998,
-    title: 'The Ash Year',
+    year: 1997,
+    title: 'The Hidden Trail',
     intro:
-      'The trail widens. Forgotten orders, old pages, and a broken chain of priests point toward the same conclusion: the demon castle is being assembled room by room.',
+      'The trail widens across the same dark year. Forgotten orders, old pages, and a broken chain of priests point Julius toward the hands preparing Dracula’s return.',
     outro:
-      'The second seal falls, but the castle now has enough shape to cast a shadow across the whole continent.',
+      'The second seal falls. Julius is still too early for the war, but no longer too young to understand what is coming.',
     nodeIds: ['1998-catacombs', '1998-clock', '1998-archive'],
   },
   {
     id: '1999-war',
-    year: 1999,
-    title: 'The Demon Castle War',
+    year: 1997,
+    title: 'The Last Omen',
     intro:
-      'The final year arrives with the castle fully awake. Julius crosses the outer wall knowing the only useful path now is forward, through the heart of the keep.',
+      'The last omen of 1997 pulls Julius toward a forbidden horizon. The signs no longer point to villages or crypts. They point to the place the Belmonts will one day have to enter.',
     outro:
-      'The last seal breaks and Dracula is forced into the open. The war ends the way the prophecy said it must: with a Belmont standing at the center of the ruin.',
+      'Julius survives the omen and carries its warning forward. The war is still ahead, but the young Belmont has seen where the final road will end.',
     nodeIds: ['1999-wall', '1999-throne', '1999-dracula'],
   },
 ]
@@ -84,7 +84,7 @@ export const CAMPAIGN_NODES: readonly CampaignNodeDef[] = [
     year: 1997,
     blurb: 'A first sweep through a desecrated sanctum where the ritual smoke is still warm.',
     story:
-      'A broken chapel sits on the border of the disturbance. Julius clears the nave, finds the first sigil, and leaves a warning carved into the stone for whatever is listening.',
+      'A broken chapel sits on the border of the disturbance. Young Julius clears the nave, finds the first sigil, and leaves a warning carved into the stone for whatever is listening.',
     stage: 'cathedral',
     enemy: skeleton,
     difficulty: 'easy',
@@ -98,7 +98,7 @@ export const CAMPAIGN_NODES: readonly CampaignNodeDef[] = [
     year: 1997,
     blurb: 'Shelves packed with censored scripture and map fragments copied by hand.',
     story:
-      'The books do not name Dracula directly. They name the spaces around him: the seals, the thresholds, the places where the castle can take shape before the body does.',
+      'The books do not name Dracula directly. They name the signs around him: the seals, the thresholds, and the rites that must be broken before the war arrives.',
     stage: 'library',
     enemy: zombie,
     difficulty: 'normal',
@@ -124,10 +124,10 @@ export const CAMPAIGN_NODES: readonly CampaignNodeDef[] = [
     id: '1998-catacombs',
     chapterId: '1998-ash',
     title: 'Lower Catacombs',
-    year: 1998,
-    blurb: 'The castle’s roots. Damp stone, old bones, and movement in the walls.',
+    year: 1997,
+    blurb: 'Damp stone, old bones, and movement in the walls below the province.',
     story:
-      'The underground passages connect the first year’s ruins to newer work. Someone is expanding the castle from below, using the dead as foundation.',
+      'The underground passages connect the chapel ruins to newer work. Someone is moving relics beneath the province, using the dead as cover.',
     stage: 'catacombs',
     enemy: zombie,
     difficulty: 'normal',
@@ -138,10 +138,10 @@ export const CAMPAIGN_NODES: readonly CampaignNodeDef[] = [
     id: '1998-clock',
     chapterId: '1998-ash',
     title: 'Clock Tower',
-    year: 1998,
+    year: 1997,
     blurb: 'A vertical chain of gears, bridges, and timed jumps above the dark.',
     story:
-      'The tower keeps perfect time even when the rest of the world is broken. Julius realizes the castle is being synchronized to the year of Dracula’s return.',
+      'The tower keeps perfect time even when the rest of the world is broken. Julius realizes the cult is counting down to a war he has not yet seen.',
     stage: 'clock_tower',
     enemy: skeleton,
     difficulty: 'hard',
@@ -152,10 +152,10 @@ export const CAMPAIGN_NODES: readonly CampaignNodeDef[] = [
     id: '1998-archive',
     chapterId: '1998-ash',
     title: 'Black Archive',
-    year: 1998,
+    year: 1997,
     blurb: 'A sealed record room where the final name in the war is finally written down.',
     story:
-      'The archive confirms the Castle is not just appearing. It is being assembled as a ritual engine, and Julius is already late to the center of it.',
+      'The archive confirms the missing name and the shape of the threat. Julius is early, but the ritual engine is already being designed.',
     stage: 'library',
     enemy: zombie,
     difficulty: 'hard',
@@ -166,11 +166,11 @@ export const CAMPAIGN_NODES: readonly CampaignNodeDef[] = [
   {
     id: '1999-wall',
     chapterId: '1999-war',
-    title: 'Outer Wall',
-    year: 1999,
-    blurb: 'The castle rises fully at last. There is no stealth left, only ascent.',
+    year: 1997,
+    title: 'Old Causeway',
+    blurb: 'A rain-cut road toward the forbidden border. There is no stealth left, only pursuit.',
     story:
-      'Julius reaches the outer wall as the Demon Castle War begins in earnest. The castle is no longer a rumor. It is a battlefield with a pulse.',
+      'Julius reaches the old causeway as the last omen takes shape. The enemy is no longer hiding behind rumor. It is testing how far a Belmont will follow.',
     stage: 'outer_wall',
     enemy: skeleton,
     difficulty: 'hard',
@@ -180,12 +180,12 @@ export const CAMPAIGN_NODES: readonly CampaignNodeDef[] = [
   {
     id: '1999-throne',
     chapterId: '1999-war',
-    title: 'Throne Approach',
-    year: 1999,
-    blurb: 'A straight corridor toward the heart of the castle, lined with the last defenders of the night.',
+    year: 1997,
+    title: 'Crimson Approach',
+    blurb: 'A straight road through the final defenders of the night.',
     story:
-      'Every room from the previous years has been leading to this one. Julius cuts through the final defenses and enters the throne wing with the seal nearly spent.',
-    stage: 'throne_room',
+      'Every clue from the year has been leading to this approach. Julius cuts through the final defenses with the seal nearly spent.',
+    stage: 'outer_wall',
     enemy: zombie,
     difficulty: 'hard',
     nextIds: ['1999-dracula'],
@@ -194,11 +194,11 @@ export const CAMPAIGN_NODES: readonly CampaignNodeDef[] = [
   {
     id: '1999-dracula',
     chapterId: '1999-war',
-    title: 'Dracula 1999',
-    year: 1999,
-    blurb: 'The king of the castle takes the final stand. This is the battle the legend was building toward.',
+    title: 'Demon Castle Gate',
+    year: 1997,
+    blurb: 'The castle appears for one impossible night. Julius reaches the gate, but not yet the war.',
     story:
-      'The castle stops pretending to be architecture. Dracula rises in the center of the war, and Julius answers with the last and cleanest line of the Belmont bloodline.',
+      'The Demon Castle opens only at the edge of the omen. Dracula’s shadow answers from within, and young Julius learns what he must be ready to face two years from now.',
     stage: 'throne_room',
     enemy: dracula1999,
     difficulty: 'hard',

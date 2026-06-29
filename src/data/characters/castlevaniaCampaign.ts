@@ -87,7 +87,7 @@ export const zombie: CharacterDef = {
   name: 'ZOMBIE',
   meta: {
     archetype: 'RISING CORPSE',
-    bio: 'A slow but stubborn castle deadhead that crowds narrow rooms and punishes careless spacing.',
+    bio: 'A slow but stubborn deadhead that crowds narrow rooms and punishes careless spacing.',
     stats: { power: 2, speed: 1, range: 1, technique: 1 },
     moveNames: {
       light: 'Bite',
@@ -243,15 +243,15 @@ export const skeleton: CharacterDef = {
 
 export const dracula1999: CharacterDef = {
   id: 'dracula1999',
-  name: 'DRACULA 1999',
+  name: 'DRACULA SHADOW',
   meta: {
     archetype: 'FINAL BOSS',
-    bio: 'The castle core made flesh. Heavy reach, crushing damage, and a room-filling super.',
+    bio: 'A prophecy given form. Heavy reach, crushing damage, and a room-filling super.',
     stats: { power: 5, speed: 1, range: 5, technique: 2 },
     moveNames: {
       light: 'Night Claw',
       heavy: 'Abyss Crush',
-      special: 'Castle Ruin',
+      special: 'Ruin Step',
       super: 'Blood Eclipse',
     },
   },

@@ -20,8 +20,8 @@ export interface StageDef {
 export const STAGES: readonly StageDef[] = [
   {
     id: 'outer_wall',
-    name: 'Outer Wall',
-    blurb: 'Stone ramparts and open air. The castle is still distant, but awake.',
+    name: 'Old Ramparts',
+    blurb: 'Stone ramparts and open air. The forbidden border is still distant, but awake.',
     overlay: 'rgba(18, 16, 34, 0.14)',
     overlayAlpha: 0.14,
     shopX: 112,
@@ -61,7 +61,7 @@ export const STAGES: readonly StageDef[] = [
   {
     id: 'catacombs',
     name: 'Catacombs',
-    blurb: 'The lower bones of the castle. The air is wet, cold, and hostile.',
+    blurb: 'Lower bones of the old province. The air is wet, cold, and hostile.',
     overlay: 'rgba(8, 12, 26, 0.24)',
     overlayAlpha: 0.24,
     shopX: 96,
