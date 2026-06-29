@@ -27,6 +27,7 @@ const FLOOR_Y = 492
 const GRAVITY = 0.78
 const WALK_SPEED = 3.4
 const AIR_SPEED = 3.0
+const ATTACK_DRIFT_SPEED = 1.6
 const DASH_SPEED = 12
 const DASH_TICKS = 10
 const DASH_COOLDOWN_TICKS = 28
@@ -99,7 +100,7 @@ class CastleActor {
   meter = 0
   grounded = true
   facing: Facing
-  state: 'idle' | 'run' | 'jump' | 'fall' | 'attack' | 'hurt' | 'death' = 'idle'
+  state: 'idle' | 'run' | 'jump' | 'fall' | 'attack' | 'dash' | 'hurt' | 'death' = 'idle'
   private readonly sheets: SpriteSet
   private readonly animator: Animator
   private attackMove: AttackMove | null = null
@@ -169,30 +170,30 @@ class CastleActor {
     if (this.dashCooldown > 0) this.dashCooldown -= 1
 
     if (this.state === 'death') {
-      this.animator.update()
+      this.updateAnimator()
       return
     }
 
     if (this.state === 'hurt') {
       this.updateHurt(platforms)
-      this.animator.update()
+      this.updateAnimator()
       return
     }
 
     if (this.state === 'attack') {
       this.updateAttack(intent, platforms)
-      this.animator.update()
+      this.updateAnimator()
       return
     }
 
     if (this.tryStartAttack(intent)) {
       this.updateAttack(intent, platforms)
-      this.animator.update()
+      this.updateAnimator()
       return
     }
 
     this.updateLocomotion(intent, opponentX, platforms)
-    this.animator.update()
+    this.updateAnimator()
   }
 
   activeAttack(): { box: Rect; spec: AttackMove } | null {
@@ -250,8 +251,8 @@ class CastleActor {
     this.attackConnected = false
     this.projectileSpawned = false
     this.pendingProjectileSpawn = null
-    this.state = this.grounded ? 'run' : 'fall'
-    this.animator.play(this.grounded ? this.sheets.run : this.sheets.fall, 4, true)
+    this.state = 'dash'
+    this.animator.play(this.sheets.run, 3, true)
   }
 
   private tryStartAttack(intent: IntentState): boolean {
@@ -281,6 +282,7 @@ class CastleActor {
 
   private updateLocomotion(intent: IntentState, opponentX: number, platforms: Platform[]): void {
     const moveSpeed = this.grounded ? WALK_SPEED : AIR_SPEED
+    const dashing = this.dashTicks > 0
     if (this.dashTicks > 0) {
       this.dashTicks -= 1
       this.velocity.x = this.facing * DASH_SPEED
@@ -298,13 +300,19 @@ class CastleActor {
 
     this.integrate(platforms)
 
+    if (dashing) {
+      this.state = 'dash'
+      return
+    }
     const next = !this.grounded ? (this.velocity.y < 0 ? 'jump' : 'fall') : intent.moveX === 0 ? 'idle' : 'run'
     this.setMotion(next)
   }
 
   private updateAttack(intent: IntentState, platforms: Platform[]): void {
     this.attackTick += 1
-    this.velocity.x = 0
+    this.velocity.x = intent.moveX * ATTACK_DRIFT_SPEED
+    if (intent.moveX > 0) this.facing = 1
+    else if (intent.moveX < 0) this.facing = -1
     if (this.attackMove?.projectile && !this.projectileSpawned) {
       const spawnTick = this.attackMove.projectile.spawnTick ?? this.attackMove.startup
       if (this.attackTick >= spawnTick) {
@@ -392,10 +400,16 @@ class CastleActor {
         this.animator.play(s.fall, 8, true)
         break
       case 'attack':
+      case 'dash':
       case 'hurt':
       case 'death':
         break
     }
+  }
+
+  private updateAnimator(): void {
+    if (this.def.id === 'juliusBelmont' && this.state === 'idle') return
+    this.animator.update()
   }
 
   render(renderer: Renderer, cameraX: number): void {
@@ -406,6 +420,15 @@ class CastleActor {
     const y = this.position.y
     const drawX = this.facing === 1 ? x - this.def.visual.anchorX * scale : x - (sheet.frameWidth - this.def.visual.anchorX) * scale
     const drawY = y - this.def.visual.anchorY * scale
+    if (this.state === 'dash') {
+      const { ctx } = renderer
+      ctx.save()
+      ctx.globalAlpha = 0.28
+      drawSprite(renderer, sheet, frame, drawX - this.facing * 28, drawY, scale, this.facing)
+      ctx.globalAlpha = 0.14
+      drawSprite(renderer, sheet, frame, drawX - this.facing * 54, drawY, scale, this.facing)
+      ctx.restore()
+    }
     drawSprite(renderer, sheet, frame, drawX, drawY, scale, this.facing)
   }
 
@@ -422,6 +445,7 @@ class CastleActor {
   private currentSheet(): SpriteSheet {
     const s = this.sheets
     if (this.state === 'attack') return this.attackMove?.animKey === 'attack2' ? s.attack2 : s.attack1
+    if (this.state === 'dash') return s.run
     if (this.state === 'jump') return s.jump
     if (this.state === 'fall') return s.fall
     if (this.state === 'hurt') return s.takeHit
