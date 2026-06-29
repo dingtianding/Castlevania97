@@ -31,6 +31,7 @@ const JUMP_VELOCITY = -15.5
 const FAST_FALL_SPEED = 12
 const WALL_MARGIN = 48
 const HURT_TICKS = 20
+const DEBUG_HITBOXES = new URLSearchParams(location.search).has('hitbox')
 
 interface Platform {
   x: number
@@ -564,6 +565,30 @@ export class CampaignScene extends Scene {
     this.player.render(this.ctx.renderer, this.cameraX)
     for (const enemy of this.enemies) enemy.render(this.ctx.renderer, this.cameraX)
     for (const projectile of this.projectiles) renderProjectile(projectile, this.ctx.renderer, this.cameraX)
+    if (DEBUG_HITBOXES) this.drawDebugBoxes()
+  }
+
+  private drawDebugBoxes(): void {
+    const { ctx } = this.ctx.renderer
+    const stroke = (box: Rect, color: string): void => {
+      ctx.strokeStyle = color
+      ctx.lineWidth = 2
+      ctx.strokeRect(box.x - this.cameraX, box.y, box.width, box.height)
+    }
+
+    ctx.save()
+    stroke(this.player.hurtbox(), '#55d66b')
+    const playerAttack = this.player.activeAttack()
+    if (playerAttack) stroke(playerAttack.box, '#ffd166')
+    for (const enemy of this.enemies) {
+      stroke(enemy.hurtbox(), '#ff5a7a')
+      const attack = enemy.activeAttack()
+      if (attack) stroke(attack.box, '#ff9f1c')
+    }
+    for (const projectile of this.projectiles) {
+      if (!projectile.hasHit) stroke(projectileBox(projectile), '#5ad0ff')
+    }
+    ctx.restore()
   }
 
   private drawHud(): void {
