@@ -80,7 +80,7 @@ class CastleActor {
   readonly position: Vec2
   readonly prevPosition: Vec2
   readonly velocity: Vec2 = { x: 0, y: 0 }
-  readonly maxHealth = 100
+  maxHealth = 100
   health = 100
   meter = 0
   grounded = true
@@ -335,6 +335,11 @@ class CastleActor {
     return { x: this.position.x - width / 2, y: this.position.y - height, width, height }
   }
 
+  setMaxHealth(value: number): void {
+    this.maxHealth = value
+    this.health = value
+  }
+
   private currentSheet(): SpriteSheet {
     const s = this.sheets
     if (this.state === 'attack') return this.attackMove?.animKey === 'attack2' ? s.attack2 : s.attack1
@@ -565,7 +570,30 @@ export class CampaignScene extends Scene {
     this.player.render(this.ctx.renderer, this.cameraX)
     for (const enemy of this.enemies) enemy.render(this.ctx.renderer, this.cameraX)
     for (const projectile of this.projectiles) renderProjectile(projectile, this.ctx.renderer, this.cameraX)
+    this.drawEnemyHealthBars()
     if (DEBUG_HITBOXES) this.drawDebugBoxes()
+  }
+
+  private drawEnemyHealthBars(): void {
+    const { ctx } = this.ctx.renderer
+    ctx.save()
+    for (const enemy of this.enemies) {
+      if (enemy.isDead) continue
+      const hurtbox = enemy.hurtbox()
+      const width = Math.max(48, Math.min(96, hurtbox.width * 1.3))
+      const x = hurtbox.x + hurtbox.width / 2 - width / 2 - this.cameraX
+      const y = Math.max(124, hurtbox.y - 16)
+      const ratio = clamp(enemy.health / enemy.maxHealth, 0, 1)
+
+      ctx.fillStyle = 'rgba(8, 6, 14, 0.78)'
+      ctx.fillRect(x, y, width, 7)
+      ctx.fillStyle = enemy.maxHealth > 120 ? '#b91d2d' : '#d68f32'
+      ctx.fillRect(x, y, width * ratio, 7)
+      ctx.strokeStyle = '#e8d4a0'
+      ctx.lineWidth = 1
+      ctx.strokeRect(x, y, width, 7)
+    }
+    ctx.restore()
   }
 
   private drawDebugBoxes(): void {
@@ -675,7 +703,7 @@ function buildEnemies(node: ReturnType<typeof getCampaignNode>, assets: AssetMan
   const slots = spread(layout.checkpointX + 380, layout.doorX - 180, count)
   return slots.map((x) => {
     const enemy = new CastleActor(def, assets, x, layout.checkpointY, -1)
-    enemy.health = node.isBoss ? 180 : node.difficulty === 'hard' ? 110 : 80
+    enemy.setMaxHealth(node.isBoss ? 180 : node.difficulty === 'hard' ? 110 : 80)
     enemy.meter = def.id === 'dracula1999' ? 100 : 0
     return enemy
   })
