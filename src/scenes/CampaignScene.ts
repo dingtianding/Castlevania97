@@ -27,6 +27,9 @@ const FLOOR_Y = 492
 const GRAVITY = 0.78
 const WALK_SPEED = 3.4
 const AIR_SPEED = 3.0
+const DASH_SPEED = 12
+const DASH_TICKS = 10
+const DASH_COOLDOWN_TICKS = 28
 const JUMP_VELOCITY = -15.5
 const FAST_FALL_SPEED = 12
 const WALL_MARGIN = 48
@@ -41,6 +44,7 @@ interface StoryCard {
   title: string
   body: string
   nextNodeId?: string
+  endCampaign?: boolean
 }
 
 interface Platform {
@@ -104,6 +108,9 @@ class CastleActor {
   private projectileSpawned = false
   private pendingProjectileSpawn: ProjectileSpawn | null = null
   private hurtTick = 0
+  private jumpCount = 0
+  private dashTicks = 0
+  private dashCooldown = 0
 
   constructor(
     readonly def: CharacterDef,
@@ -149,6 +156,9 @@ class CastleActor {
     this.projectileSpawned = false
     this.pendingProjectileSpawn = null
     this.hurtTick = 0
+    this.jumpCount = 0
+    this.dashTicks = 0
+    this.dashCooldown = 0
     this.animator.play(this.sheets.idle, 8, true)
     this.animator.reset()
   }
@@ -156,6 +166,7 @@ class CastleActor {
   update(intent: IntentState, opponentX: number, platforms: Platform[]): void {
     this.prevPosition.x = this.position.x
     this.prevPosition.y = this.position.y
+    if (this.dashCooldown > 0) this.dashCooldown -= 1
 
     if (this.state === 'death') {
       this.animator.update()
@@ -169,6 +180,12 @@ class CastleActor {
     }
 
     if (this.state === 'attack') {
+      this.updateAttack(intent, platforms)
+      this.animator.update()
+      return
+    }
+
+    if (this.tryStartAttack(intent)) {
       this.updateAttack(intent, platforms)
       this.animator.update()
       return
@@ -214,17 +231,62 @@ class CastleActor {
   }
 
   tryJump(): void {
-    if (this.grounded) {
-      this.velocity.y = JUMP_VELOCITY
-      this.grounded = false
-      this.state = 'jump'
-      this.animator.play(this.sheets.jump, 8, true)
-    }
+    if (!this.grounded && this.jumpCount >= 2) return
+    this.velocity.y = JUMP_VELOCITY
+    this.grounded = false
+    this.jumpCount += 1
+    this.state = 'jump'
+    this.attackMove = null
+    this.attackConnected = false
+    this.animator.play(this.sheets.jump, 8, true)
+  }
+
+  tryDash(direction: Facing): void {
+    if (this.state === 'death' || this.state === 'hurt' || this.dashCooldown > 0) return
+    this.facing = direction
+    this.dashTicks = DASH_TICKS
+    this.dashCooldown = DASH_COOLDOWN_TICKS
+    this.attackMove = null
+    this.attackConnected = false
+    this.projectileSpawned = false
+    this.pendingProjectileSpawn = null
+    this.state = this.grounded ? 'run' : 'fall'
+    this.animator.play(this.grounded ? this.sheets.run : this.sheets.fall, 4, true)
+  }
+
+  private tryStartAttack(intent: IntentState): boolean {
+    if (this.state === 'death' || this.state === 'hurt' || this.state === 'attack') return false
+    const move = intent.specialPressed && this.meter >= (this.def.moves.super.meterCost ?? Number.POSITIVE_INFINITY)
+      ? this.def.moves.super
+      : intent.specialPressed
+        ? this.def.moves.special
+        : intent.heavyPressed
+          ? this.def.moves.heavy
+          : intent.lightPressed
+            ? this.def.moves.light
+            : null
+    if (!move) return false
+    if (move.meterCost) this.meter = Math.max(0, this.meter - move.meterCost)
+    this.attackMove = move
+    this.attackTick = 0
+    this.attackConnected = false
+    this.projectileSpawned = false
+    this.pendingProjectileSpawn = null
+    this.velocity.x = 0
+    this.state = 'attack'
+    this.animator.play(move.animKey === 'attack2' ? this.sheets.attack2 : this.sheets.attack1, 4, false)
+    this.animator.reset()
+    return true
   }
 
   private updateLocomotion(intent: IntentState, opponentX: number, platforms: Platform[]): void {
     const moveSpeed = this.grounded ? WALK_SPEED : AIR_SPEED
-    this.velocity.x = intent.moveX * moveSpeed
+    if (this.dashTicks > 0) {
+      this.dashTicks -= 1
+      this.velocity.x = this.facing * DASH_SPEED
+    } else {
+      this.velocity.x = intent.moveX * moveSpeed
+    }
     if (intent.moveX > 0) this.facing = 1
     else if (intent.moveX < 0) this.facing = -1
     else this.facing = opponentX >= this.position.x ? 1 : -1
@@ -284,6 +346,7 @@ class CastleActor {
   }
 
   private integrate(platforms: Platform[]): void {
+    const wasGrounded = this.grounded
     this.position.x += this.velocity.x
     this.position.x = clamp(this.position.x, WALL_MARGIN, ROOM_WIDTH - WALL_MARGIN)
     this.velocity.y += GRAVITY
@@ -303,9 +366,11 @@ class CastleActor {
       this.position.y = landed ? landingY : FLOOR_Y
       this.velocity.y = 0
       this.grounded = true
+      this.jumpCount = 0
       if (this.state === 'jump' || this.state === 'fall') this.setMotion(Math.abs(this.velocity.x) > 0 ? 'run' : 'idle')
     } else {
       this.grounded = false
+      if (wasGrounded) this.jumpCount = Math.max(this.jumpCount, 1)
     }
   }
 
@@ -399,6 +464,7 @@ export class CampaignScene extends Scene {
   private defeatTicks = 0
   private storyCard: StoryCard | null = null
   private storyQueue: StoryCard[] = []
+  private dashPressed = false
   private readonly attackingLastTick = new Set<CastleActor>()
   private touchControls: TouchControls | null = null
   private readonly onKeyDown = (e: KeyboardEvent): void => {
@@ -420,7 +486,7 @@ export class CampaignScene extends Scene {
       return
     }
     if (this.defeatTicks > 0) {
-      if (e.code === 'Enter' || e.code === 'Space' || e.code === 'KeyR') {
+      if (e.code === 'Enter' || e.code === 'Space') {
         e.preventDefault()
         this.reloadNode(this.node.id, true)
         return
@@ -437,7 +503,10 @@ export class CampaignScene extends Scene {
       return
     }
     if (e.code === 'Escape') this.ctx.scenes.replace(new TitleScene(this.ctx))
-    if (e.code === 'KeyR') this.reloadNode(this.node.id, true)
+    if (e.code === 'KeyR') {
+      e.preventDefault()
+      if (!e.repeat) this.dashPressed = true
+    }
     if (e.code === 'KeyM') this.ctx.scenes.replace(new ModeSelectScene(this.ctx))
   }
 
@@ -477,6 +546,10 @@ export class CampaignScene extends Scene {
     }
 
     const intent = this.input.poll()
+    if (this.dashPressed) {
+      this.dashPressed = false
+      this.player.tryDash(intent.moveX === 0 ? this.player.facing : intent.moveX)
+    }
     this.player.update(intent, this.player.position.x + this.player.facing * 80, this.layout.platforms)
 
     for (const enemy of this.enemies) {
@@ -587,6 +660,7 @@ export class CampaignScene extends Scene {
     this.flashTicks = 0
     this.contactHitCooldown = 0
     this.defeatTicks = 0
+    this.dashPressed = false
     this.attackingLastTick.clear()
     this.ending = false
     this.save = { ...this.save, currentNodeId: nodeId, finished: false }
@@ -658,7 +732,12 @@ export class CampaignScene extends Scene {
     const next = completeCampaignBattle(this.save)
     this.save = next
     if (next.finished) {
-      this.ending = true
+      this.storyQueue = []
+      this.storyCard = {
+        title: `${previousChapter.year}  ${previousChapter.title} CLEAR`,
+        body: previousChapter.outro,
+        endCampaign: true,
+      }
       return
     }
     if (next.currentNodeId) {
@@ -679,8 +758,10 @@ export class CampaignScene extends Scene {
 
   private continueStoryCard(): void {
     const nextNodeId = this.storyCard?.nextNodeId
+    const endCampaign = this.storyCard?.endCampaign
     this.storyCard = null
-    if (nextNodeId) this.reloadNode(nextNodeId)
+    if (endCampaign) this.ending = true
+    else if (nextNodeId) this.reloadNode(nextNodeId)
     else this.storyCard = this.storyQueue.shift() ?? null
   }
 
@@ -818,9 +899,10 @@ export class CampaignScene extends Scene {
     const { ctx } = this.ctx.renderer
     ctx.save()
     ctx.fillStyle = '#5a567a'
-    ctx.font = '9px "Press Start 2P", monospace'
+    ctx.font = '8px "Press Start 2P", monospace'
     ctx.textAlign = 'center'
-    ctx.fillText('J JUMP   K LIGHT   L HEAVY   ; SPECIAL   R RESET   ESC TITLE', this.ctx.width / 2, this.ctx.height - 28)
+    ctx.fillText('A/D MOVE   J JUMP   J AGAIN DOUBLE   R DASH', this.ctx.width / 2, this.ctx.height - 38)
+    ctx.fillText('K LIGHT   L HEAVY   ; SPECIAL   ESC TITLE', this.ctx.width / 2, this.ctx.height - 22)
     ctx.restore()
   }
 
