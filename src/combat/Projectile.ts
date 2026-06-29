@@ -55,7 +55,8 @@ class Projectile {
     if (!rectsOverlap(box, hurt)) return null
 
     this.hasHit = true
-    defender.applyHit(this.spawn.move, this.spawn.owner.position.x)
+    defender.applyHit(this.spawn.move, this.spawn.owner.position.x, this.spawn.owner.damageDealtMultiplier)
+    this.spawn.owner.markAttackConnected(this.spawn.owner.damageDealtMultiplier)
     return {
       attacker: this.spawn.owner,
       defender,

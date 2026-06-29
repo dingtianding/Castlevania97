@@ -1,25 +1,48 @@
 import { Scene } from './Scene.ts'
 import { ModeSelectScene } from './ModeSelectScene.ts'
+import { CampaignScene } from './CampaignScene.ts'
+import { SettingsScene } from './SettingsScene.ts'
 import { TICK_RATE } from '../core/Time.ts'
+import { loadCampaignSave, resetCampaignSave } from '../data/campaign.ts'
 
-/** Title card. Press Enter/Space to drop into the battle (the full mode menu
- *  and character select arrive in P6). */
 export class TitleScene extends Scene {
-  private start = false
+  private index = 0
   private tick = 0
 
+  private readonly options = [
+    { label: 'START CAMPAIGN', action: 'start' as const, blurb: 'Begin Julius Belmont\'s run through the castle' },
+    { label: 'CONTINUE', action: 'continue' as const, blurb: 'Load the current campaign save' },
+    { label: 'ARCHIVE', action: 'archive' as const, blurb: 'Open the legacy fighter modes' },
+    { label: 'SETTINGS', action: 'settings' as const, blurb: 'Audio, motion, and difficulty' },
+  ]
+
   private readonly onKeyDown = (e: KeyboardEvent): void => {
-    if (e.code === 'Enter' || e.code === 'Space') {
-      e.preventDefault()
-      this.start = true
+    switch (e.code) {
+      case 'ArrowUp':
+      case 'KeyW':
+        this.index = (this.index - 1 + this.options.length) % this.options.length
+        break
+      case 'ArrowDown':
+      case 'KeyS':
+        this.index = (this.index + 1) % this.options.length
+        break
+      case 'Enter':
+      case 'Space':
+        e.preventDefault()
+        this.choose()
+        break
+      case 'Escape':
+        this.index = 0
+        break
     }
   }
 
   private readonly onPointerDown = (): void => {
-    this.start = true
+    this.choose()
   }
 
   override enter(): void {
+    this.index = this.saveIsFresh() ? 0 : 1
     window.addEventListener('keydown', this.onKeyDown)
     this.ctx.renderer.canvas.addEventListener('pointerdown', this.onPointerDown)
   }
@@ -31,28 +54,64 @@ export class TitleScene extends Scene {
 
   update(): void {
     this.tick += 1
-    if (this.start) {
-      this.ctx.scenes.replace(new ModeSelectScene(this.ctx))
-    }
   }
 
   render(): void {
     const { renderer } = this.ctx
     const { ctx } = renderer
-    renderer.clear('#0a0a12')
+    renderer.clear('#05040a')
 
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
 
     ctx.fillStyle = '#e8d4a0'
-    ctx.font = '40px "Press Start 2P", monospace'
-    ctx.fillText('CASTLEVANIA 97', this.ctx.width / 2, this.ctx.height / 2 - 40)
+    ctx.font = '34px "Press Start 2P", monospace'
+    ctx.fillText('CASTLEVANIA97', this.ctx.width / 2, this.ctx.height / 2 - 88)
+    ctx.font = '18px "Press Start 2P", monospace'
+    ctx.fillText('Demon Castle War', this.ctx.width / 2, this.ctx.height / 2 - 50)
+    ctx.fillStyle = '#b7c7e6'
+    ctx.font = '10px "Press Start 2P", monospace'
+    ctx.fillText('1997-1999', this.ctx.width / 2, this.ctx.height / 2 - 24)
 
-    // Blink the prompt roughly twice a second.
+    this.options.forEach((opt, i) => {
+      const y = this.ctx.height / 2 + 16 + i * 34
+      ctx.fillStyle = i === this.index ? '#e8d4a0' : '#6c6c8c'
+      ctx.font = '12px "Press Start 2P", monospace'
+      ctx.fillText(`${i === this.index ? '> ' : '  '}${opt.label}`, this.ctx.width / 2, y)
+    })
+    ctx.fillStyle = '#5a567a'
+    ctx.font = '9px "Press Start 2P", monospace'
+    ctx.fillText(this.options[this.index]?.blurb ?? '', this.ctx.width / 2, this.ctx.height / 2 + 164)
+
     if (Math.floor(this.tick / (TICK_RATE / 2)) % 2 === 0) {
       ctx.fillStyle = '#b91d2b'
-      ctx.font = '14px "Press Start 2P", monospace'
-      ctx.fillText('PRESS ENTER', this.ctx.width / 2, this.ctx.height / 2 + 48)
+      ctx.font = '10px "Press Start 2P", monospace'
+      ctx.fillText('ENTER TO SELECT', this.ctx.width / 2, this.ctx.height / 2 + 200)
     }
+  }
+
+  private choose(): void {
+    const option = this.options[this.index]
+    if (!option) return
+    switch (option.action) {
+      case 'start':
+        resetCampaignSave()
+        this.ctx.scenes.replace(new CampaignScene(this.ctx))
+        break
+      case 'continue':
+        this.ctx.scenes.replace(new CampaignScene(this.ctx))
+        break
+      case 'archive':
+        this.ctx.scenes.replace(new ModeSelectScene(this.ctx))
+        break
+      case 'settings':
+        this.ctx.scenes.replace(new SettingsScene(this.ctx))
+        break
+    }
+  }
+
+  private saveIsFresh(): boolean {
+    const save = loadCampaignSave()
+    return save.completedNodeIds.length === 0 && save.currentNodeId === save.unlockedNodeIds[0] && !save.finished
   }
 }

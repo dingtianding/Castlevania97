@@ -33,6 +33,14 @@ The full approved plan lives at: `/Users/deanding/.claude/plans/elegant-splashin
   Latest scoring follow-up: match results show score/grade from damage, time, health, perfects, and
   super hits.
   Latest local follow-up: high scores persist in `localStorage` and are viewable from Mode Select.
+  Latest product pivot: the first-screen experience is now a Julius Belmont campaign for the
+  1997-1999 Demon Castle War. Title offers Start Campaign / Continue / Archive / Settings. Campaign
+  uses browser-local progress, chapter/node data, side-scrolling room encounters, Julius campaign
+  sprites, campaign enemies, and stage identities. Archive keeps the legacy versus/arcade/training
+  fighter modes available behind Mode Select.
+  Latest stabilization follow-up: campaign room reset/death restarts only the active room instead of
+  wiping campaign progress; README/HANDOFF controls now match `PLAYER1_KEYS` (`A/D/S` movement,
+  `J/K/L/;` actions).
   - `7f979f7` P0 tooling/deploy skeleton.
   - `b0fb3d9` P1 fixed-timestep loop, renderer, asset pipeline (animated idle).
   - `222769b` P2 scene stack, intent-based input, Fighter FSM (move/jump/fall).
@@ -69,11 +77,13 @@ The full approved plan lives at: `/Users/deanding/.claude/plans/elegant-splashin
   - Local high-score follow-up: `data/highScores.ts` stores top browser-local scores; `ResultScene`
     records player-one wins, and `HighScoresScene` displays them from Mode Select.
   - `324d4f8` README rewritten for the engine, with `docs/` screenshots.
-- **Playable now (full loop):** Title → ModeSelect (Local 2P / VS CPU / Training / Arcade / Boss Rush) → CharacterSelect →
-  best-of-3 Battle → Result (rematch / arcade-advance / title). Three selectable fighters
-  (samuraiMack, kenji, Gothic Hero), each with light/heavy/special/super + super meter, plus a boss-only demon
-  finale in Arcade with a breath-fire projectile super.
-  - **Controls:** P1 A/D move · W jump · F light · G heavy · H special (super when meter full).
+- **Playable now (full loop):** Title → Campaign room sequence (Julius vs castle enemies) with
+  persistent chapter/node progress. Archive path: Title → ModeSelect (Local 2P / VS CPU / Training /
+  Arcade / Boss Rush) → CharacterSelect → best-of-3 Battle → Result (rematch / arcade-advance /
+  title). Three selectable archive fighters (samuraiMack, kenji, Gothic Hero), each with
+  light/heavy/special/super + super meter, plus a boss-only demon finale in Arcade with a
+  breath-fire projectile super.
+  - **Controls:** P1 A/D move · J jump · K light · L heavy · ; special (super when meter full).
     P2 Arrow keys · Up jump · `.` light · `,` heavy · `/` special. Menus: W/S + Enter; Esc back.
   - Append `?hitbox` to the URL for a hit/hurtbox/pushbox debug overlay.
 - **Headless verification harness:** `playwright-core` (system Chrome via `executablePath`, no
@@ -129,12 +139,33 @@ pause overlay, `input/TouchSource.ts` + `ui/TouchControls.ts` for coarse-pointer
 pointer navigation through title/mode/select/settings/result, and `settings/SettingsStore.ts`
 persisted to `localStorage` for master/music/SFX volume, reduce motion, and VS-CPU difficulty.
 
+### Campaign pivot — stabilize first-screen experience
+
+Implemented locally after the original fighter-roadmap P9 work. The current product direction is a
+Castlevania-inspired Julius Belmont campaign, with Archive preserving the prior fighter modes.
+Primary files:
+
+- `src/data/campaign.ts` — chapters, nodes, save/load/progression.
+- `src/data/characters/castlevaniaCampaign.ts` — Julius/enemy campaign character defs.
+- `src/data/stages.ts` — stage identities shared by campaign/archive fights.
+- `src/scenes/CampaignScene.ts` — side-scrolling campaign room encounters.
+- `src/scenes/TitleScene.ts` — Start Campaign / Continue / Archive / Settings entry point.
+
+Verified on 2026-06-29: `npm run build` clean; production preview serves under
+`/Castlevania97/`; headless Chrome entered Start Campaign and created the expected
+`1997-chapel` save; an advanced `1998-clock` save survived in-room `R` reset without being wiped.
+
+Next campaign pass: manually play several campaign rooms in-browser, tune enemy count/health and
+Julius hitboxes, check story text wrapping on every node, then refresh screenshots/GIFs around the
+campaign rather than the old character-select-first flow.
+
 ### P9 — Polish + ship
 README is DONE (`324d4f8`) and updated locally for P8/P9. Done locally: stage prop rendering,
 screen flash on big hits, Gothic Hero, Boss Rush, projectile debug hitboxes, character identity
 metadata/select panels, HUD names, versus splash, result-screen return-to-select, and Training Mode.
-Remaining: use Training Mode to tune hero sprite anchors/move boxes in-browser, tune demon projectile with `?hitbox`, key-remap UI,
-particle-pool perf caps, fresh screenshots/GIFs, then open the **PR** (see Shipping gate).
+Remaining after campaign stabilization: use Training Mode to tune hero sprite anchors/move boxes
+in-browser, tune demon projectile with `?hitbox`, key-remap UI, particle-pool perf caps, fresh
+campaign/archive screenshots or GIFs, then open the **PR** (see Shipping gate).
 Reduce-motion is honored by camera shake and lowers big-hit flash strength. The
 Pages-source-to-"GitHub Actions" note goes in the PR body.
 

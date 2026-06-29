@@ -1,5 +1,6 @@
 import { Scene } from './Scene.ts'
-import { BattleScene } from './BattleScene.ts'
+import { BattleScene, type BattleConfig } from './BattleScene.ts'
+import { StageSelectScene } from './StageSelectScene.ts'
 import { ModeSelectScene } from './ModeSelectScene.ts'
 import { MoveListScene } from './MoveListScene.ts'
 import { ROSTER } from '../data/characters/registry.ts'
@@ -40,6 +41,7 @@ export class CharacterSelectScene extends Scene {
   constructor(
     ctx: GameContext,
     private readonly mode: SelectMode = 'local',
+    private readonly preset?: { p1Index: number; p2Index: number },
   ) {
     super(ctx)
   }
@@ -72,8 +74,18 @@ export class CharacterSelectScene extends Scene {
   }
 
   override enter(): void {
-    this.p1 = { index: 0, locked: false, prevMoveX: 0, color: '#e8d4a0' }
-    this.p2 = { index: Math.min(1, ROSTER.length - 1), locked: false, prevMoveX: 0, color: '#e64b3c' }
+    this.p1 = {
+      index: this.preset?.p1Index ?? 0,
+      locked: false,
+      prevMoveX: 0,
+      color: '#e8d4a0',
+    }
+    this.p2 = {
+      index: this.preset?.p2Index ?? Math.min(1, ROSTER.length - 1),
+      locked: false,
+      prevMoveX: 0,
+      color: '#e64b3c',
+    }
     this.input1 = new KeyboardSource(PLAYER1_KEYS)
     if (this.mode === 'local') this.input2 = new KeyboardSource(PLAYER2_KEYS)
     this.portraits = ROSTER.map((c) =>
@@ -110,15 +122,22 @@ export class CharacterSelectScene extends Scene {
     }
 
     if (this.p1.locked && this.p2.locked) {
+      const battleConfig: BattleConfig = {
+        p1: ROSTER[this.p1.index]!,
+        p2: ROSTER[this.p2.index]!,
+        p2Controller: this.mode === 'ai' ? 'ai' : this.mode === 'training' ? 'dummy' : 'human',
+        rules: this.mode === 'training' ? 'training' : 'match',
+        selectMode: this.mode,
+        ...(this.mode === 'ai' ? { aiDifficulty: this.ctx.settings.current.difficulty } : {}),
+      }
+
+      if (this.mode === 'local' || this.mode === 'ai' || this.mode === 'training') {
+        this.ctx.scenes.replace(new StageSelectScene(this.ctx, battleConfig))
+        return
+      }
+
       this.ctx.scenes.replace(
-        new BattleScene(this.ctx, {
-          p1: ROSTER[this.p1.index]!,
-          p2: ROSTER[this.p2.index]!,
-          p2Controller: this.mode === 'ai' ? 'ai' : this.mode === 'training' ? 'dummy' : 'human',
-          rules: this.mode === 'training' ? 'training' : 'match',
-          selectMode: this.mode,
-          ...(this.mode === 'ai' ? { aiDifficulty: this.ctx.settings.current.difficulty } : {}),
-        }),
+        new BattleScene(this.ctx, battleConfig),
       )
     }
   }
@@ -206,14 +225,14 @@ export class CharacterSelectScene extends Scene {
       ctx.fillStyle = '#8a8aa0'
       const hint =
         this.mode === 'ai'
-          ? 'A/D MOVE   F LOCK (PICK YOURS, THEN CPU)   ESC BACK'
+          ? 'A/D MOVE   J LOCK (PICK YOURS, THEN CPU)   STAGE NEXT   ESC BACK'
           : this.mode === 'training'
-            ? 'A/D MOVE   F LOCK (PICK YOURS, THEN DUMMY)   ESC BACK'
-          : this.mode === 'arcade'
-            ? 'A/D MOVE     F START ARCADE     ESC BACK'
-            : this.mode === 'boss'
-              ? 'A/D MOVE     F START BOSS RUSH     ESC BACK'
-            : 'MOVE A/D · J-L     LOCK F · .     M MOVES     ESC BACK'
+            ? 'A/D MOVE   J LOCK (PICK YOURS, THEN DUMMY)   STAGE NEXT   ESC BACK'
+            : this.mode === 'arcade'
+              ? 'A/D MOVE     J START ARCADE     ESC BACK'
+              : this.mode === 'boss'
+                ? 'A/D MOVE     J START BOSS RUSH     ESC BACK'
+                : 'MOVE A/D · JKL;     LOCK J     STAGE NEXT     M MOVES     ESC BACK'
       ctx.fillText(hint, width / 2, height - 26)
     }
   }

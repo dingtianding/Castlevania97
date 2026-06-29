@@ -22,6 +22,9 @@ import { AUDIO_MANIFEST } from '../assets/manifest.ts'
 import { ROSTER } from '../data/characters/registry.ts'
 import type { CharacterDef } from '../data/characters/CharacterDef.ts'
 import type { ArcadeRun } from '../data/arcade.ts'
+import { DEFAULT_STAGE, getStage, stageForArcade, type StageId } from '../data/stages.ts'
+import type { CampaignSave } from '../data/campaign.ts'
+import { RELIC_POOL, buildRunModifiers } from '../data/relics.ts'
 import type { GameContext } from '../core/GameContext.ts'
 import { FLOOR_Y } from '../constants.ts'
 import { TICK_RATE } from '../core/Time.ts'
@@ -35,8 +38,10 @@ export interface BattleConfig {
   p2Controller?: 'human' | 'ai' | 'dummy'
   aiDifficulty?: AIDifficulty
   arcade?: ArcadeRun
-  selectMode?: 'local' | 'ai' | 'training' | 'arcade' | 'boss'
+  campaign?: CampaignSave
+  selectMode?: 'local' | 'ai' | 'training' | 'arcade' | 'boss' | 'campaign'
   rules?: 'match' | 'training'
+  stage?: StageId
 }
 
 const ROUND_TICKS = 60 * TICK_RATE
@@ -98,12 +103,18 @@ export class BattleScene extends Scene {
 
   override enter(): void {
     const { assets } = this.ctx
+    const relics = (this.config.arcade?.relics ?? [])
+      .map((id) => RELIC_POOL.find((relic) => relic.id === id))
+      .filter((relic): relic is NonNullable<typeof relic> => relic !== undefined)
+    const runModifiers = buildRunModifiers(relics)
 
-    this.p1 = createFighter(this.config.p1, assets, P1_SPAWN, 1, FLOOR_Y, this.ctx.width)
+    this.p1 = createFighter(this.config.p1, assets, P1_SPAWN, 1, FLOOR_Y, this.ctx.width, runModifiers)
     this.p2 = createFighter(this.config.p2, assets, P2_SPAWN, -1, FLOOR_Y, this.ctx.width)
     if (this.isTraining) {
       this.p1.fillMeter()
       this.p2.fillMeter()
+    } else if (this.config.arcade) {
+      this.p1.applyRunStartMeter()
     }
     // Each human slot accepts keyboard or gamepad interchangeably.
     const input1Sources: InputSource[] = [new KeyboardSource(PLAYER1_KEYS), new GamepadSource(0)]
@@ -319,6 +330,12 @@ export class BattleScene extends Scene {
     return this.config.rules === 'training'
   }
 
+  private get stageId(): StageId {
+    if (this.config.stage) return this.config.stage
+    if (this.config.arcade) return stageForArcade(this.config.arcade.stage)
+    return DEFAULT_STAGE
+  }
+
   private resetTraining(keepStats = false): void {
     const lastDamage = this.trainingLastDamage
     const comboHits = this.trainingComboHits
@@ -386,13 +403,16 @@ export class BattleScene extends Scene {
   private drawStage(): void {
     const { renderer, assets, width, height } = this.ctx
     const ctx = renderer.ctx
+    const stage = getStage(this.stageId)
     ctx.drawImage(assets.image('stage.bg'), 0, 0, width, height)
 
     const shop = assets.image('stage.shop')
-    const shopScale = 1.65
-    const shopW = shop.width * shopScale
-    const shopH = shop.height * shopScale
-    ctx.drawImage(shop, 115, FLOOR_Y - shopH + 12, shopW, shopH)
+    const shopW = shop.width * stage.shopScale
+    const shopH = shop.height * stage.shopScale
+    ctx.drawImage(shop, stage.shopX, FLOOR_Y - shopH + stage.shopY, shopW, shopH)
+
+    ctx.fillStyle = stage.overlay
+    ctx.fillRect(0, 0, width, height)
   }
 
   private drawFlash(): void {
@@ -436,17 +456,21 @@ export class BattleScene extends Scene {
   private drawVersusIntro(): void {
     if (this.rounds.phase !== 'intro' || this.rounds.round !== 1 || this.rounds.bannerText !== 'ROUND 1') return
     const { ctx } = this.ctx.renderer
+    const stage = getStage(this.stageId)
     ctx.save()
     ctx.fillStyle = 'rgba(8, 6, 14, 0.54)'
-    ctx.fillRect(0, 205, this.ctx.width, 116)
+    ctx.fillRect(0, 198, this.ctx.width, 132)
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
     ctx.font = '15px "Press Start 2P", monospace'
     ctx.fillStyle = '#8a8aa0'
-    ctx.fillText(`${this.config.p1.meta.archetype}  VS  ${this.config.p2.meta.archetype}`, this.ctx.width / 2, 230)
+    ctx.fillText(`${this.config.p1.meta.archetype}  VS  ${this.config.p2.meta.archetype}`, this.ctx.width / 2, 224)
     ctx.font = '24px "Press Start 2P", monospace'
     ctx.fillStyle = '#e8d4a0'
-    ctx.fillText(`${this.config.p1.name}  /  ${this.config.p2.name}`, this.ctx.width / 2, 276)
+    ctx.fillText(`${this.config.p1.name}  /  ${this.config.p2.name}`, this.ctx.width / 2, 268)
+    ctx.font = '10px "Press Start 2P", monospace'
+    ctx.fillStyle = '#b7c7e6'
+    ctx.fillText(stage.name.toUpperCase(), this.ctx.width / 2, 308)
     ctx.restore()
   }
 

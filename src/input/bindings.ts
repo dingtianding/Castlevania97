@@ -14,10 +14,10 @@ export const PLAYER1_KEYS: KeyBindings = {
   left: ['KeyA'],
   right: ['KeyD'],
   down: ['KeyS'],
-  jump: ['KeyW'],
-  light: ['KeyF'],
-  heavy: ['KeyG'],
-  special: ['KeyH'],
+  jump: ['KeyJ'],
+  light: ['KeyK'],
+  heavy: ['KeyL'],
+  special: ['Semicolon'],
 }
 
 export const PLAYER2_KEYS: KeyBindings = {

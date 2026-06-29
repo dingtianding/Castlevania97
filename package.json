@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
-  "description": "A 2D pixel crossover fighting game — TypeScript canvas engine.",
+  "description": "Castlevania97: a Castlevania-inspired Julius Belmont campaign and archive built with TypeScript canvas.",
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",

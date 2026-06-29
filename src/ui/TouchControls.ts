@@ -51,7 +51,7 @@ export class TouchControls {
     actions.append(
       this.button({
         className: 'touch-button touch-button--jump',
-        label: 'J',
+        label: 'A',
         press: () => {
           this.state.jumpHeld = true
           this.state.jumpPressed = true
@@ -62,21 +62,21 @@ export class TouchControls {
       }),
       this.button({
         className: 'touch-button',
-        label: 'L',
+        label: 'B',
         press: () => {
           this.state.lightPressed = true
         },
       }),
       this.button({
         className: 'touch-button',
-        label: 'H',
+        label: 'L',
         press: () => {
           this.state.heavyPressed = true
         },
       }),
       this.button({
         className: 'touch-button touch-button--special',
-        label: 'S',
+        label: 'R',
         press: () => {
           this.state.specialPressed = true
         },

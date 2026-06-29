@@ -32,6 +32,28 @@ import heroAttack from '../../assets/hero/Attack.png'
 import heroJumpAttack from '../../assets/hero/gothic-hero-jump-attack.png'
 import heroHurt from '../../assets/hero/Hurt.png'
 
+import juliusIdle from '../../assets/julius/julius-idle.png'
+import juliusRun from '../../assets/julius/julius-run.png'
+import juliusJump from '../../assets/julius/julius-jump.png'
+import juliusFall from '../../assets/julius/julius-fall.png'
+import juliusWhip from '../../assets/julius/julius-whip.png'
+import juliusHurt from '../../assets/julius/julius-hurt.png'
+import juliusDeath from '../../assets/julius/julius-death.png'
+
+import zombieIdle from '../../assets/enemies/zombie-idle.png'
+import zombieRun from '../../assets/enemies/zombie-run.png'
+import zombieAttack from '../../assets/enemies/zombie-attack1.png'
+import zombieHurt from '../../assets/enemies/zombie-takeHit.png'
+import zombieDeath from '../../assets/enemies/zombie-death.png'
+import zombieRoam from '../../assets/enemies/zombie-roam.png'
+
+import skeletonIdle from '../../assets/enemies/skeleton-idle.png'
+import skeletonRun from '../../assets/enemies/skeleton-run.png'
+import skeletonAttack from '../../assets/enemies/skeleton-attack1.png'
+import skeletonHurt from '../../assets/enemies/skeleton-takeHit.png'
+import skeletonDeath from '../../assets/enemies/skeleton-death.png'
+import skeletonRoam from '../../assets/enemies/skeleton-roam.png'
+
 import demonIdle from '../../assets/demon-Files/demon-idle.png'
 import demonAttack from '../../assets/demon-Files/demon-attack-no-breath.png'
 import demonBreathFire from '../../assets/demon-Files/breath-fire.png'
@@ -65,6 +87,28 @@ export const IMAGE_MANIFEST = {
   'hero.attack': heroAttack,
   'hero.jumpAttack': heroJumpAttack,
   'hero.hurt': heroHurt,
+
+  'julius.idle': juliusIdle,
+  'julius.run': juliusRun,
+  'julius.jump': juliusJump,
+  'julius.fall': juliusFall,
+  'julius.whip': juliusWhip,
+  'julius.hurt': juliusHurt,
+  'julius.death': juliusDeath,
+
+  'zombie.idle': zombieIdle,
+  'zombie.run': zombieRun,
+  'zombie.attack': zombieAttack,
+  'zombie.hurt': zombieHurt,
+  'zombie.death': zombieDeath,
+  'zombie.roam': zombieRoam,
+
+  'skeleton.idle': skeletonIdle,
+  'skeleton.run': skeletonRun,
+  'skeleton.attack': skeletonAttack,
+  'skeleton.hurt': skeletonHurt,
+  'skeleton.death': skeletonDeath,
+  'skeleton.roam': skeletonRoam,
 
   'demon.idle': demonIdle,
   'demon.attack': demonAttack,
