@@ -398,6 +398,7 @@ export class CampaignScene extends Scene {
   private contactHitCooldown = 0
   private defeatTicks = 0
   private storyCard: StoryCard | null = null
+  private storyQueue: StoryCard[] = []
   private readonly attackingLastTick = new Set<CastleActor>()
   private touchControls: TouchControls | null = null
   private readonly onKeyDown = (e: KeyboardEvent): void => {
@@ -589,12 +590,20 @@ export class CampaignScene extends Scene {
     this.attackingLastTick.clear()
     this.ending = false
     this.save = { ...this.save, currentNodeId: nodeId, finished: false }
+    this.storyQueue = []
     if (this.shouldShowChapterIntro(nodeId, fromReset)) {
-      this.storyCard = {
+      this.storyQueue.push({
         title: `${this.chapter.year}  ${this.chapter.title}`,
         body: this.chapter.intro,
-      }
+      })
     }
+    if (this.shouldShowNodeBriefing(fromReset)) {
+      this.storyQueue.push({
+        title: `${this.node.year}  ${this.node.title}`,
+        body: this.node.story,
+      })
+    }
+    this.storyCard = this.storyQueue.shift() ?? null
   }
 
   private resolveCombat(): void {
@@ -654,6 +663,7 @@ export class CampaignScene extends Scene {
     }
     if (next.currentNodeId) {
       if (next.chapterId !== previousChapter.id) {
+        this.storyQueue = []
         this.storyCard = {
           title: `${previousChapter.year}  ${previousChapter.title} CLEAR`,
           body: previousChapter.outro,
@@ -671,12 +681,18 @@ export class CampaignScene extends Scene {
     const nextNodeId = this.storyCard?.nextNodeId
     this.storyCard = null
     if (nextNodeId) this.reloadNode(nextNodeId)
+    else this.storyCard = this.storyQueue.shift() ?? null
   }
 
   private shouldShowChapterIntro(nodeId: string, fromReset: boolean): boolean {
     if (fromReset) return false
     if (this.chapter.nodeIds[0] !== nodeId) return false
     return !this.save.completedNodeIds.some((id) => this.chapter.nodeIds.includes(id))
+  }
+
+  private shouldShowNodeBriefing(fromReset: boolean): boolean {
+    if (fromReset) return false
+    return !this.save.completedNodeIds.includes(this.node.id)
   }
 
   private drawWorld(): void {
@@ -794,7 +810,7 @@ export class CampaignScene extends Scene {
     ctx.fillText(this.node.title.toUpperCase(), 692, 40)
     ctx.fillStyle = '#b7c7e6'
     ctx.font = '8px "Press Start 2P", monospace'
-    wrapText(ctx, this.node.story, 692, 62, 284, 14)
+    wrapText(ctx, this.node.story, 692, 62, 284, 14, 5)
     ctx.restore()
   }
 
@@ -857,13 +873,12 @@ export class CampaignScene extends Scene {
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
     ctx.fillStyle = '#e8d4a0'
-    ctx.font = '18px "Press Start 2P", monospace'
-    ctx.fillText(card.title.toUpperCase(), this.ctx.width / 2, 178)
+    drawCenteredFitText(ctx, card.title.toUpperCase(), this.ctx.width / 2, 178, this.ctx.width - 288, 18, 12)
     ctx.textAlign = 'left'
     ctx.textBaseline = 'top'
     ctx.fillStyle = '#b7c7e6'
     ctx.font = '10px "Press Start 2P", monospace'
-    wrapText(ctx, card.body, 162, 220, this.ctx.width - 324, 18)
+    wrapText(ctx, card.body, 162, 220, this.ctx.width - 324, 18, 7)
     ctx.textAlign = 'center'
     ctx.fillStyle = '#8a8aa0'
     ctx.font = '9px "Press Start 2P", monospace'
@@ -895,7 +910,7 @@ export class CampaignScene extends Scene {
     ctx.fillText('CASTLEVANIA97 COMPLETE', this.ctx.width / 2, 190)
     ctx.fillStyle = '#b7c7e6'
     ctx.font = '10px "Press Start 2P", monospace'
-    wrapText(ctx, 'The 1999 Demon Castle War is over. Julius Belmont stands at the end of the bloodline and the beginning of a new silence.', this.ctx.width / 2 - 260, 234, 520, 16)
+    wrapText(ctx, 'The 1999 Demon Castle War is over. Julius Belmont stands at the end of the bloodline and the beginning of a new silence.', this.ctx.width / 2 - 260, 234, 520, 16, 6)
     ctx.fillStyle = '#5a567a'
     ctx.fillText('ENTER / SPACE / ESC RETURN TO TITLE', this.ctx.width / 2, this.ctx.height - 164)
     ctx.restore()
@@ -1055,6 +1070,24 @@ function spread(start: number, end: number, count: number): number[] {
   return Array.from({ length: count }, (_unused, i) => Math.round(start + i * step))
 }
 
+function drawCenteredFitText(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  x: number,
+  y: number,
+  maxWidth: number,
+  maxSize: number,
+  minSize: number,
+): void {
+  for (let size = maxSize; size >= minSize; size -= 1) {
+    ctx.font = `${size}px "Press Start 2P", monospace`
+    if (ctx.measureText(text).width <= maxWidth || size === minSize) {
+      ctx.fillText(text, x, y)
+      return
+    }
+  }
+}
+
 function wrapText(
   ctx: CanvasRenderingContext2D,
   text: string,
@@ -1062,19 +1095,34 @@ function wrapText(
   y: number,
   maxWidth: number,
   lineHeight: number,
+  maxLines = Number.POSITIVE_INFINITY,
 ): void {
   const words = text.split(' ')
   let line = ''
   let offsetY = 0
+  let linesDrawn = 0
   for (const word of words) {
     const test = line ? `${line} ${word}` : word
     if (ctx.measureText(test).width > maxWidth && line) {
+      if (linesDrawn >= maxLines - 1) {
+        ctx.fillText(fitLine(ctx, `${line}...`, maxWidth), x, y + offsetY)
+        return
+      }
       ctx.fillText(line, x, y + offsetY)
+      linesDrawn += 1
       line = word
       offsetY += lineHeight
     } else {
       line = test
     }
   }
-  if (line) ctx.fillText(line, x, y + offsetY)
+  if (line && linesDrawn < maxLines) ctx.fillText(line, x, y + offsetY)
+}
+
+function fitLine(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string {
+  if (ctx.measureText(text).width <= maxWidth) return text
+  const ellipsis = '...'
+  let end = Math.max(0, text.length - ellipsis.length)
+  while (end > 0 && ctx.measureText(`${text.slice(0, end).trimEnd()}${ellipsis}`).width > maxWidth) end -= 1
+  return `${text.slice(0, end).trimEnd()}${ellipsis}`
 }
