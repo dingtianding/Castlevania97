@@ -15,6 +15,7 @@ import { TouchControls } from '../ui/TouchControls.ts'
 import { PLAYER1_KEYS } from '../input/bindings.ts'
 import { neutralIntent, type InputSource, type IntentState } from '../input/InputSource.ts'
 import { clamp, rectsOverlap } from '../core/math.ts'
+import type { Rng } from '../core/rng.ts'
 import type { Facing, Rect, Vec2 } from '../types.ts'
 import type { Renderer } from '../render/Renderer.ts'
 import { Animator, drawSprite, makeSheet, type SpriteSheet } from '../render/SpriteRenderer.ts'
@@ -410,7 +411,7 @@ export class CampaignScene extends Scene {
 
     for (const enemy of this.enemies) {
       if (enemy.isDead) continue
-      const ai = enemyIntent(enemy, this.player, this.node)
+      const ai = enemyIntent(enemy, this.player, this.node, this.ctx.rng)
       enemy.update(ai, this.player.position.x, this.layout.platforms)
     }
 
@@ -421,7 +422,7 @@ export class CampaignScene extends Scene {
     }
 
     for (const projectile of this.projectiles) {
-      projectile.position.x += projectile.spawn.facing * 9
+      projectile.position.x += projectile.spawn.facing * (projectile.spawn.move.projectile?.speedX ?? 0)
       projectile.ticksLeft -= 1
       projectile.animator.update()
     }
@@ -560,6 +561,7 @@ export class CampaignScene extends Scene {
 
     this.player.render(this.ctx.renderer, this.cameraX)
     for (const enemy of this.enemies) enemy.render(this.ctx.renderer, this.cameraX)
+    for (const projectile of this.projectiles) renderProjectile(projectile, this.ctx.renderer, this.cameraX)
   }
 
   private drawHud(): void {
@@ -652,7 +654,7 @@ function buildEnemies(node: ReturnType<typeof getCampaignNode>, assets: AssetMan
   })
 }
 
-function enemyIntent(enemy: CastleActor, player: CastleActor, node: ReturnType<typeof getCampaignNode>): IntentState {
+function enemyIntent(enemy: CastleActor, player: CastleActor, node: ReturnType<typeof getCampaignNode>, rng: Rng): IntentState {
   const intent = neutralIntent()
   if (enemy.isDead) return intent
   const dx = player.position.x - enemy.position.x
@@ -670,7 +672,7 @@ function enemyIntent(enemy: CastleActor, player: CastleActor, node: ReturnType<t
     if (dist > 156) intent.moveX = dir
     else if (dist > 90) {
       intent.moveX = dir
-      if (enemy.grounded && Math.random() < 0.02) intent.jumpPressed = true
+      if (enemy.grounded && rng.next() < 0.02) intent.jumpPressed = true
     } else if (enemy.currentMove === null) {
       if (dist < 78 || node.difficulty === 'hard') intent.heavyPressed = true
       else intent.lightPressed = true
@@ -708,6 +710,16 @@ function projectileBox(projectile: ProjectileRuntime): Rect {
   if (!spec) return { x: projectile.position.x, y: projectile.position.y, width: 1, height: 1 }
   const x = projectile.spawn.facing === 1 ? projectile.position.x + spec.hitbox.offsetX : projectile.position.x - spec.hitbox.offsetX - spec.hitbox.width
   return { x, y: projectile.position.y + spec.hitbox.offsetY, width: spec.hitbox.width, height: spec.hitbox.height }
+}
+
+function renderProjectile(projectile: ProjectileRuntime, renderer: Renderer, cameraX: number): void {
+  const spec = projectile.spawn.move.projectile
+  if (!spec) return
+  const x = projectile.spawn.facing === 1
+    ? projectile.position.x - cameraX
+    : projectile.position.x - cameraX - projectile.sheet.frameWidth * spec.scale
+  const y = projectile.position.y - projectile.sheet.frameHeight * spec.scale
+  drawSprite(renderer, projectile.sheet, projectile.animator.currentFrame, x, y, spec.scale, projectile.spawn.facing)
 }
 
 function buildLayout(stage: string): RoomLayout {
