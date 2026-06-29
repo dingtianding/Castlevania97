@@ -15,7 +15,7 @@ The full approved plan lives at: `/Users/deanding/.claude/plans/elegant-splashin
 
 ## Current state (where we are)
 
-- **Branch:** `rebuild/ts-engine` (off `main`). The original game is untouched on `main`.
+- **Branch:** `rebuild/campaign-pivot` (off `main`). The original game is untouched on `main`.
 - **Phase:** **P0–P8 DONE locally.** The demon-boss stretch is implemented locally after
   `9090e09`: optional projectile move data, a projectile system, and a boss-only demon finale for
   Arcade. P8 mobile/touch + settings is also implemented locally. P9 content/polish pass has
@@ -41,6 +41,10 @@ The full approved plan lives at: `/Users/deanding/.claude/plans/elegant-splashin
   Latest stabilization follow-up: campaign room reset/death restarts only the active room instead of
   wiping campaign progress; README/HANDOFF controls now match `PLAYER1_KEYS` (`A/D/S` movement,
   `J/K/L/;` actions).
+  Latest campaign follow-up: campaign actors cache sprite sheets so animations do not reset every
+  tick; campaign enemy AI uses seeded `ctx.rng`; campaign projectiles render and use move-data
+  speed; title pointer taps select the actual menu row; chapter transitions unlock only the next
+  playable node.
   - `7f979f7` P0 tooling/deploy skeleton.
   - `b0fb3d9` P1 fixed-timestep loop, renderer, asset pipeline (animated idle).
   - `222769b` P2 scene stack, intent-based input, Fighter FSM (move/jump/fall).
