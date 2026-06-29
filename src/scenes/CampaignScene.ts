@@ -32,6 +32,8 @@ const FAST_FALL_SPEED = 12
 const WALL_MARGIN = 48
 const HURT_TICKS = 20
 const DEBUG_HITBOXES = new URLSearchParams(location.search).has('hitbox')
+const CONTACT_HIT_COOLDOWN = 24
+const BIG_HIT_FLASH_TICKS = 10
 
 interface Platform {
   x: number
@@ -115,6 +117,10 @@ class CastleActor {
 
   get currentMove(): AttackMove | null {
     return this.attackMove
+  }
+
+  get isAttacking(): boolean {
+    return this.state === 'attack'
   }
 
   reset(x: number, y: number, facing: Facing): void {
@@ -379,6 +385,10 @@ export class CampaignScene extends Scene {
   private blink = 0
   private ending = false
   private transitionTicks = 0
+  private hitstop = 0
+  private flashTicks = 0
+  private contactHitCooldown = 0
+  private readonly attackingLastTick = new Set<CastleActor>()
   private touchControls: TouchControls | null = null
   private readonly onKeyDown = (e: KeyboardEvent): void => {
     if (this.ending && (e.code === 'Enter' || e.code === 'Space' || e.code === 'Escape')) {
@@ -408,7 +418,13 @@ export class CampaignScene extends Scene {
 
   update(): void {
     this.blink += 1
+    if (this.flashTicks > 0) this.flashTicks -= 1
+    if (this.contactHitCooldown > 0) this.contactHitCooldown -= 1
     if (this.ending) return
+    if (this.hitstop > 0) {
+      this.hitstop -= 1
+      return
+    }
     if (this.transitionTicks > 0) {
       this.transitionTicks -= 1
       return
@@ -422,6 +438,7 @@ export class CampaignScene extends Scene {
       const ai = enemyIntent(enemy, this.player, this.node, this.ctx.rng)
       enemy.update(ai, this.player.position.x, this.layout.platforms)
     }
+    this.playSwingSfx()
 
     for (const actor of [this.player, ...this.enemies]) {
       const spawn = actor.consumeProjectileSpawn()
@@ -469,6 +486,7 @@ export class CampaignScene extends Scene {
     this.drawStory()
     if (this.ending) this.drawEnding()
     else if (Math.floor(this.blink / 30) % 2 === 0) this.drawPrompt()
+    this.drawFlash()
   }
 
   private bindInput(): void {
@@ -506,6 +524,10 @@ export class CampaignScene extends Scene {
     this.projectiles = []
     this.clearTicks = 0
     this.transitionTicks = fromReset ? 0 : 12
+    this.hitstop = 0
+    this.flashTicks = 0
+    this.contactHitCooldown = 0
+    this.attackingLastTick.clear()
     this.ending = false
     this.save = { ...this.save, currentNodeId: nodeId, finished: false }
   }
@@ -518,13 +540,17 @@ export class CampaignScene extends Scene {
       if (playerAtk && rectsOverlap(playerAtk.box, enemy.hurtbox())) {
         enemy.applyHit(playerAtk.spec, this.player.position.x)
         this.player.markAttackConnected()
+        this.onHit(playerAtk.spec, enemy.isDead)
       }
       if (enemyAtk && rectsOverlap(enemyAtk.box, this.player.hurtbox())) {
         this.player.applyHit(enemyAtk.spec, enemy.position.x)
         enemy.markAttackConnected()
+        this.onHit(enemyAtk.spec, this.player.isDead)
       }
-      if (rectsOverlap(this.player.hurtbox(), enemy.hurtbox())) {
+      if (this.contactHitCooldown <= 0 && rectsOverlap(this.player.hurtbox(), enemy.hurtbox())) {
         this.player.applyHit(enemy.def.moves.light, enemy.position.x)
+        this.contactHitCooldown = CONTACT_HIT_COOLDOWN
+        this.onHit(enemy.def.moves.light, this.player.isDead)
       }
     }
     for (const projectile of this.projectiles) {
@@ -532,6 +558,24 @@ export class CampaignScene extends Scene {
       if (!rectsOverlap(projectileBox(projectile), this.player.hurtbox())) continue
       projectile.hasHit = true
       this.player.applyHit(projectile.spawn.move, projectile.spawn.x)
+      this.onHit(projectile.spawn.move, this.player.isDead)
+    }
+  }
+
+  private onHit(move: AttackMove, defenderDead: boolean): void {
+    this.ctx.audio.hit()
+    this.hitstop = Math.max(this.hitstop, move.hitstop)
+    if (move.hitstop >= 10 || defenderDead) this.flashTicks = BIG_HIT_FLASH_TICKS
+  }
+
+  private playSwingSfx(): void {
+    for (const actor of [this.player, ...this.enemies]) {
+      if (actor.isAttacking) {
+        if (!this.attackingLastTick.has(actor)) this.ctx.audio.swing()
+        this.attackingLastTick.add(actor)
+      } else {
+        this.attackingLastTick.delete(actor)
+      }
     }
   }
 
@@ -673,6 +717,15 @@ export class CampaignScene extends Scene {
     ctx.textAlign = 'center'
     ctx.fillText('J JUMP   K LIGHT   L HEAVY   ; SPECIAL   R RESET   ESC TITLE', this.ctx.width / 2, this.ctx.height - 28)
     ctx.restore()
+  }
+
+  private drawFlash(): void {
+    if (this.flashTicks <= 0) return
+    const strength = this.ctx.camera.reduceMotion ? 0.12 : 0.22
+    const alpha = (this.flashTicks / BIG_HIT_FLASH_TICKS) * strength
+    const { ctx } = this.ctx.renderer
+    ctx.fillStyle = `rgba(255, 235, 185, ${alpha})`
+    ctx.fillRect(0, 0, this.ctx.width, this.ctx.height)
   }
 
   private drawEnding(): void {
