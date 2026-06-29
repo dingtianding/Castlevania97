@@ -34,6 +34,7 @@ const HURT_TICKS = 20
 const DEBUG_HITBOXES = new URLSearchParams(location.search).has('hitbox')
 const CONTACT_HIT_COOLDOWN = 24
 const BIG_HIT_FLASH_TICKS = 10
+const ROOM_CLEAR_AUTO_ADVANCE_TICKS = 240
 
 interface Platform {
   x: number
@@ -396,6 +397,11 @@ export class CampaignScene extends Scene {
       this.ctx.scenes.replace(new TitleScene(this.ctx))
       return
     }
+    if (!this.ending && this.isRoomClear && (e.code === 'Enter' || e.code === 'Space')) {
+      e.preventDefault()
+      this.advanceRoom()
+      return
+    }
     if (e.code === 'Escape') this.ctx.scenes.replace(new TitleScene(this.ctx))
     if (e.code === 'KeyR') this.reloadNode(this.node.id, true)
     if (e.code === 'KeyM') this.ctx.scenes.replace(new ModeSelectScene(this.ctx))
@@ -461,7 +467,9 @@ export class CampaignScene extends Scene {
 
     if (!this.player.isDead && this.enemies.every((enemy) => enemy.isDead)) {
       this.clearTicks += 1
-      if (this.clearTicks > 40) this.advanceRoom()
+      if (this.clearTicks > ROOM_CLEAR_AUTO_ADVANCE_TICKS || this.player.position.x >= this.layout.doorX - 24) {
+        this.advanceRoom()
+      }
     } else {
       this.clearTicks = 0
     }
@@ -485,8 +493,13 @@ export class CampaignScene extends Scene {
     this.drawHud()
     this.drawStory()
     if (this.ending) this.drawEnding()
+    else if (this.isRoomClear) this.drawRoomClear()
     else if (Math.floor(this.blink / 30) % 2 === 0) this.drawPrompt()
     this.drawFlash()
+  }
+
+  private get isRoomClear(): boolean {
+    return !this.player.isDead && this.enemies.length > 0 && this.enemies.every((enemy) => enemy.isDead)
   }
 
   private bindInput(): void {
@@ -716,6 +729,25 @@ export class CampaignScene extends Scene {
     ctx.font = '9px "Press Start 2P", monospace'
     ctx.textAlign = 'center'
     ctx.fillText('J JUMP   K LIGHT   L HEAVY   ; SPECIAL   R RESET   ESC TITLE', this.ctx.width / 2, this.ctx.height - 28)
+    ctx.restore()
+  }
+
+  private drawRoomClear(): void {
+    const { ctx } = this.ctx.renderer
+    ctx.save()
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillStyle = 'rgba(8, 6, 14, 0.68)'
+    ctx.fillRect(this.ctx.width / 2 - 240, this.ctx.height - 76, 480, 44)
+    ctx.strokeStyle = '#e8d4a0'
+    ctx.lineWidth = 2
+    ctx.strokeRect(this.ctx.width / 2 - 240, this.ctx.height - 76, 480, 44)
+    ctx.fillStyle = '#e8d4a0'
+    ctx.font = '11px "Press Start 2P", monospace'
+    ctx.fillText('ROOM CLEAR', this.ctx.width / 2, this.ctx.height - 60)
+    ctx.fillStyle = '#8a8aa0'
+    ctx.font = '8px "Press Start 2P", monospace'
+    ctx.fillText('ENTER ADVANCE     OR WALK TO THE DOOR', this.ctx.width / 2, this.ctx.height - 42)
     ctx.restore()
   }
 
