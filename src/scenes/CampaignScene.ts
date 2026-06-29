@@ -37,6 +37,12 @@ const BIG_HIT_FLASH_TICKS = 10
 const ROOM_CLEAR_AUTO_ADVANCE_TICKS = 240
 const DEFEAT_RETRY_TICKS = 120
 
+interface StoryCard {
+  title: string
+  body: string
+  nextNodeId?: string
+}
+
 interface Platform {
   x: number
   y: number
@@ -391,9 +397,22 @@ export class CampaignScene extends Scene {
   private flashTicks = 0
   private contactHitCooldown = 0
   private defeatTicks = 0
+  private storyCard: StoryCard | null = null
   private readonly attackingLastTick = new Set<CastleActor>()
   private touchControls: TouchControls | null = null
   private readonly onKeyDown = (e: KeyboardEvent): void => {
+    if (this.storyCard) {
+      if (e.code === 'Enter' || e.code === 'Space') {
+        e.preventDefault()
+        this.continueStoryCard()
+        return
+      }
+      if (e.code === 'Escape') {
+        e.preventDefault()
+        this.ctx.scenes.replace(new TitleScene(this.ctx))
+        return
+      }
+    }
     if (this.ending && (e.code === 'Enter' || e.code === 'Space' || e.code === 'Escape')) {
       e.preventDefault()
       this.ctx.scenes.replace(new TitleScene(this.ctx))
@@ -440,6 +459,7 @@ export class CampaignScene extends Scene {
     this.blink += 1
     if (this.flashTicks > 0) this.flashTicks -= 1
     if (this.contactHitCooldown > 0) this.contactHitCooldown -= 1
+    if (this.storyCard) return
     if (this.ending) return
     if (this.defeatTicks > 0) {
       this.defeatTicks += 1
@@ -516,6 +536,7 @@ export class CampaignScene extends Scene {
     this.drawHud()
     this.drawStory()
     if (this.ending) this.drawEnding()
+    else if (this.storyCard) this.drawStoryCard(this.storyCard)
     else if (this.defeatTicks > 0) this.drawDefeat()
     else if (this.isRoomClear) this.drawRoomClear()
     else if (Math.floor(this.blink / 30) % 2 === 0) this.drawPrompt()
@@ -568,6 +589,12 @@ export class CampaignScene extends Scene {
     this.attackingLastTick.clear()
     this.ending = false
     this.save = { ...this.save, currentNodeId: nodeId, finished: false }
+    if (this.shouldShowChapterIntro(nodeId, fromReset)) {
+      this.storyCard = {
+        title: `${this.chapter.year}  ${this.chapter.title}`,
+        body: this.chapter.intro,
+      }
+    }
   }
 
   private resolveCombat(): void {
@@ -618,14 +645,38 @@ export class CampaignScene extends Scene {
   }
 
   private advanceRoom(): void {
+    const previousChapter = this.chapter
     const next = completeCampaignBattle(this.save)
     this.save = next
     if (next.finished) {
       this.ending = true
       return
     }
-    if (next.currentNodeId) this.reloadNode(next.currentNodeId)
-    else this.ending = true
+    if (next.currentNodeId) {
+      if (next.chapterId !== previousChapter.id) {
+        this.storyCard = {
+          title: `${previousChapter.year}  ${previousChapter.title} CLEAR`,
+          body: previousChapter.outro,
+          nextNodeId: next.currentNodeId,
+        }
+      } else {
+        this.reloadNode(next.currentNodeId)
+      }
+    } else {
+      this.ending = true
+    }
+  }
+
+  private continueStoryCard(): void {
+    const nextNodeId = this.storyCard?.nextNodeId
+    this.storyCard = null
+    if (nextNodeId) this.reloadNode(nextNodeId)
+  }
+
+  private shouldShowChapterIntro(nodeId: string, fromReset: boolean): boolean {
+    if (fromReset) return false
+    if (this.chapter.nodeIds[0] !== nodeId) return false
+    return !this.save.completedNodeIds.some((id) => this.chapter.nodeIds.includes(id))
   }
 
   private drawWorld(): void {
@@ -792,6 +843,31 @@ export class CampaignScene extends Scene {
     ctx.fillStyle = '#8a8aa0'
     ctx.font = '9px "Press Start 2P", monospace'
     ctx.fillText('ENTER RETRY     ESC TITLE', this.ctx.width / 2, this.ctx.height / 2 + 18)
+    ctx.restore()
+  }
+
+  private drawStoryCard(card: StoryCard): void {
+    const { ctx } = this.ctx.renderer
+    ctx.save()
+    ctx.fillStyle = 'rgba(8, 6, 14, 0.9)'
+    ctx.fillRect(108, 128, this.ctx.width - 216, 292)
+    ctx.strokeStyle = '#e8d4a0'
+    ctx.lineWidth = 3
+    ctx.strokeRect(108, 128, this.ctx.width - 216, 292)
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillStyle = '#e8d4a0'
+    ctx.font = '18px "Press Start 2P", monospace'
+    ctx.fillText(card.title.toUpperCase(), this.ctx.width / 2, 178)
+    ctx.textAlign = 'left'
+    ctx.textBaseline = 'top'
+    ctx.fillStyle = '#b7c7e6'
+    ctx.font = '10px "Press Start 2P", monospace'
+    wrapText(ctx, card.body, 162, 220, this.ctx.width - 324, 18)
+    ctx.textAlign = 'center'
+    ctx.fillStyle = '#8a8aa0'
+    ctx.font = '9px "Press Start 2P", monospace'
+    ctx.fillText('ENTER CONTINUE     ESC TITLE', this.ctx.width / 2, 374)
     ctx.restore()
   }
 
