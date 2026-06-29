@@ -317,6 +317,10 @@ export function campaignIsComplete(save: CampaignSave): boolean {
   return save.finished
 }
 
+export function campaignHasProgress(save: CampaignSave): boolean {
+  return save.completedNodeIds.length > 0 || save.finished
+}
+
 export function currentCampaignChapter(save: CampaignSave): CampaignChapterDef {
   return getCampaignChapter(save.chapterId)
 }

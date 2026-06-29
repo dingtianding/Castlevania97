@@ -3,18 +3,37 @@ import { ModeSelectScene } from './ModeSelectScene.ts'
 import { CampaignScene } from './CampaignScene.ts'
 import { SettingsScene } from './SettingsScene.ts'
 import { TICK_RATE } from '../core/Time.ts'
-import { loadCampaignSave, resetCampaignSave } from '../data/campaign.ts'
+import { campaignHasProgress, getCampaignChapter, getCampaignNode, loadCampaignSave, resetCampaignSave } from '../data/campaign.ts'
+import type { CampaignSave } from '../data/campaign.ts'
+
+interface TitleOption {
+  label: string
+  action: 'start' | 'continue' | 'archive' | 'settings'
+  blurb: string
+}
 
 export class TitleScene extends Scene {
   private index = 0
   private tick = 0
+  private save: CampaignSave = loadCampaignSave()
 
-  private readonly options = [
-    { label: 'START CAMPAIGN', action: 'start' as const, blurb: 'Begin Julius Belmont\'s run through the castle' },
-    { label: 'CONTINUE', action: 'continue' as const, blurb: 'Load the current campaign save' },
-    { label: 'ARCHIVE', action: 'archive' as const, blurb: 'Open the legacy fighter modes' },
-    { label: 'SETTINGS', action: 'settings' as const, blurb: 'Audio, motion, and difficulty' },
-  ]
+  private get options(): TitleOption[] {
+    const options: TitleOption[] = [
+      { label: 'START CAMPAIGN', action: 'start', blurb: 'Begin Julius Belmont\'s run through the castle' },
+    ]
+    if (campaignHasProgress(this.save)) {
+      options.push({
+        label: this.save.finished ? 'CAMPAIGN CLEAR' : 'CONTINUE',
+        action: 'continue',
+        blurb: this.save.finished ? 'Review the ending of the Demon Castle War' : continueBlurb(this.save),
+      })
+    }
+    options.push(
+      { label: 'ARCHIVE', action: 'archive', blurb: 'Open the legacy fighter modes' },
+      { label: 'SETTINGS', action: 'settings', blurb: 'Audio, motion, and difficulty' },
+    )
+    return options
+  }
 
   private readonly onKeyDown = (e: KeyboardEvent): void => {
     switch (e.code) {
@@ -49,7 +68,8 @@ export class TitleScene extends Scene {
   }
 
   override enter(): void {
-    this.index = this.saveIsFresh() ? 0 : 1
+    this.save = loadCampaignSave()
+    this.index = campaignHasProgress(this.save) ? 1 : 0
     window.addEventListener('keydown', this.onKeyDown)
     this.ctx.renderer.canvas.addEventListener('pointerdown', this.onPointerDown)
   }
@@ -117,11 +137,6 @@ export class TitleScene extends Scene {
     }
   }
 
-  private saveIsFresh(): boolean {
-    const save = loadCampaignSave()
-    return save.completedNodeIds.length === 0 && save.currentNodeId === save.unlockedNodeIds[0] && !save.finished
-  }
-
   private toGamePoint(e: PointerEvent): { x: number; y: number } {
     const rect = this.ctx.renderer.canvas.getBoundingClientRect()
     return {
@@ -129,4 +144,10 @@ export class TitleScene extends Scene {
       y: ((e.clientY - rect.top) / rect.height) * this.ctx.height,
     }
   }
+}
+
+function continueBlurb(save: CampaignSave): string {
+  const node = save.currentNodeId ? getCampaignNode(save.currentNodeId) : null
+  const chapter = getCampaignChapter(save.chapterId)
+  return node ? `${chapter.year} ${chapter.title}: ${node.title}` : `${chapter.year} ${chapter.title}`
 }
