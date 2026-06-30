@@ -97,8 +97,8 @@ export const zombie: CharacterDef = {
     },
   },
   sprites: {
-    idle: { key: 'zombie.idle', frames: 5 },
-    run: { key: 'zombie.run', frames: 7 },
+    idle: { key: 'zombie.idle', frames: 6 },
+    run: { key: 'zombie.run', frames: 6 },
     jump: { key: 'zombie.roam', frames: 6 },
     fall: { key: 'zombie.roam', frames: 6 },
     attack1: { key: 'zombie.attack', frames: 5 },
@@ -177,7 +177,7 @@ export const skeleton: CharacterDef = {
   },
   sprites: {
     idle: { key: 'skeleton.idle', frames: 6 },
-    run: { key: 'skeleton.run', frames: 7 },
+    run: { key: 'skeleton.run', frames: 6 },
     jump: { key: 'skeleton.roam', frames: 6 },
     fall: { key: 'skeleton.roam', frames: 6 },
     attack1: { key: 'skeleton.attack', frames: 6 },

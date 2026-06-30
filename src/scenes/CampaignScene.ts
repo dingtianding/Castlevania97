@@ -452,11 +452,12 @@ class CastleActor {
   render(renderer: Renderer, cameraX: number): void {
     const sheet = this.currentSheet()
     const frame = this.animator.currentFrame
-    const scale = this.def.visual.scale
+    const scale = this.renderScale()
+    const anchorY = this.renderAnchorY()
     const x = this.position.x - cameraX
     const y = this.position.y
     const drawX = this.facing === 1 ? x - this.def.visual.anchorX * scale : x - (sheet.frameWidth - this.def.visual.anchorX) * scale
-    const drawY = y - this.def.visual.anchorY * scale
+    const drawY = y - anchorY * scale
     if (this.state === 'dash') {
       const { ctx } = renderer
       ctx.save()
@@ -477,6 +478,16 @@ class CastleActor {
 
   private shouldDrawJuliusWhipExtension(frame: number): boolean {
     return this.def.id === 'juliusBelmont' && this.state === 'attack' && (frame === 2 || frame === 3)
+  }
+
+  private renderScale(): number {
+    if (this.def.id === 'juliusBelmont' && this.state === 'attack') return 0.84
+    return this.def.visual.scale
+  }
+
+  private renderAnchorY(): number {
+    if (this.def.id === 'juliusBelmont' && this.state === 'attack') return 98
+    return this.def.visual.anchorY
   }
 
   hurtbox(): Rect {
