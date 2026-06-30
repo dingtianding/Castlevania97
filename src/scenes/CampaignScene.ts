@@ -466,7 +466,17 @@ class CastleActor {
       drawSprite(renderer, sheet, frame, drawX - this.facing * 54, drawY, scale, this.facing)
       ctx.restore()
     }
+    if (this.shouldDrawJuliusWhipExtension(frame)) {
+      const extensionX = drawX + this.facing * sheet.frameWidth * scale
+      drawSprite(renderer, sheet, 1, drawX, drawY, scale, this.facing)
+      drawSprite(renderer, sheet, frame, extensionX, drawY, scale, this.facing)
+      return
+    }
     drawSprite(renderer, sheet, frame, drawX, drawY, scale, this.facing)
+  }
+
+  private shouldDrawJuliusWhipExtension(frame: number): boolean {
+    return this.def.id === 'juliusBelmont' && this.state === 'attack' && (frame === 2 || frame === 3)
   }
 
   hurtbox(): Rect {
