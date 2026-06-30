@@ -41,6 +41,11 @@ const CONTACT_HIT_COOLDOWN = 24
 const BIG_HIT_FLASH_TICKS = 10
 const ROOM_CLEAR_AUTO_ADVANCE_TICKS = 240
 const DEFEAT_RETRY_TICKS = 120
+const STARTING_HEARTS = 10
+const MAX_HEARTS = 99
+const SUBWEAPON_HEART_COST = 1
+const SUBWEAPON_SPEED = 9
+const SUBWEAPON_LIFETIME = 95
 
 interface StoryCard {
   title: string
@@ -90,6 +95,26 @@ interface ProjectileRuntime {
   position: Vec2
   ticksLeft: number
   hasHit: boolean
+}
+
+interface SubweaponRuntime {
+  position: Vec2
+  facing: Facing
+  ticksLeft: number
+  hasHit: boolean
+}
+
+interface Candle {
+  x: number
+  y: number
+  broken: boolean
+}
+
+interface HeartPickup {
+  position: Vec2
+  velocity: Vec2
+  value: number
+  ticksLeft: number
 }
 
 class CastleActor {
@@ -224,6 +249,22 @@ class CastleActor {
     const sheet = this.sheets
     if (this.state === 'death') this.animator.play(sheet.death, 6, false)
     else this.animator.play(sheet.takeHit, 4, false)
+  }
+
+  applyFlatDamage(damage: number, fromX: number, knockbackY: number): void {
+    if (this.state === 'death') return
+    this.health = Math.max(0, this.health - Math.max(1, Math.round(damage)))
+    this.velocity.x = this.position.x >= fromX ? 5 : -5
+    this.velocity.y = knockbackY
+    this.grounded = false
+    this.hurtTick = 0
+    this.attackMove = null
+    this.attackConnected = false
+    this.projectileSpawned = false
+    this.pendingProjectileSpawn = null
+    this.state = this.health <= 0 ? 'death' : 'hurt'
+    if (this.state === 'death') this.animator.play(this.sheets.death, 6, false)
+    else this.animator.play(this.sheets.takeHit, 4, false)
   }
 
   consumeProjectileSpawn(): ProjectileSpawn | null {
@@ -477,6 +518,9 @@ export class CampaignScene extends Scene {
   private player!: CastleActor
   private enemies: CastleActor[] = []
   private projectiles: ProjectileRuntime[] = []
+  private subweapons: SubweaponRuntime[] = []
+  private candles: Candle[] = []
+  private heartPickups: HeartPickup[] = []
   private input!: InputSource
   private cameraX = 0
   private clearTicks = 0
@@ -487,6 +531,7 @@ export class CampaignScene extends Scene {
   private flashTicks = 0
   private contactHitCooldown = 0
   private defeatTicks = 0
+  private hearts = STARTING_HEARTS
   private storyCard: StoryCard | null = null
   private storyQueue: StoryCard[] = []
   private readonly attackingLastTick = new Set<CastleActor>()
@@ -573,6 +618,7 @@ export class CampaignScene extends Scene {
     if (intent.dashPressed) {
       this.player.tryDash(intent.moveX === 0 ? this.player.facing : intent.moveX)
     }
+    if (intent.specialPressed && this.tryUseSubweapon()) intent.specialPressed = false
     this.player.update(intent, this.player.position.x + this.player.facing * 80, this.layout.platforms)
 
     for (const enemy of this.enemies) {
@@ -593,9 +639,27 @@ export class CampaignScene extends Scene {
       projectile.ticksLeft -= 1
       projectile.animator.update()
     }
+    for (const subweapon of this.subweapons) {
+      subweapon.position.x += subweapon.facing * SUBWEAPON_SPEED
+      subweapon.ticksLeft -= 1
+    }
+    for (const pickup of this.heartPickups) {
+      pickup.velocity.y += 0.34
+      pickup.position.x += pickup.velocity.x
+      pickup.position.y += pickup.velocity.y
+      if (pickup.position.y >= FLOOR_Y - 18) {
+        pickup.position.y = FLOOR_Y - 18
+        pickup.velocity.y = 0
+      }
+      pickup.ticksLeft -= 1
+    }
 
     this.resolveCombat()
     this.projectiles = this.projectiles.filter((p) => p.ticksLeft > 0 && !p.hasHit)
+    this.subweapons = this.subweapons.filter((p) => p.ticksLeft > 0 && !p.hasHit)
+    this.resolveCandles()
+    this.resolveHeartPickups()
+    this.heartPickups = this.heartPickups.filter((pickup) => pickup.ticksLeft > 0)
 
     if (this.player.isDead && this.player.hurtbox().y > 0) {
       this.defeatTicks = 1
@@ -682,6 +746,9 @@ export class CampaignScene extends Scene {
     this.player.reset(this.layout.checkpointX, this.layout.checkpointY, 1)
     this.enemies = buildEnemies(this.node, this.ctx.assets, this.layout)
     this.projectiles = []
+    this.subweapons = []
+    this.candles = buildCandles(this.layout)
+    this.heartPickups = []
     this.clearTicks = 0
     this.transitionTicks = fromReset ? 0 : 12
     this.hitstop = 0
@@ -735,6 +802,68 @@ export class CampaignScene extends Scene {
       this.player.applyHit(projectile.spawn.move, projectile.spawn.x)
       this.onHit(projectile.spawn.move, this.player.isDead)
     }
+    for (const subweapon of this.subweapons) {
+      if (subweapon.hasHit) continue
+      const box = subweaponBox(subweapon)
+      for (const enemy of this.enemies) {
+        if (enemy.isDead || !rectsOverlap(box, enemy.hurtbox())) continue
+        subweapon.hasHit = true
+        enemy.applyFlatDamage(11, subweapon.position.x, -6)
+        this.ctx.audio.hit()
+        this.hitstop = Math.max(this.hitstop, 6)
+        if (enemy.isDead) this.flashTicks = BIG_HIT_FLASH_TICKS
+        break
+      }
+    }
+  }
+
+  private tryUseSubweapon(): boolean {
+    if (this.hearts < SUBWEAPON_HEART_COST || this.player.isDead) return false
+    this.hearts -= SUBWEAPON_HEART_COST
+    this.subweapons.push({
+      position: {
+        x: this.player.position.x + this.player.facing * 36,
+        y: this.player.position.y - 70,
+      },
+      facing: this.player.facing,
+      ticksLeft: SUBWEAPON_LIFETIME,
+      hasHit: false,
+    })
+    this.ctx.audio.swing()
+    return true
+  }
+
+  private resolveCandles(): void {
+    const attack = this.player.activeAttack()
+    for (const candle of this.candles) {
+      if (candle.broken) continue
+      const box = candleBox(candle)
+      const hitByWhip = attack && rectsOverlap(attack.box, box)
+      const hitBySubweapon = this.subweapons.some((subweapon) => !subweapon.hasHit && rectsOverlap(subweaponBox(subweapon), box))
+      if (!hitByWhip && !hitBySubweapon) continue
+      candle.broken = true
+      this.spawnHeart(candle.x, candle.y)
+      this.ctx.audio.hit()
+    }
+  }
+
+  private resolveHeartPickups(): void {
+    const playerBox = this.player.hurtbox()
+    for (const pickup of this.heartPickups) {
+      if (!rectsOverlap(heartPickupBox(pickup), playerBox)) continue
+      this.hearts = Math.min(MAX_HEARTS, this.hearts + pickup.value)
+      pickup.ticksLeft = 0
+      this.ctx.audio.hit()
+    }
+  }
+
+  private spawnHeart(x: number, y: number): void {
+    this.heartPickups.push({
+      position: { x, y },
+      velocity: { x: 0, y: -4.5 },
+      value: 1,
+      ticksLeft: 420,
+    })
   }
 
   private onHit(move: AttackMove, defenderDead: boolean): void {
@@ -813,6 +942,8 @@ export class CampaignScene extends Scene {
       ctx.fillStyle = '#5a567a'
       ctx.fillRect(platform.x, platform.y - 4, platform.width, 4)
     }
+    for (const candle of this.candles) drawCandle(ctx, candle)
+    for (const pickup of this.heartPickups) drawHeartPickup(ctx, pickup)
     const doorOpen = this.enemies.every((enemy) => enemy.isDead)
     ctx.fillStyle = doorOpen ? '#e8d4a0' : '#3c374f'
     ctx.fillRect(this.layout.doorX, this.layout.doorY - 144, 76, 144)
@@ -827,6 +958,7 @@ export class CampaignScene extends Scene {
     this.player.render(this.ctx.renderer, this.cameraX)
     for (const enemy of this.enemies) enemy.render(this.ctx.renderer, this.cameraX)
     for (const projectile of this.projectiles) renderProjectile(projectile, this.ctx.renderer, this.cameraX)
+    for (const subweapon of this.subweapons) renderSubweapon(subweapon, this.ctx.renderer, this.cameraX)
     this.drawEnemyHealthBars()
     if (DEBUG_HITBOXES) this.drawDebugBoxes()
   }
@@ -873,6 +1005,12 @@ export class CampaignScene extends Scene {
     for (const projectile of this.projectiles) {
       if (!projectile.hasHit) stroke(projectileBox(projectile), '#5ad0ff')
     }
+    for (const subweapon of this.subweapons) {
+      if (!subweapon.hasHit) stroke(subweaponBox(subweapon), '#f3f06a')
+    }
+    for (const candle of this.candles) {
+      if (!candle.broken) stroke(candleBox(candle), '#e8d4a0')
+    }
     ctx.restore()
   }
 
@@ -900,6 +1038,9 @@ export class CampaignScene extends Scene {
     ctx.fillRect(40, 90, 300 * (this.player.health / this.player.maxHealth), 10)
     ctx.strokeStyle = '#e8d4a0'
     ctx.strokeRect(40, 90, 300, 10)
+    ctx.fillStyle = '#e8d4a0'
+    ctx.font = '8px "Press Start 2P", monospace'
+    ctx.fillText(`HEARTS ${this.hearts.toString().padStart(2, '0')}`, 266, 72)
     ctx.restore()
   }
 
@@ -985,7 +1126,7 @@ export class CampaignScene extends Scene {
     ctx.font = '8px "Press Start 2P", monospace'
     ctx.textAlign = 'center'
     ctx.fillText('A/D MOVE   J JUMP   J AGAIN DOUBLE   R/D DASH', this.ctx.width / 2, this.ctx.height - 38)
-    ctx.fillText('K LIGHT   L HEAVY   ; SPECIAL   ESC PAUSE', this.ctx.width / 2, this.ctx.height - 22)
+    ctx.fillText('K LIGHT   L HEAVY   ; SUBWEAPON   ESC PAUSE', this.ctx.width / 2, this.ctx.height - 22)
     ctx.restore()
   }
 
@@ -1160,6 +1301,66 @@ function renderProjectile(projectile: ProjectileRuntime, renderer: Renderer, cam
     : projectile.position.x - cameraX - projectile.sheet.frameWidth * spec.scale
   const y = projectile.position.y - projectile.sheet.frameHeight * spec.scale
   drawSprite(renderer, projectile.sheet, projectile.animator.currentFrame, x, y, spec.scale, projectile.spawn.facing)
+}
+
+function renderSubweapon(subweapon: SubweaponRuntime, renderer: Renderer, cameraX: number): void {
+  const { ctx } = renderer
+  const x = subweapon.position.x - cameraX
+  const y = subweapon.position.y
+  ctx.save()
+  ctx.translate(x, y)
+  ctx.rotate(subweapon.facing * 0.32)
+  ctx.fillStyle = '#dfe8ff'
+  ctx.fillRect(-15, -3, 30, 6)
+  ctx.fillStyle = '#e8d4a0'
+  ctx.fillRect(7, -6, 10, 12)
+  ctx.strokeStyle = '#0b0912'
+  ctx.lineWidth = 2
+  ctx.strokeRect(-15, -3, 30, 6)
+  ctx.restore()
+}
+
+function buildCandles(layout: RoomLayout): Candle[] {
+  const xs = [layout.checkpointX + 250, layout.checkpointX + 560, layout.doorX - 230]
+  return xs
+    .filter((x) => x > WALL_MARGIN && x < ROOM_WIDTH - WALL_MARGIN)
+    .map((x) => ({ x, y: FLOOR_Y - 38, broken: false }))
+}
+
+function candleBox(candle: Candle): Rect {
+  return { x: candle.x - 9, y: candle.y - 28, width: 18, height: 32 }
+}
+
+function heartPickupBox(pickup: HeartPickup): Rect {
+  return { x: pickup.position.x - 9, y: pickup.position.y - 9, width: 18, height: 18 }
+}
+
+function subweaponBox(subweapon: SubweaponRuntime): Rect {
+  return { x: subweapon.position.x - 16, y: subweapon.position.y - 6, width: 32, height: 12 }
+}
+
+function drawCandle(ctx: CanvasRenderingContext2D, candle: Candle): void {
+  if (candle.broken) return
+  ctx.save()
+  ctx.fillStyle = '#f2e6bf'
+  ctx.fillRect(candle.x - 6, candle.y - 22, 12, 22)
+  ctx.fillStyle = '#b91d2d'
+  ctx.fillRect(candle.x - 7, candle.y - 5, 14, 5)
+  ctx.fillStyle = '#f6b74a'
+  ctx.fillRect(candle.x - 3, candle.y - 30, 6, 8)
+  ctx.fillStyle = '#fff0a8'
+  ctx.fillRect(candle.x - 1, candle.y - 34, 2, 5)
+  ctx.restore()
+}
+
+function drawHeartPickup(ctx: CanvasRenderingContext2D, pickup: HeartPickup): void {
+  ctx.save()
+  ctx.fillStyle = '#b91d2d'
+  ctx.fillRect(pickup.position.x - 5, pickup.position.y - 7, 10, 12)
+  ctx.fillRect(pickup.position.x - 8, pickup.position.y - 4, 16, 7)
+  ctx.fillStyle = '#ff9f9f'
+  ctx.fillRect(pickup.position.x - 2, pickup.position.y - 5, 3, 3)
+  ctx.restore()
 }
 
 function buildLayout(stage: string): RoomLayout {
