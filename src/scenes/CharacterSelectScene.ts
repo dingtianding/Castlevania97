@@ -1,5 +1,6 @@
 import { Scene } from './Scene.ts'
-import { BattleScene } from './BattleScene.ts'
+import { BattleScene, type BattleConfig } from './BattleScene.ts'
+import { StageSelectScene } from './StageSelectScene.ts'
 import { ModeSelectScene } from './ModeSelectScene.ts'
 import { MoveListScene } from './MoveListScene.ts'
 import { ROSTER } from '../data/characters/registry.ts'
@@ -10,6 +11,7 @@ import { makeSheet, drawSprite, type SpriteSheet } from '../render/SpriteRendere
 import type { GameContext } from '../core/GameContext.ts'
 import { TICK_RATE } from '../core/Time.ts'
 import type { CharacterDef, CharacterStats } from '../data/characters/CharacterDef.ts'
+import { isMenuCancel } from '../input/menuButtons.ts'
 
 const CELL_W = 190
 const CELL_H = 230
@@ -40,13 +42,16 @@ export class CharacterSelectScene extends Scene {
   constructor(
     ctx: GameContext,
     private readonly mode: SelectMode = 'local',
+    private readonly preset?: { p1Index: number; p2Index: number },
   ) {
     super(ctx)
   }
 
   private readonly onKeyDown = (e: KeyboardEvent): void => {
-    if (e.code === 'Escape') this.ctx.scenes.replace(new ModeSelectScene(this.ctx))
-    else if (e.code === 'KeyM') {
+    if (isMenuCancel(e.code)) {
+      e.preventDefault()
+      this.cancelOrBack()
+    } else if (e.code === 'KeyM') {
       e.preventDefault()
       this.ctx.scenes.replace(new MoveListScene(this.ctx, this.mode))
     }
@@ -72,8 +77,18 @@ export class CharacterSelectScene extends Scene {
   }
 
   override enter(): void {
-    this.p1 = { index: 0, locked: false, prevMoveX: 0, color: '#e8d4a0' }
-    this.p2 = { index: Math.min(1, ROSTER.length - 1), locked: false, prevMoveX: 0, color: '#e64b3c' }
+    this.p1 = {
+      index: this.preset?.p1Index ?? 0,
+      locked: false,
+      prevMoveX: 0,
+      color: '#e8d4a0',
+    }
+    this.p2 = {
+      index: this.preset?.p2Index ?? Math.min(1, ROSTER.length - 1),
+      locked: false,
+      prevMoveX: 0,
+      color: '#e64b3c',
+    }
     this.input1 = new KeyboardSource(PLAYER1_KEYS)
     if (this.mode === 'local') this.input2 = new KeyboardSource(PLAYER2_KEYS)
     this.portraits = ROSTER.map((c) =>
@@ -110,15 +125,22 @@ export class CharacterSelectScene extends Scene {
     }
 
     if (this.p1.locked && this.p2.locked) {
+      const battleConfig: BattleConfig = {
+        p1: ROSTER[this.p1.index]!,
+        p2: ROSTER[this.p2.index]!,
+        p2Controller: this.mode === 'ai' ? 'ai' : this.mode === 'training' ? 'dummy' : 'human',
+        rules: this.mode === 'training' ? 'training' : 'match',
+        selectMode: this.mode,
+        ...(this.mode === 'ai' ? { aiDifficulty: this.ctx.settings.current.difficulty } : {}),
+      }
+
+      if (this.mode === 'local' || this.mode === 'ai' || this.mode === 'training') {
+        this.ctx.scenes.replace(new StageSelectScene(this.ctx, battleConfig))
+        return
+      }
+
       this.ctx.scenes.replace(
-        new BattleScene(this.ctx, {
-          p1: ROSTER[this.p1.index]!,
-          p2: ROSTER[this.p2.index]!,
-          p2Controller: this.mode === 'ai' ? 'ai' : this.mode === 'training' ? 'dummy' : 'human',
-          rules: this.mode === 'training' ? 'training' : 'match',
-          selectMode: this.mode,
-          ...(this.mode === 'ai' ? { aiDifficulty: this.ctx.settings.current.difficulty } : {}),
-        }),
+        new BattleScene(this.ctx, battleConfig),
       )
     }
   }
@@ -143,11 +165,27 @@ export class CharacterSelectScene extends Scene {
       if (intent.moveX !== 0 && s.prevMoveX === 0) {
         s.index = (s.index + intent.moveX + ROSTER.length) % ROSTER.length
       }
-      if (intent.lightPressed || intent.jumpPressed || intent.heavyPressed) s.locked = true
-    } else if (intent.specialPressed) {
+      if (intent.jumpPressed || intent.heavyPressed) s.locked = true
+    } else if (intent.lightPressed || intent.specialPressed) {
       s.locked = false
     }
     s.prevMoveX = intent.moveX
+  }
+
+  private cancelOrBack(): void {
+    if ((this.mode === 'ai' || this.mode === 'training') && this.p2.locked) {
+      this.p2.locked = false
+      return
+    }
+    if (this.p1.locked) {
+      this.p1.locked = false
+      return
+    }
+    if (this.mode === 'local' && this.p2.locked) {
+      this.p2.locked = false
+      return
+    }
+    this.ctx.scenes.replace(new ModeSelectScene(this.ctx))
   }
 
   render(): void {
@@ -206,14 +244,14 @@ export class CharacterSelectScene extends Scene {
       ctx.fillStyle = '#8a8aa0'
       const hint =
         this.mode === 'ai'
-          ? 'A/D MOVE   F LOCK (PICK YOURS, THEN CPU)   ESC BACK'
+          ? 'A/D MOVE   J LOCK (PICK YOURS, THEN CPU)   K BACK'
           : this.mode === 'training'
-            ? 'A/D MOVE   F LOCK (PICK YOURS, THEN DUMMY)   ESC BACK'
-          : this.mode === 'arcade'
-            ? 'A/D MOVE     F START ARCADE     ESC BACK'
-            : this.mode === 'boss'
-              ? 'A/D MOVE     F START BOSS RUSH     ESC BACK'
-            : 'MOVE A/D · J-L     LOCK F · .     M MOVES     ESC BACK'
+            ? 'A/D MOVE   J LOCK (PICK YOURS, THEN DUMMY)   K BACK'
+            : this.mode === 'arcade'
+              ? 'A/D MOVE     J START ARCADE     K BACK'
+              : this.mode === 'boss'
+                ? 'A/D MOVE     J START BOSS RUSH     K BACK'
+                : 'A/D MOVE     J LOCK     K BACK     M MOVES'
       ctx.fillText(hint, width / 2, height - 26)
     }
   }

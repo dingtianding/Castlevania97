@@ -17,6 +17,7 @@ import {
   type Moveset,
 } from '../combat/AttackMove.ts'
 import type { ProjectileSpawn } from '../combat/Projectile.ts'
+import type { RunModifiers } from '../data/relics.ts'
 
 // Per-tick physics. Stable across refresh rates thanks to the fixed timestep.
 const GRAVITY = 0.8
@@ -82,11 +83,12 @@ export class Fighter {
   readonly position: Vec2
   readonly velocity: Vec2 = { x: 0, y: 0 }
   facing: Facing
-  readonly maxHealth = 100
-  health = 100
+  readonly maxHealth: number
+  health: number
   meter = 0
 
   private readonly prevPosition: Vec2
+  private readonly modifiers: RunModifiers
   private stateId: FighterStateId = 'idle'
   private grounded = true
   private airJumpsLeft = AIR_JUMPS
@@ -117,10 +119,20 @@ export class Fighter {
     facing: Facing,
     private readonly floorY: number,
     private readonly stageWidth: number,
+    modifiers: RunModifiers = {
+      maxHealthBonus: 0,
+      damageMultiplier: 1,
+      meterGainMultiplier: 1,
+      moveSpeedMultiplier: 1,
+      startMeterBonus: 0,
+    },
   ) {
     this.position = { x: spawnX, y: floorY }
     this.prevPosition = { x: spawnX, y: floorY }
     this.facing = facing
+    this.modifiers = modifiers
+    this.maxHealth = 100 + modifiers.maxHealthBonus
+    this.health = this.maxHealth
     this.animator = new Animator(anims.idle, LOCO_ANIM.idle.hold, true)
   }
 
@@ -158,6 +170,10 @@ export class Fighter {
 
   fillMeter(): void {
     this.meter = MAX_METER
+  }
+
+  applyRunStartMeter(): void {
+    this.meter = Math.min(MAX_METER, this.modifiers.startMeterBonus)
   }
 
   // ---- simulation ---------------------------------------------------------
@@ -199,7 +215,9 @@ export class Fighter {
     }
 
     this.updateDash(intent.moveX)
-    this.velocity.x = this.dashTicks > 0 ? this.dashDir * DASH_SPEED : intent.moveX * MOVE_SPEED
+    const moveSpeed = MOVE_SPEED * this.modifiers.moveSpeedMultiplier
+    const dashSpeed = DASH_SPEED * this.modifiers.moveSpeedMultiplier
+    this.velocity.x = this.dashTicks > 0 ? this.dashDir * dashSpeed : intent.moveX * moveSpeed
     if (intent.moveX > 0) this.facing = 1
     else if (intent.moveX < 0) this.facing = -1
     else this.facing = opponentX >= this.position.x ? 1 : -1
@@ -365,11 +383,12 @@ export class Fighter {
     this.animator.play(sheet, hold, false)
   }
 
-  applyHit(move: AttackMove, fromX: number): void {
+  applyHit(move: AttackMove, fromX: number, damageMultiplier = 1): void {
     if (this.stateId === 'death') return
 
-    this.health = Math.max(0, this.health - move.damage)
-    this.addMeter(move.damage * METER_PER_DAMAGE_TAKEN)
+    const scaledDamage = Math.max(1, Math.round(move.damage * damageMultiplier))
+    this.health = Math.max(0, this.health - scaledDamage)
+    this.addMeter(scaledDamage * METER_PER_DAMAGE_TAKEN)
     const dir: Facing = this.position.x >= fromX ? 1 : -1
     this.velocity.x = dir * move.knockbackX
     this.velocity.y = move.knockbackY
@@ -433,10 +452,10 @@ export class Fighter {
   }
 
   /** Called when this fighter's attack connects — rewards super meter. */
-  markAttackConnected(): void {
+  markAttackConnected(damageMultiplier = 1): void {
     this.attackConnected = true
     if (!this.attackMove) return
-    this.addMeter(this.attackMove.damage * METER_PER_DAMAGE_DEALT)
+    this.addMeter(this.attackMove.damage * METER_PER_DAMAGE_DEALT * this.modifiers.meterGainMultiplier * damageMultiplier)
     if (this.attackMove.jumpCancelableOnHit && this.grounded) {
       this.jumpCancelTicks = JUMP_CANCEL_TICKS
     }
@@ -484,6 +503,10 @@ export class Fighter {
 
   get meterFraction(): number {
     return this.meter / MAX_METER
+  }
+
+  get damageDealtMultiplier(): number {
+    return this.modifiers.damageMultiplier
   }
 
   // ---- rendering ----------------------------------------------------------

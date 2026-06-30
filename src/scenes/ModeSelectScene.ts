@@ -4,6 +4,7 @@ import { TitleScene } from './TitleScene.ts'
 import { SettingsScene } from './SettingsScene.ts'
 import { MoveListScene } from './MoveListScene.ts'
 import { HighScoresScene } from './HighScoresScene.ts'
+import { isMenuCancel, isMenuConfirm } from '../input/menuButtons.ts'
 
 interface ModeOption {
   label: string
@@ -15,13 +16,13 @@ interface ModeOption {
 }
 
 const OPTIONS: ModeOption[] = [
-  { label: 'LOCAL 2P', mode: 'local', blurb: 'Two players, one keyboard' },
-  { label: 'VS CPU', mode: 'ai', blurb: 'Fight the computer' },
-  { label: 'TRAINING', mode: 'training', blurb: 'Tune moves and hitboxes' },
-  { label: 'ARCADE', mode: 'arcade', blurb: 'Climb the CPU gauntlet' },
+  { label: 'LEGACY 2P', mode: 'local', blurb: 'Two players, one keyboard' },
+  { label: 'LEGACY VS CPU', mode: 'ai', blurb: 'Fight the computer' },
+  { label: 'TRAINING HALL', mode: 'training', blurb: 'Tune moves and hitboxes' },
+  { label: 'ARCHIVE ARC', mode: 'arcade', blurb: 'Climb the CPU gauntlet' },
   { label: 'BOSS RUSH', mode: 'boss', blurb: 'Challenge the demon' },
-  { label: 'MOVES', moves: true, blurb: 'Read fighter kits' },
-  { label: 'SCORES', scores: true, blurb: 'View local records' },
+  { label: 'MOVE CODICES', moves: true, blurb: 'Read fighter kits' },
+  { label: 'RECORDS', scores: true, blurb: 'View local records' },
   { label: 'SETTINGS', settings: true, blurb: 'Audio, motion, CPU level' },
 ]
 
@@ -30,6 +31,16 @@ export class ModeSelectScene extends Scene {
   private index = 0
 
   private readonly onKeyDown = (e: KeyboardEvent): void => {
+    if (isMenuConfirm(e.code)) {
+      e.preventDefault()
+      this.choose()
+      return
+    }
+    if (isMenuCancel(e.code)) {
+      e.preventDefault()
+      this.ctx.scenes.replace(new TitleScene(this.ctx))
+      return
+    }
     switch (e.code) {
       case 'ArrowUp':
       case 'KeyW':
@@ -38,14 +49,6 @@ export class ModeSelectScene extends Scene {
       case 'ArrowDown':
       case 'KeyS':
         this.index = (this.index + 1) % OPTIONS.length
-        break
-      case 'Enter':
-      case 'Space':
-        e.preventDefault()
-        this.choose()
-        break
-      case 'Escape':
-        this.ctx.scenes.replace(new TitleScene(this.ctx))
         break
     }
   }
@@ -95,7 +98,7 @@ export class ModeSelectScene extends Scene {
     ctx.textBaseline = 'middle'
     ctx.fillStyle = '#e8d4a0'
     ctx.font = '24px "Press Start 2P", monospace'
-    ctx.fillText('SELECT MODE', width / 2, 110)
+    ctx.fillText('ARCHIVE', width / 2, 110)
 
     OPTIONS.forEach((opt, i) => {
       const y = 142 + i * 48
@@ -112,7 +115,7 @@ export class ModeSelectScene extends Scene {
 
     ctx.fillStyle = '#5a567a'
     ctx.font = '11px "Press Start 2P", monospace'
-    ctx.fillText('W/S MOVE     ENTER SELECT     ESC BACK', width / 2, height - 30)
+    ctx.fillText('W/S MOVE     J SELECT     K BACK', width / 2, height - 30)
   }
 
   private toGamePoint(e: PointerEvent): { x: number; y: number } {

@@ -15,7 +15,7 @@ export function makeSheet(image: HTMLImageElement, frameCount: number): SpriteSh
   return {
     image,
     frameCount,
-    frameWidth: image.width / frameCount,
+    frameWidth: Math.floor(image.width / frameCount),
     frameHeight: image.height,
   }
 }

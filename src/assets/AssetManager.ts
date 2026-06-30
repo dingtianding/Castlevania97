@@ -24,6 +24,30 @@ function loadImage(url: string): Promise<HTMLImageElement> {
     })
 }
 
+async function stripLightCheckerboard(img: HTMLImageElement): Promise<HTMLImageElement> {
+  const canvas = document.createElement('canvas')
+  canvas.width = img.naturalWidth
+  canvas.height = img.naturalHeight
+  const ctx = canvas.getContext('2d', { willReadFrequently: true })
+  if (!ctx) return img
+  ctx.drawImage(img, 0, 0)
+  const pixels = ctx.getImageData(0, 0, canvas.width, canvas.height)
+  for (let i = 0; i < pixels.data.length; i += 4) {
+    const r = pixels.data[i]!
+    const g = pixels.data[i + 1]!
+    const b = pixels.data[i + 2]!
+    if (r >= 228 && g >= 228 && b >= 228 && Math.max(r, g, b) - Math.min(r, g, b) <= 10) {
+      pixels.data[i + 3] = 0
+    }
+  }
+  ctx.putImageData(pixels, 0, 0)
+  return loadImage(canvas.toDataURL('image/png'))
+}
+
+function needsLightBackgroundCleanup(key: ImageKey): boolean {
+  return key.startsWith('zombie.')
+}
+
 /** Preloads and holds decoded images keyed by manifest name. */
 export class AssetManager {
   private readonly images = new Map<ImageKey, HTMLImageElement>()
@@ -34,7 +58,8 @@ export class AssetManager {
     let loaded = 0
     await Promise.all(
       entries.map(async ([key, url]) => {
-        this.images.set(key, await loadImage(url))
+        const image = await loadImage(url)
+        this.images.set(key, needsLightBackgroundCleanup(key) ? await stripLightCheckerboard(image) : image)
         loaded += 1
         onProgress?.(loaded, entries.length)
       }),

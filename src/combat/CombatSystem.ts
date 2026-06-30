@@ -37,8 +37,8 @@ export class CombatSystem {
     if (!rectsOverlap(move.box, hurt)) return
 
     const dir = defender.position.x >= attacker.position.x ? 1 : -1
-    defender.applyHit(move.spec, attacker.position.x)
-    attacker.markAttackConnected()
+    defender.applyHit(move.spec, attacker.position.x, attacker.damageDealtMultiplier)
+    attacker.markAttackConnected(attacker.damageDealtMultiplier)
     out.push({
       attacker,
       defender,

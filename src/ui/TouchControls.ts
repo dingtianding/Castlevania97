@@ -36,6 +36,16 @@ export class TouchControls {
       }),
       this.button({
         className: 'touch-button touch-button--dir',
+        label: '^',
+        press: () => {
+          this.state.upHeld = true
+        },
+        release: () => {
+          this.state.upHeld = false
+        },
+      }),
+      this.button({
+        className: 'touch-button touch-button--dir',
         label: 'v',
         press: () => {
           this.state.downHeld = true
@@ -51,7 +61,7 @@ export class TouchControls {
     actions.append(
       this.button({
         className: 'touch-button touch-button--jump',
-        label: 'J',
+        label: 'A',
         press: () => {
           this.state.jumpHeld = true
           this.state.jumpPressed = true
@@ -62,23 +72,30 @@ export class TouchControls {
       }),
       this.button({
         className: 'touch-button',
-        label: 'L',
+        label: 'B',
         press: () => {
           this.state.lightPressed = true
         },
       }),
       this.button({
         className: 'touch-button',
-        label: 'H',
+        label: 'L',
         press: () => {
           this.state.heavyPressed = true
         },
       }),
       this.button({
         className: 'touch-button touch-button--special',
-        label: 'S',
+        label: 'R',
         press: () => {
           this.state.specialPressed = true
+        },
+      }),
+      this.button({
+        className: 'touch-button touch-button--dash',
+        label: 'D',
+        press: () => {
+          this.state.dashPressed = true
         },
       }),
     )
@@ -91,8 +108,10 @@ export class TouchControls {
     this.root.remove()
     this.activeDirections.clear()
     this.state.moveX = 0
+    this.state.upHeld = false
     this.state.downHeld = false
     this.state.jumpHeld = false
+    this.state.dashPressed = false
   }
 
   private button(spec: ButtonSpec): HTMLButtonElement {

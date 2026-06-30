@@ -1,8 +1,12 @@
 import { Scene } from './Scene.ts'
 import { ModeSelectScene } from './ModeSelectScene.ts'
+import { TitleScene } from './TitleScene.ts'
 import type { AIDifficulty } from '../input/AISource.ts'
+import type { GameContext } from '../core/GameContext.ts'
 import type { GameSettings } from '../settings/SettingsStore.ts'
+import { isMenuCancel, isMenuConfirm } from '../input/menuButtons.ts'
 
+type SettingsReturnTarget = 'archive' | 'title'
 type SettingKey = 'masterVolume' | 'musicVolume' | 'sfxVolume' | 'reduceMotion' | 'difficulty'
 
 interface SettingRow {
@@ -24,7 +28,24 @@ export class SettingsScene extends Scene {
   private index = 0
   private readonly rowRects: { x: number; y: number; w: number; h: number }[] = []
 
+  constructor(
+    ctx: GameContext,
+    private readonly returnTo: SettingsReturnTarget = 'archive',
+  ) {
+    super(ctx)
+  }
+
   private readonly onKeyDown = (e: KeyboardEvent): void => {
+    if (isMenuCancel(e.code)) {
+      e.preventDefault()
+      this.goBack()
+      return
+    }
+    if (isMenuConfirm(e.code)) {
+      e.preventDefault()
+      this.adjust(1)
+      return
+    }
     switch (e.code) {
       case 'ArrowUp':
       case 'KeyW':
@@ -41,13 +62,6 @@ export class SettingsScene extends Scene {
       case 'ArrowRight':
       case 'KeyD':
         this.adjust(1)
-        break
-      case 'Enter':
-      case 'Space':
-        this.adjust(1)
-        break
-      case 'Escape':
-        this.ctx.scenes.replace(new ModeSelectScene(this.ctx))
         break
     }
   }
@@ -97,6 +111,11 @@ export class SettingsScene extends Scene {
     }
   }
 
+  private goBack(): void {
+    if (this.returnTo === 'title') this.ctx.scenes.replace(new TitleScene(this.ctx))
+    else this.ctx.scenes.replace(new ModeSelectScene(this.ctx))
+  }
+
   render(): void {
     const { renderer, assets, width, height } = this.ctx
     const { ctx } = renderer
@@ -128,7 +147,7 @@ export class SettingsScene extends Scene {
     ctx.textAlign = 'center'
     ctx.fillStyle = '#5a567a'
     ctx.font = '11px "Press Start 2P", monospace'
-    ctx.fillText('W/S MOVE     A/D CHANGE     ESC BACK', width / 2, height - 30)
+    ctx.fillText('W/S MOVE     A/D OR J CHANGE     K BACK', width / 2, height - 30)
   }
 
   private toGamePoint(e: PointerEvent): { x: number; y: number } {

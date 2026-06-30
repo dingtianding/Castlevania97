@@ -17,11 +17,13 @@ export class KeyboardSource implements InputSource {
     this.bound = new Set([
       ...keys.left,
       ...keys.right,
+      ...keys.up,
       ...keys.down,
       ...keys.jump,
       ...keys.light,
       ...keys.heavy,
       ...keys.special,
+      ...keys.dash,
     ])
     window.addEventListener('keydown', this.onKeyDown)
     window.addEventListener('keyup', this.onKeyUp)
@@ -56,12 +58,14 @@ export class KeyboardSource implements InputSource {
 
     const intent: IntentState = {
       moveX,
+      upHeld: this.anyHeld(this.keys.up),
       downHeld: this.anyHeld(this.keys.down),
       jumpHeld: this.anyHeld(this.keys.jump),
       jumpPressed: this.anyPressed(this.keys.jump),
       lightPressed: this.anyPressed(this.keys.light),
       heavyPressed: this.anyPressed(this.keys.heavy),
       specialPressed: this.anyPressed(this.keys.special),
+      dashPressed: this.anyPressed(this.keys.dash),
     }
     this.pressed.clear()
     return intent

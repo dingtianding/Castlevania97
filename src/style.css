@@ -65,11 +65,13 @@ body {
 
 .touch-controls__actions {
   right: 4%;
+  display: grid;
+  grid-template-columns: repeat(3, auto);
 }
 
 .touch-button {
-  width: clamp(48px, 10vw, 72px);
-  height: clamp(48px, 10vw, 72px);
+  width: clamp(44px, 9vw, 64px);
+  height: clamp(44px, 9vw, 64px);
   border: 2px solid #e8d4a0;
   background: rgba(20, 18, 31, 0.72);
   color: #e8d4a0;
@@ -86,6 +88,11 @@ body {
 .touch-button--special {
   border-color: #5ad0ff;
   color: #5ad0ff;
+}
+
+.touch-button--dash {
+  border-color: #b91d2d;
+  color: #ff9f9f;
 }
 
 @media (pointer: coarse) {

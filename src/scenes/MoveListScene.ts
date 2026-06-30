@@ -5,6 +5,7 @@ import { ROSTER } from '../data/characters/registry.ts'
 import { drawSprite, makeSheet, type SpriteSheet } from '../render/SpriteRenderer.ts'
 import type { CharacterDef, CharacterStats } from '../data/characters/CharacterDef.ts'
 import type { GameContext } from '../core/GameContext.ts'
+import { isMenuCancel, isMenuConfirm } from '../input/menuButtons.ts'
 
 const MOVE_KEYS = ['light', 'heavy', 'special', 'super'] as const
 
@@ -20,6 +21,11 @@ export class MoveListScene extends Scene {
   }
 
   private readonly onKeyDown = (e: KeyboardEvent): void => {
+    if (isMenuCancel(e.code) || isMenuConfirm(e.code) || e.code === 'KeyM') {
+      e.preventDefault()
+      this.back()
+      return
+    }
     switch (e.code) {
       case 'ArrowLeft':
       case 'KeyA':
@@ -28,13 +34,6 @@ export class MoveListScene extends Scene {
       case 'ArrowRight':
       case 'KeyD':
         this.index = (this.index + 1) % ROSTER.length
-        break
-      case 'Escape':
-      case 'Enter':
-      case 'Space':
-      case 'KeyM':
-        e.preventDefault()
-        this.back()
         break
     }
   }
@@ -82,7 +81,7 @@ export class MoveListScene extends Scene {
     ctx.textAlign = 'center'
     ctx.fillStyle = '#5a567a'
     ctx.font = '10px "Press Start 2P", monospace'
-    ctx.fillText('A/D CHANGE FIGHTER     M / ENTER / ESC BACK', width / 2, height - 28)
+    ctx.fillText('A/D CHANGE FIGHTER     J / K BACK', width / 2, height - 28)
   }
 
   private drawPortrait(def: CharacterDef, x: number, y: number, w: number, h: number): void {

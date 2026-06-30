@@ -2,6 +2,7 @@ import { Fighter, type FighterAnimations } from './Fighter.ts'
 import { makeSheet } from '../render/SpriteRenderer.ts'
 import type { AssetManager } from '../assets/AssetManager.ts'
 import type { CharacterDef } from '../data/characters/CharacterDef.ts'
+import type { RunModifiers } from '../data/relics.ts'
 import type { Facing } from '../types.ts'
 
 /** Resolve a CharacterDef's sprite keys to decoded sheets and build a Fighter. */
@@ -12,6 +13,7 @@ export function createFighter(
   facing: Facing,
   floorY: number,
   stageWidth: number,
+  modifiers?: RunModifiers,
 ): Fighter {
   const s = def.sprites
   const anims: FighterAnimations = {
@@ -24,5 +26,5 @@ export function createFighter(
     takeHit: makeSheet(assets.image(s.takeHit.key), s.takeHit.frames),
     death: makeSheet(assets.image(s.death.key), s.death.frames),
   }
-  return new Fighter(anims, def.visual, def.moves, spawnX, facing, floorY, stageWidth)
+  return new Fighter(anims, def.visual, def.moves, spawnX, facing, floorY, stageWidth, modifiers)
 }

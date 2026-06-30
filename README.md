@@ -2,23 +2,21 @@
 
 [**▶ Play Castlevania97**](https://dingtianding.github.io/Castlevania97/)
 
-A 2D crossover fighting game in the spirit of Super Smash Bros and Marvel vs Capcom, built as a production-grade TypeScript canvas engine.
-Originally a small vanilla-JS prototype, it was rebuilt from the ground up into a clean, frame-rate-independent fighting-game engine with a data-driven roster, an AI opponent, arcade mode, and full game feel.
+A Castlevania-inspired action campaign centered on a younger Julius Belmont in 1997, built as a production-grade TypeScript canvas engine.
+The current build pivots the original fighter scaffold into a 1997 action campaign with a node-based route, room encounters, chapter story text, and a legacy archive that preserves the old versus modes.
 
 ![Character select](docs/select.png)
 ![Battle](docs/battle.png)
 
 ## Modes
 
-- **Local 2P** — two players on one keyboard (or gamepads).
-- **VS CPU** — fight an AI opponent at scaling difficulty.
-- **Training** — pick a fighter and dummy, then tune damage, spacing, meter, and hitboxes with an infinite timer.
-- **Arcade** — climb a gauntlet of CPU fighters that get tougher each stage, ending in a demon-boss finale with a breath-fire super.
-- **Boss Rush** — pick a fighter and challenge the demon finale directly.
-- **Moves** — browse each fighter's archetype, stats, and named attacks.
-- **Scores** — view local score records saved in the browser.
+- **Campaign** — young Julius follows a 1997 omen, clears room encounters, and reaches the castle only at the final stage.
+- **Archive** — the legacy versus fighter modes remain available as a side menu.
+- **Settings** — audio, reduced motion, and CPU difficulty.
+- **Move Codices** — browse the legacy roster data and move lists.
+- **Records** — view saved score tables from the archive modes.
 
-Every match is best-of-3 rounds with a 60-second timer.
+Campaign battles are still best-of-3 rounds with a 60-second timer.
 
 ## Controls
 
@@ -26,10 +24,10 @@ Every match is best-of-3 rounds with a 60-second timer.
 | --- | --- | --- |
 | Move | `A` / `D` | `←` / `→` |
 | Fast fall | `S` while falling | `↓` while falling |
-| Jump | `W` | `↑` |
-| Light attack | `F` | `.` |
-| Heavy attack | `G` | `,` |
-| Special / Super | `H` | `/` |
+| Jump | `J` | `↑` |
+| Light attack | `K` | `.` |
+| Heavy attack | `L` | `,` |
+| Special / Super | `;` | `/` |
 
 Press **special with a full meter** to spend it on a super.
 Every fighter has one air jump, can attack while airborne, can fast fall, and can dash by double-tapping left or right.
@@ -61,7 +59,7 @@ The rebuild fixes the original's real problems by construction and adds the syst
 - **Training tools** — infinite timer, passive dummy, full-meter refill, reset shortcut, spacing/damage/combo overlay, and `?hitbox` support for frame-data tuning.
 - **Move list** — a roster browser built from `CharacterDef.meta`, so move names and stats stay in one source of truth.
 - **Game feel** — hitstop, trauma-based screen shake (reduce-motion aware), pooled hit-spark particles, KO slow-motion, and a WebAudio mixer with streamed BGM and procedurally synthesized SFX.
-- **Scenes** — a scene-stack manager (Boot → Load → Title → ModeSelect → CharacterSelect → Battle → Result) with overlay support.
+- **Scenes** — a scene-stack manager (Boot → Load → Title → Campaign → Battle → Result, with Archive screens behind it) with overlay support.
 
 ## Tech stack
 
