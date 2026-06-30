@@ -1,6 +1,7 @@
 import { Scene } from './Scene.ts'
 import { TitleScene } from './TitleScene.ts'
 import { TICK_RATE } from '../core/Time.ts'
+import { isMenuConfirm } from '../input/menuButtons.ts'
 
 /**
  * Pause overlay. Being a transparent scene, the SceneManager keeps drawing the
@@ -15,10 +16,11 @@ export class PauseScene extends Scene {
   }
 
   private readonly onKeyDown = (e: KeyboardEvent): void => {
-    if (e.code === 'Escape' || e.code === 'Enter') {
+    if (isMenuConfirm(e.code) || e.code === 'Escape') {
       e.preventDefault()
       this.ctx.scenes.pop() // resume
-    } else if (e.code === 'KeyQ') {
+    } else if (e.code === 'KeyQ' || e.code === 'KeyK') {
+      e.preventDefault()
       this.ctx.scenes.replace(new TitleScene(this.ctx))
     }
   }
@@ -51,7 +53,7 @@ export class PauseScene extends Scene {
     if (Math.floor(this.tick / (TICK_RATE / 2)) % 2 === 0) {
       ctx.fillStyle = '#8a8aa0'
       ctx.font = '12px "Press Start 2P", monospace'
-      ctx.fillText('ESC / ENTER: RESUME      Q: QUIT', width / 2, height / 2 + 40)
+      ctx.fillText('J / ENTER: RESUME      K: QUIT', width / 2, height / 2 + 40)
     }
   }
 }

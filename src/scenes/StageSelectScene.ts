@@ -4,6 +4,7 @@ import { CharacterSelectScene } from './CharacterSelectScene.ts'
 import { STAGES, getStage } from '../data/stages.ts'
 import { ROSTER } from '../data/characters/registry.ts'
 import type { GameContext } from '../core/GameContext.ts'
+import { isMenuCancel, isMenuConfirm } from '../input/menuButtons.ts'
 
 type StageBattleConfig = Omit<BattleConfig, 'stage'>
 
@@ -20,6 +21,16 @@ export class StageSelectScene extends Scene {
   }
 
   private readonly onKeyDown = (e: KeyboardEvent): void => {
+    if (isMenuConfirm(e.code)) {
+      e.preventDefault()
+      this.choose()
+      return
+    }
+    if (isMenuCancel(e.code)) {
+      e.preventDefault()
+      this.back()
+      return
+    }
     switch (e.code) {
       case 'ArrowUp':
       case 'KeyW':
@@ -32,23 +43,6 @@ export class StageSelectScene extends Scene {
       case 'ArrowRight':
       case 'KeyD':
         this.index = (this.index + 1) % STAGES.length
-        break
-      case 'Enter':
-      case 'Space':
-        e.preventDefault()
-        this.choose()
-        break
-      case 'Escape':
-        this.ctx.scenes.replace(
-          new CharacterSelectScene(
-            this.ctx,
-            this.config.selectMode && this.config.selectMode !== 'campaign' ? this.config.selectMode : 'local',
-            {
-              p1Index: this.findRosterIndex(this.config.p1.id),
-              p2Index: this.findRosterIndex(this.config.p2.id),
-            },
-          ),
-        )
         break
     }
   }
@@ -119,12 +113,25 @@ export class StageSelectScene extends Scene {
 
     ctx.fillStyle = '#5a567a'
     ctx.font = '11px "Press Start 2P", monospace'
-    ctx.fillText('W/S OR A/D MOVE     ENTER SELECT     ESC BACK', width / 2, height - 30)
+    ctx.fillText('W/S OR A/D MOVE     J SELECT     K BACK', width / 2, height - 30)
   }
 
   private choose(): void {
     const stage = STAGES[this.index]?.id ?? 'outer_wall'
     this.ctx.scenes.replace(new BattleScene(this.ctx, { ...this.config, stage }))
+  }
+
+  private back(): void {
+    this.ctx.scenes.replace(
+      new CharacterSelectScene(
+        this.ctx,
+        this.config.selectMode && this.config.selectMode !== 'campaign' ? this.config.selectMode : 'local',
+        {
+          p1Index: this.findRosterIndex(this.config.p1.id),
+          p2Index: this.findRosterIndex(this.config.p2.id),
+        },
+      ),
+    )
   }
 
   private findRosterIndex(id: string): number {

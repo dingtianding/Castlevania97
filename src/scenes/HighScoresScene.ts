@@ -2,6 +2,7 @@ import { Scene } from './Scene.ts'
 import { ModeSelectScene } from './ModeSelectScene.ts'
 import { loadHighScores } from '../data/highScores.ts'
 import type { GameContext } from '../core/GameContext.ts'
+import { isMenuCancel, isMenuConfirm } from '../input/menuButtons.ts'
 
 export class HighScoresScene extends Scene {
   constructor(ctx: GameContext) {
@@ -9,7 +10,7 @@ export class HighScoresScene extends Scene {
   }
 
   private readonly onKeyDown = (e: KeyboardEvent): void => {
-    if (e.code === 'Escape' || e.code === 'Enter' || e.code === 'Space') {
+    if (isMenuCancel(e.code) || isMenuConfirm(e.code)) {
       e.preventDefault()
       this.ctx.scenes.replace(new ModeSelectScene(this.ctx))
     }
@@ -66,6 +67,6 @@ export class HighScoresScene extends Scene {
     ctx.textAlign = 'center'
     ctx.fillStyle = '#5a567a'
     ctx.font = '10px "Press Start 2P", monospace'
-    ctx.fillText('ENTER / ESC BACK', width / 2, height - 32)
+    ctx.fillText('J / K BACK', width / 2, height - 32)
   }
 }

@@ -4,6 +4,7 @@ import { TitleScene } from './TitleScene.ts'
 import { SettingsScene } from './SettingsScene.ts'
 import { MoveListScene } from './MoveListScene.ts'
 import { HighScoresScene } from './HighScoresScene.ts'
+import { isMenuCancel, isMenuConfirm } from '../input/menuButtons.ts'
 
 interface ModeOption {
   label: string
@@ -30,6 +31,16 @@ export class ModeSelectScene extends Scene {
   private index = 0
 
   private readonly onKeyDown = (e: KeyboardEvent): void => {
+    if (isMenuConfirm(e.code)) {
+      e.preventDefault()
+      this.choose()
+      return
+    }
+    if (isMenuCancel(e.code)) {
+      e.preventDefault()
+      this.ctx.scenes.replace(new TitleScene(this.ctx))
+      return
+    }
     switch (e.code) {
       case 'ArrowUp':
       case 'KeyW':
@@ -38,14 +49,6 @@ export class ModeSelectScene extends Scene {
       case 'ArrowDown':
       case 'KeyS':
         this.index = (this.index + 1) % OPTIONS.length
-        break
-      case 'Enter':
-      case 'Space':
-        e.preventDefault()
-        this.choose()
-        break
-      case 'Escape':
-        this.ctx.scenes.replace(new TitleScene(this.ctx))
         break
     }
   }
@@ -112,7 +115,7 @@ export class ModeSelectScene extends Scene {
 
     ctx.fillStyle = '#5a567a'
     ctx.font = '11px "Press Start 2P", monospace'
-    ctx.fillText('W/S MOVE     ENTER SELECT     ESC BACK', width / 2, height - 30)
+    ctx.fillText('W/S MOVE     J SELECT     K BACK', width / 2, height - 30)
   }
 
   private toGamePoint(e: PointerEvent): { x: number; y: number } {

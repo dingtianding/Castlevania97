@@ -5,6 +5,7 @@ import { SettingsScene } from './SettingsScene.ts'
 import { TICK_RATE } from '../core/Time.ts'
 import { campaignHasProgress, loadCampaignSave, resetCampaignSave } from '../data/campaign.ts'
 import type { CampaignSave } from '../data/campaign.ts'
+import { isMenuConfirm } from '../input/menuButtons.ts'
 
 interface TitleOption {
   label: string
@@ -34,6 +35,11 @@ export class TitleScene extends Scene {
   }
 
   private readonly onKeyDown = (e: KeyboardEvent): void => {
+    if (isMenuConfirm(e.code)) {
+      e.preventDefault()
+      this.choose()
+      return
+    }
     switch (e.code) {
       case 'ArrowUp':
       case 'KeyW':
@@ -42,11 +48,6 @@ export class TitleScene extends Scene {
       case 'ArrowDown':
       case 'KeyS':
         this.index = (this.index + 1) % this.options.length
-        break
-      case 'Enter':
-      case 'Space':
-        e.preventDefault()
-        this.choose()
         break
       case 'Escape':
         this.index = 0
@@ -103,7 +104,7 @@ export class TitleScene extends Scene {
     if (Math.floor(this.tick / (TICK_RATE / 2)) % 2 === 0) {
       ctx.fillStyle = '#b91d2b'
       ctx.font = '10px "Press Start 2P", monospace'
-      ctx.fillText('ENTER TO SELECT', this.ctx.width / 2, this.ctx.height / 2 + 200)
+      ctx.fillText('J / ENTER TO SELECT', this.ctx.width / 2, this.ctx.height / 2 + 200)
     }
   }
 

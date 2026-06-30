@@ -4,6 +4,7 @@ import { TitleScene } from './TitleScene.ts'
 import { arcadeDifficulty } from '../data/arcade.ts'
 import { draftRelics, type RelicDef } from '../data/relics.ts'
 import type { GameContext } from '../core/GameContext.ts'
+import { isMenuCancel, isMenuConfirm } from '../input/menuButtons.ts'
 
 /** Arcade-only relic draft. Pick one buff before the next ladder fight. */
 export class RewardScene extends Scene {
@@ -23,6 +24,16 @@ export class RewardScene extends Scene {
 
   private readonly onKeyDown = (e: KeyboardEvent): void => {
     if (this.options.length === 0) return
+    if (isMenuConfirm(e.code)) {
+      e.preventDefault()
+      this.choose()
+      return
+    }
+    if (isMenuCancel(e.code)) {
+      e.preventDefault()
+      this.ctx.scenes.replace(new TitleScene(this.ctx))
+      return
+    }
     switch (e.code) {
       case 'ArrowLeft':
       case 'KeyA':
@@ -35,14 +46,6 @@ export class RewardScene extends Scene {
       case 'ArrowDown':
       case 'KeyS':
         this.index = (this.index + 1) % this.options.length
-        break
-      case 'Enter':
-      case 'Space':
-        e.preventDefault()
-        this.choose()
-        break
-      case 'Escape':
-        this.ctx.scenes.replace(new TitleScene(this.ctx))
         break
     }
   }
@@ -97,7 +100,7 @@ export class RewardScene extends Scene {
 
     ctx.fillStyle = '#5a567a'
     ctx.font = '11px "Press Start 2P", monospace'
-    ctx.fillText('A/D OR ARROWS MOVE     ENTER SELECT     ESC QUIT', width / 2, height - 30)
+    ctx.fillText('A/D OR ARROWS MOVE     J SELECT     K QUIT', width / 2, height - 30)
   }
 
   private drawCard(relic: RelicDef, layout: { startX: number; cardW: number; gap: number }, index: number): void {

@@ -10,6 +10,7 @@ import { recordHighScore } from '../data/highScores.ts'
 import { TICK_RATE } from '../core/Time.ts'
 import type { GameContext } from '../core/GameContext.ts'
 import type { MatchWinner } from '../combat/RoundManager.ts'
+import { isMenuCancel, isMenuConfirm } from '../input/menuButtons.ts'
 
 export interface MatchResult {
   winner: MatchWinner
@@ -54,11 +55,12 @@ export class ResultScene extends Scene {
 
   private readonly onKeyDown = (e: KeyboardEvent): void => {
     if (this.done) return
-    if (e.code === 'Enter' || e.code === 'Space') {
+    if (isMenuConfirm(e.code)) {
       e.preventDefault()
       this.done = true
       this.advance()
-    } else if (e.code === 'Escape') {
+    } else if (isMenuCancel(e.code)) {
+      e.preventDefault()
       this.done = true
       this.ctx.scenes.replace(new TitleScene(this.ctx))
     } else if (e.code === 'KeyC' && this.config.selectMode && this.config.selectMode !== 'campaign') {
@@ -256,10 +258,10 @@ export class ResultScene extends Scene {
   }
 
   private prompt(): string {
-    if (this.config.selectMode === 'campaign') return 'ENTER: BACK TO MAP'
-    if (this.config.arcade && this.hasNextStage) return 'ENTER: NEXT FIGHT'
-    if (this.config.arcade) return this.config.selectMode ? 'ENTER: TITLE    C: SELECT' : 'ENTER: TITLE'
-    return this.config.selectMode ? 'ENTER: REMATCH    C: SELECT    ESC: TITLE' : 'ENTER: REMATCH    ESC: TITLE'
+    if (this.config.selectMode === 'campaign') return 'J: BACK TO MAP'
+    if (this.config.arcade && this.hasNextStage) return 'J: NEXT FIGHT'
+    if (this.config.arcade) return this.config.selectMode ? 'J: TITLE    C: SELECT' : 'J: TITLE'
+    return this.config.selectMode ? 'J: REMATCH    C: SELECT    K: TITLE' : 'J: REMATCH    K: TITLE'
   }
 }
 

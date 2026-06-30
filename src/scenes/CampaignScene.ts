@@ -14,6 +14,7 @@ import { CompositeSource } from '../input/CompositeSource.ts'
 import { TouchSource, createTouchControlState } from '../input/TouchSource.ts'
 import { TouchControls } from '../ui/TouchControls.ts'
 import { PLAYER1_KEYS } from '../input/bindings.ts'
+import { isMenuCancel, isMenuConfirm } from '../input/menuButtons.ts'
 import { neutralIntent, type InputSource, type IntentState } from '../input/InputSource.ts'
 import { clamp, rectsOverlap } from '../core/math.ts'
 import type { Rng } from '../core/rng.ts'
@@ -530,24 +531,24 @@ export class CampaignScene extends Scene {
   private touchControls: TouchControls | null = null
   private readonly onKeyDown = (e: KeyboardEvent): void => {
     if (this.ctx.scenes.current !== this) return
-    if (this.ending && (e.code === 'Enter' || e.code === 'Space' || e.code === 'Escape')) {
+    if (this.ending && (isMenuConfirm(e.code) || isMenuCancel(e.code))) {
       e.preventDefault()
       this.ctx.scenes.replace(new TitleScene(this.ctx))
       return
     }
     if (this.defeatTicks > 0) {
-      if (e.code === 'Enter' || e.code === 'Space') {
+      if (isMenuConfirm(e.code)) {
         e.preventDefault()
         this.reloadNode(this.node.id, true)
         return
       }
-      if (e.code === 'Escape') {
+      if (isMenuCancel(e.code)) {
         e.preventDefault()
         this.ctx.scenes.replace(new TitleScene(this.ctx))
         return
       }
     }
-    if (!this.ending && this.isRoomClear && (e.code === 'Enter' || e.code === 'Space')) {
+    if (!this.ending && this.isRoomClear && isMenuConfirm(e.code)) {
       e.preventDefault()
       this.advanceRoom()
       return
@@ -1035,7 +1036,7 @@ export class CampaignScene extends Scene {
     ctx.font = '8px "Press Start 2P", monospace'
     ctx.textAlign = 'center'
     ctx.fillText('A/D MOVE   J JUMP   R/D DASH', this.ctx.width / 2, this.ctx.height - 38)
-    ctx.fillText('K LIGHT   L HEAVY   ; SUBWEAPON   ESC PAUSE', this.ctx.width / 2, this.ctx.height - 22)
+    ctx.fillText('K ATTACK   L HEAVY   ; SUBWEAPON   ESC PAUSE', this.ctx.width / 2, this.ctx.height - 22)
     ctx.restore()
   }
 
@@ -1054,7 +1055,7 @@ export class CampaignScene extends Scene {
     ctx.fillText('ROOM CLEAR', this.ctx.width / 2, this.ctx.height - 60)
     ctx.fillStyle = '#8a8aa0'
     ctx.font = '8px "Press Start 2P", monospace'
-    ctx.fillText('ENTER ADVANCE     OR WALK TO THE DOOR', this.ctx.width / 2, this.ctx.height - 42)
+    ctx.fillText('J ADVANCE     OR WALK TO THE DOOR', this.ctx.width / 2, this.ctx.height - 42)
     ctx.restore()
   }
 
@@ -1073,7 +1074,7 @@ export class CampaignScene extends Scene {
     ctx.fillText('JULIUS FALLS', this.ctx.width / 2, this.ctx.height / 2 - 32)
     ctx.fillStyle = '#8a8aa0'
     ctx.font = '9px "Press Start 2P", monospace'
-    ctx.fillText('ENTER RETRY     ESC TITLE', this.ctx.width / 2, this.ctx.height / 2 + 18)
+    ctx.fillText('J RETRY     K TITLE', this.ctx.width / 2, this.ctx.height / 2 + 18)
     ctx.restore()
   }
 
@@ -1103,7 +1104,7 @@ export class CampaignScene extends Scene {
     ctx.font = '10px "Press Start 2P", monospace'
     wrapText(ctx, 'The 1997 hunt ends with Julius alive, warned, and changed. The war is still ahead, but the young Belmont now knows where the final road leads.', this.ctx.width / 2 - 260, 234, 520, 16, 6)
     ctx.fillStyle = '#5a567a'
-    ctx.fillText('ENTER / SPACE / ESC RETURN TO TITLE', this.ctx.width / 2, this.ctx.height - 164)
+    ctx.fillText('J / K RETURN TO TITLE', this.ctx.width / 2, this.ctx.height - 164)
     ctx.restore()
   }
 }

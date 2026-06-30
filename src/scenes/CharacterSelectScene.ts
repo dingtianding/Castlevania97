@@ -11,6 +11,7 @@ import { makeSheet, drawSprite, type SpriteSheet } from '../render/SpriteRendere
 import type { GameContext } from '../core/GameContext.ts'
 import { TICK_RATE } from '../core/Time.ts'
 import type { CharacterDef, CharacterStats } from '../data/characters/CharacterDef.ts'
+import { isMenuCancel } from '../input/menuButtons.ts'
 
 const CELL_W = 190
 const CELL_H = 230
@@ -47,8 +48,10 @@ export class CharacterSelectScene extends Scene {
   }
 
   private readonly onKeyDown = (e: KeyboardEvent): void => {
-    if (e.code === 'Escape') this.ctx.scenes.replace(new ModeSelectScene(this.ctx))
-    else if (e.code === 'KeyM') {
+    if (isMenuCancel(e.code)) {
+      e.preventDefault()
+      this.cancelOrBack()
+    } else if (e.code === 'KeyM') {
       e.preventDefault()
       this.ctx.scenes.replace(new MoveListScene(this.ctx, this.mode))
     }
@@ -162,11 +165,27 @@ export class CharacterSelectScene extends Scene {
       if (intent.moveX !== 0 && s.prevMoveX === 0) {
         s.index = (s.index + intent.moveX + ROSTER.length) % ROSTER.length
       }
-      if (intent.lightPressed || intent.jumpPressed || intent.heavyPressed) s.locked = true
-    } else if (intent.specialPressed) {
+      if (intent.jumpPressed || intent.heavyPressed) s.locked = true
+    } else if (intent.lightPressed || intent.specialPressed) {
       s.locked = false
     }
     s.prevMoveX = intent.moveX
+  }
+
+  private cancelOrBack(): void {
+    if ((this.mode === 'ai' || this.mode === 'training') && this.p2.locked) {
+      this.p2.locked = false
+      return
+    }
+    if (this.p1.locked) {
+      this.p1.locked = false
+      return
+    }
+    if (this.mode === 'local' && this.p2.locked) {
+      this.p2.locked = false
+      return
+    }
+    this.ctx.scenes.replace(new ModeSelectScene(this.ctx))
   }
 
   render(): void {
@@ -225,14 +244,14 @@ export class CharacterSelectScene extends Scene {
       ctx.fillStyle = '#8a8aa0'
       const hint =
         this.mode === 'ai'
-          ? 'A/D MOVE   J LOCK (PICK YOURS, THEN CPU)   STAGE NEXT   ESC BACK'
+          ? 'A/D MOVE   J LOCK (PICK YOURS, THEN CPU)   K BACK'
           : this.mode === 'training'
-            ? 'A/D MOVE   J LOCK (PICK YOURS, THEN DUMMY)   STAGE NEXT   ESC BACK'
+            ? 'A/D MOVE   J LOCK (PICK YOURS, THEN DUMMY)   K BACK'
             : this.mode === 'arcade'
-              ? 'A/D MOVE     J START ARCADE     ESC BACK'
+              ? 'A/D MOVE     J START ARCADE     K BACK'
               : this.mode === 'boss'
-                ? 'A/D MOVE     J START BOSS RUSH     ESC BACK'
-                : 'MOVE A/D · JKL;     LOCK J     STAGE NEXT     M MOVES     ESC BACK'
+                ? 'A/D MOVE     J START BOSS RUSH     K BACK'
+                : 'A/D MOVE     J LOCK     K BACK     M MOVES'
       ctx.fillText(hint, width / 2, height - 26)
     }
   }
