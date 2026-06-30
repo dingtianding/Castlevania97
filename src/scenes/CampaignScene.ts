@@ -629,7 +629,7 @@ export class CampaignScene extends Scene {
     ctx.restore()
     ctx.fillStyle = stage.overlay
     ctx.fillRect(0, 0, width, height)
-    drawBackdrop(ctx, this.node.stage)
+    drawBackdrop(ctx, this.node.stage, this.isCastleGateNode)
     this.drawWorld()
     this.drawHud()
     this.drawStory()
@@ -643,6 +643,10 @@ export class CampaignScene extends Scene {
 
   private get isRoomClear(): boolean {
     return !this.player.isDead && this.enemies.length > 0 && this.enemies.every((enemy) => enemy.isDead)
+  }
+
+  private get isCastleGateNode(): boolean {
+    return this.node.id === '1999-dracula'
   }
 
   private bindInput(): void {
@@ -1135,7 +1139,7 @@ function buildLayout(stage: string): RoomLayout {
   }
 }
 
-function drawBackdrop(ctx: CanvasRenderingContext2D, stage: string): void {
+function drawBackdrop(ctx: CanvasRenderingContext2D, stage: string, castleGate = false): void {
   ctx.save()
   ctx.fillStyle = backdropColor(stage)
   ctx.fillRect(0, 0, ROOM_WIDTH, ROOM_HEIGHT)
@@ -1157,6 +1161,40 @@ function drawBackdrop(ctx: CanvasRenderingContext2D, stage: string): void {
     ctx.fillStyle = 'rgba(185, 29, 43, 0.12)'
     ctx.fillRect(0, 0, ROOM_WIDTH, ROOM_HEIGHT)
   }
+  if (castleGate) drawCastleGateBackdrop(ctx)
+  ctx.restore()
+}
+
+function drawCastleGateBackdrop(ctx: CanvasRenderingContext2D): void {
+  ctx.save()
+  ctx.translate(-480, 0)
+  ctx.fillStyle = 'rgba(5, 4, 10, 0.74)'
+  ctx.fillRect(1020, 92, 430, 304)
+  ctx.fillRect(940, 154, 74, 242)
+  ctx.fillRect(1456, 154, 74, 242)
+  ctx.fillStyle = 'rgba(185, 29, 43, 0.16)'
+  ctx.fillRect(1102, 140, 266, 220)
+  ctx.fillStyle = '#090710'
+  ctx.fillRect(1134, 190, 202, 206)
+  ctx.fillStyle = 'rgba(232, 212, 160, 0.12)'
+  ctx.fillRect(1162, 218, 18, 96)
+  ctx.fillRect(1290, 218, 18, 96)
+  ctx.fillStyle = 'rgba(232, 212, 160, 0.18)'
+  ctx.fillRect(1208, 150, 54, 14)
+  ctx.fillRect(1228, 116, 14, 72)
+  ctx.fillStyle = 'rgba(185, 29, 43, 0.2)'
+  ctx.beginPath()
+  ctx.arc(1235, 178, 98, 0, Math.PI * 2)
+  ctx.fill()
+  ctx.fillStyle = '#05040a'
+  ctx.beginPath()
+  ctx.moveTo(1014, 92)
+  ctx.lineTo(1235, 18)
+  ctx.lineTo(1456, 92)
+  ctx.closePath()
+  ctx.fill()
+  ctx.fillRect(958, 112, 38, 68)
+  ctx.fillRect(1474, 112, 38, 68)
   ctx.restore()
 }
 
