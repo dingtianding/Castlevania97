@@ -3,13 +3,12 @@ import { ModeSelectScene } from './ModeSelectScene.ts'
 import { CampaignScene } from './CampaignScene.ts'
 import { SettingsScene } from './SettingsScene.ts'
 import { TICK_RATE } from '../core/Time.ts'
-import { campaignHasProgress, getCampaignChapter, getCampaignNode, loadCampaignSave, resetCampaignSave } from '../data/campaign.ts'
+import { campaignHasProgress, loadCampaignSave, resetCampaignSave } from '../data/campaign.ts'
 import type { CampaignSave } from '../data/campaign.ts'
 
 interface TitleOption {
   label: string
   action: 'start' | 'continue' | 'archive' | 'settings'
-  blurb: string
 }
 
 export class TitleScene extends Scene {
@@ -19,18 +18,17 @@ export class TitleScene extends Scene {
 
   private get options(): TitleOption[] {
     const options: TitleOption[] = [
-      { label: 'START CAMPAIGN', action: 'start', blurb: 'Begin young Julius\' first 1997 hunt' },
+      { label: 'START CAMPAIGN', action: 'start' },
     ]
     if (campaignHasProgress(this.save)) {
       options.push({
         label: this.save.finished ? 'CAMPAIGN CLEAR' : 'CONTINUE',
         action: 'continue',
-        blurb: this.save.finished ? 'Review the end of Julius\' 1997 hunt' : continueBlurb(this.save),
       })
     }
     options.push(
-      { label: 'ARCHIVE', action: 'archive', blurb: 'Open the legacy fighter modes' },
-      { label: 'SETTINGS', action: 'settings', blurb: 'Audio, motion, and difficulty' },
+      { label: 'ARCHIVE', action: 'archive' },
+      { label: 'SETTINGS', action: 'settings' },
     )
     return options
   }
@@ -94,11 +92,6 @@ export class TitleScene extends Scene {
     ctx.fillStyle = '#e8d4a0'
     ctx.font = '34px "Press Start 2P", monospace'
     ctx.fillText('CASTLEVANIA97', this.ctx.width / 2, this.ctx.height / 2 - 88)
-    ctx.font = '18px "Press Start 2P", monospace'
-    ctx.fillText('Young Julius', this.ctx.width / 2, this.ctx.height / 2 - 50)
-    ctx.fillStyle = '#b7c7e6'
-    ctx.font = '10px "Press Start 2P", monospace'
-    ctx.fillText('1997', this.ctx.width / 2, this.ctx.height / 2 - 24)
 
     this.options.forEach((opt, i) => {
       const y = this.ctx.height / 2 + 16 + i * 34
@@ -106,9 +99,6 @@ export class TitleScene extends Scene {
       ctx.font = '12px "Press Start 2P", monospace'
       ctx.fillText(`${i === this.index ? '> ' : '  '}${opt.label}`, this.ctx.width / 2, y)
     })
-    ctx.fillStyle = '#5a567a'
-    ctx.font = '9px "Press Start 2P", monospace'
-    ctx.fillText(this.options[this.index]?.blurb ?? '', this.ctx.width / 2, this.ctx.height / 2 + 164)
 
     if (Math.floor(this.tick / (TICK_RATE / 2)) % 2 === 0) {
       ctx.fillStyle = '#b91d2b'
@@ -144,10 +134,4 @@ export class TitleScene extends Scene {
       y: ((e.clientY - rect.top) / rect.height) * this.ctx.height,
     }
   }
-}
-
-function continueBlurb(save: CampaignSave): string {
-  const node = save.currentNodeId ? getCampaignNode(save.currentNodeId) : null
-  const chapter = getCampaignChapter(save.chapterId)
-  return node ? `${chapter.year} ${chapter.title}: ${node.title}` : `${chapter.year} ${chapter.title}`
 }
