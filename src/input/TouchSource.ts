@@ -8,6 +8,7 @@ export interface TouchControlState {
   lightPressed: boolean
   heavyPressed: boolean
   specialPressed: boolean
+  dashPressed: boolean
 }
 
 export function createTouchControlState(): TouchControlState {
@@ -19,6 +20,7 @@ export function createTouchControlState(): TouchControlState {
     lightPressed: false,
     heavyPressed: false,
     specialPressed: false,
+    dashPressed: false,
   }
 }
 
@@ -34,11 +36,13 @@ export class TouchSource implements InputSource {
     intent.lightPressed = this.state.lightPressed
     intent.heavyPressed = this.state.heavyPressed
     intent.specialPressed = this.state.specialPressed
+    intent.dashPressed = this.state.dashPressed
 
     this.state.jumpPressed = false
     this.state.lightPressed = false
     this.state.heavyPressed = false
     this.state.specialPressed = false
+    this.state.dashPressed = false
     return intent
   }
 }

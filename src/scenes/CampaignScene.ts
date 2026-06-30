@@ -488,7 +488,6 @@ export class CampaignScene extends Scene {
   private defeatTicks = 0
   private storyCard: StoryCard | null = null
   private storyQueue: StoryCard[] = []
-  private dashPressed = false
   private readonly attackingLastTick = new Set<CastleActor>()
   private touchControls: TouchControls | null = null
   private readonly onKeyDown = (e: KeyboardEvent): void => {
@@ -527,10 +526,6 @@ export class CampaignScene extends Scene {
       return
     }
     if (e.code === 'Escape') this.ctx.scenes.replace(new TitleScene(this.ctx))
-    if (e.code === 'KeyR') {
-      e.preventDefault()
-      if (!e.repeat) this.dashPressed = true
-    }
     if (e.code === 'KeyM') this.ctx.scenes.replace(new ModeSelectScene(this.ctx))
   }
 
@@ -570,8 +565,7 @@ export class CampaignScene extends Scene {
     }
 
     const intent = this.input.poll()
-    if (this.dashPressed) {
-      this.dashPressed = false
+    if (intent.dashPressed) {
       this.player.tryDash(intent.moveX === 0 ? this.player.facing : intent.moveX)
     }
     this.player.update(intent, this.player.position.x + this.player.facing * 80, this.layout.platforms)
@@ -689,7 +683,6 @@ export class CampaignScene extends Scene {
     this.flashTicks = 0
     this.contactHitCooldown = 0
     this.defeatTicks = 0
-    this.dashPressed = false
     this.attackingLastTick.clear()
     this.ending = false
     this.save = { ...this.save, currentNodeId: nodeId, finished: false }
@@ -986,7 +979,7 @@ export class CampaignScene extends Scene {
     ctx.fillStyle = '#5a567a'
     ctx.font = '8px "Press Start 2P", monospace'
     ctx.textAlign = 'center'
-    ctx.fillText('A/D MOVE   J JUMP   J AGAIN DOUBLE   R DASH', this.ctx.width / 2, this.ctx.height - 38)
+    ctx.fillText('A/D MOVE   J JUMP   J AGAIN DOUBLE   R/D DASH', this.ctx.width / 2, this.ctx.height - 38)
     ctx.fillText('K LIGHT   L HEAVY   ; SPECIAL   ESC TITLE', this.ctx.width / 2, this.ctx.height - 22)
     ctx.restore()
   }

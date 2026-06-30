@@ -22,6 +22,7 @@ export class CompositeSource implements InputSource {
       merged.lightPressed ||= intent.lightPressed
       merged.heavyPressed ||= intent.heavyPressed
       merged.specialPressed ||= intent.specialPressed
+      merged.dashPressed ||= intent.dashPressed
     }
     return merged
   }

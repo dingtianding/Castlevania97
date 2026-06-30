@@ -8,6 +8,7 @@ export interface KeyBindings {
   light: string[]
   heavy: string[]
   special: string[]
+  dash: string[]
 }
 
 export const PLAYER1_KEYS: KeyBindings = {
@@ -18,6 +19,7 @@ export const PLAYER1_KEYS: KeyBindings = {
   light: ['KeyK'],
   heavy: ['KeyL'],
   special: ['Semicolon'],
+  dash: ['KeyR'],
 }
 
 export const PLAYER2_KEYS: KeyBindings = {
@@ -28,4 +30,5 @@ export const PLAYER2_KEYS: KeyBindings = {
   light: ['Period'],
   heavy: ['Comma'],
   special: ['Slash'],
+  dash: ['ShiftRight'],
 }

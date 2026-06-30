@@ -81,6 +81,13 @@ export class TouchControls {
           this.state.specialPressed = true
         },
       }),
+      this.button({
+        className: 'touch-button touch-button--dash',
+        label: 'D',
+        press: () => {
+          this.state.dashPressed = true
+        },
+      }),
     )
 
     this.root.append(dpad, actions)
@@ -93,6 +100,7 @@ export class TouchControls {
     this.state.moveX = 0
     this.state.downHeld = false
     this.state.jumpHeld = false
+    this.state.dashPressed = false
   }
 
   private button(spec: ButtonSpec): HTMLButtonElement {

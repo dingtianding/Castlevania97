@@ -10,6 +10,7 @@ export class GamepadSource implements InputSource {
   private prevLight = false
   private prevHeavy = false
   private prevSpecial = false
+  private prevDash = false
 
   constructor(private readonly index: number) {}
 
@@ -29,6 +30,7 @@ export class GamepadSource implements InputSource {
     const light = pressed(pad, 2)
     const heavy = pressed(pad, 3)
     const special = pressed(pad, 1)
+    const dash = pressed(pad, 5)
 
     const intent: IntentState = {
       moveX,
@@ -38,11 +40,13 @@ export class GamepadSource implements InputSource {
       lightPressed: light && !this.prevLight,
       heavyPressed: heavy && !this.prevHeavy,
       specialPressed: special && !this.prevSpecial,
+      dashPressed: dash && !this.prevDash,
     }
     this.prevJump = jump
     this.prevLight = light
     this.prevHeavy = heavy
     this.prevSpecial = special
+    this.prevDash = dash
     return intent
   }
 }

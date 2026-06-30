@@ -22,6 +22,7 @@ export class KeyboardSource implements InputSource {
       ...keys.light,
       ...keys.heavy,
       ...keys.special,
+      ...keys.dash,
     ])
     window.addEventListener('keydown', this.onKeyDown)
     window.addEventListener('keyup', this.onKeyUp)
@@ -62,6 +63,7 @@ export class KeyboardSource implements InputSource {
       lightPressed: this.anyPressed(this.keys.light),
       heavyPressed: this.anyPressed(this.keys.heavy),
       specialPressed: this.anyPressed(this.keys.special),
+      dashPressed: this.anyPressed(this.keys.dash),
     }
     this.pressed.clear()
     return intent
