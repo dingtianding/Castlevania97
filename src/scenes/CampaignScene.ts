@@ -1,6 +1,7 @@
 import { Scene } from './Scene.ts'
 import { TitleScene } from './TitleScene.ts'
 import { ModeSelectScene } from './ModeSelectScene.ts'
+import { PauseScene } from './PauseScene.ts'
 import { AssetManager } from '../assets/AssetManager.ts'
 import { AUDIO_MANIFEST } from '../assets/manifest.ts'
 import { completeCampaignBattle, getCampaignChapter, getCampaignNode, getCampaignNodesForChapter, loadCampaignSave } from '../data/campaign.ts'
@@ -491,6 +492,7 @@ export class CampaignScene extends Scene {
   private readonly attackingLastTick = new Set<CastleActor>()
   private touchControls: TouchControls | null = null
   private readonly onKeyDown = (e: KeyboardEvent): void => {
+    if (this.ctx.scenes.current !== this) return
     if (this.storyCard) {
       if (e.code === 'Enter' || e.code === 'Space') {
         e.preventDefault()
@@ -525,7 +527,10 @@ export class CampaignScene extends Scene {
       this.advanceRoom()
       return
     }
-    if (e.code === 'Escape') this.ctx.scenes.replace(new TitleScene(this.ctx))
+    if (e.code === 'Escape') {
+      e.preventDefault()
+      this.ctx.scenes.push(new PauseScene(this.ctx))
+    }
     if (e.code === 'KeyM') this.ctx.scenes.replace(new ModeSelectScene(this.ctx))
   }
 
@@ -980,7 +985,7 @@ export class CampaignScene extends Scene {
     ctx.font = '8px "Press Start 2P", monospace'
     ctx.textAlign = 'center'
     ctx.fillText('A/D MOVE   J JUMP   J AGAIN DOUBLE   R/D DASH', this.ctx.width / 2, this.ctx.height - 38)
-    ctx.fillText('K LIGHT   L HEAVY   ; SPECIAL   ESC TITLE', this.ctx.width / 2, this.ctx.height - 22)
+    ctx.fillText('K LIGHT   L HEAVY   ; SPECIAL   ESC PAUSE', this.ctx.width / 2, this.ctx.height - 22)
     ctx.restore()
   }
 
