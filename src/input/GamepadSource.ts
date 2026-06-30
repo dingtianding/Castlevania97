@@ -25,7 +25,8 @@ export class GamepadSource implements InputSource {
 
     // Face buttons: A=jump, X=light, Y=heavy, B=special (also Up/dpad for jump).
     const axisY = pad.axes[1] ?? 0
-    const jump = pressed(pad, 0) || pressed(pad, 12) || axisY < -DEADZONE
+    const up = pressed(pad, 12) || axisY < -DEADZONE
+    const jump = pressed(pad, 0) || up
     const down = pressed(pad, 13) || axisY > DEADZONE
     const light = pressed(pad, 2)
     const heavy = pressed(pad, 3)
@@ -34,6 +35,7 @@ export class GamepadSource implements InputSource {
 
     const intent: IntentState = {
       moveX,
+      upHeld: up,
       downHeld: down,
       jumpHeld: jump,
       jumpPressed: jump && !this.prevJump,

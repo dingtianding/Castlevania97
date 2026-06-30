@@ -2,6 +2,7 @@ import { neutralIntent, type InputSource, type IntentState } from './InputSource
 
 export interface TouchControlState {
   moveX: -1 | 0 | 1
+  upHeld: boolean
   downHeld: boolean
   jumpHeld: boolean
   jumpPressed: boolean
@@ -14,6 +15,7 @@ export interface TouchControlState {
 export function createTouchControlState(): TouchControlState {
   return {
     moveX: 0,
+    upHeld: false,
     downHeld: false,
     jumpHeld: false,
     jumpPressed: false,
@@ -30,6 +32,7 @@ export class TouchSource implements InputSource {
   poll(): IntentState {
     const intent = neutralIntent()
     intent.moveX = this.state.moveX
+    intent.upHeld = this.state.upHeld
     intent.downHeld = this.state.downHeld
     intent.jumpHeld = this.state.jumpHeld
     intent.jumpPressed = this.state.jumpPressed

@@ -16,6 +16,7 @@ export class CompositeSource implements InputSource {
     const merged = neutralIntent()
     for (const intent of intents) {
       if (merged.moveX === 0 && intent.moveX !== 0) merged.moveX = intent.moveX
+      merged.upHeld ||= intent.upHeld
       merged.downHeld ||= intent.downHeld
       merged.jumpHeld ||= intent.jumpHeld
       merged.jumpPressed ||= intent.jumpPressed

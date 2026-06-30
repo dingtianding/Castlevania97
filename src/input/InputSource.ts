@@ -11,6 +11,7 @@
 export interface IntentState {
   /** -1 left, 0 none, 1 right. */
   moveX: -1 | 0 | 1
+  upHeld: boolean
   downHeld: boolean
   jumpHeld: boolean
   jumpPressed: boolean
@@ -32,6 +33,7 @@ export interface InputSource {
 export function neutralIntent(): IntentState {
   return {
     moveX: 0,
+    upHeld: false,
     downHeld: false,
     jumpHeld: false,
     jumpPressed: false,

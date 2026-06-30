@@ -37,6 +37,7 @@ const JUMP_VELOCITY = -15.5
 const FAST_FALL_SPEED = 12
 const WALL_MARGIN = 48
 const HURT_TICKS = 20
+const INVULNERABLE_TICKS = 72
 const DEBUG_HITBOXES = new URLSearchParams(location.search).has('hitbox')
 const CONTACT_HIT_COOLDOWN = 24
 const BIG_HIT_FLASH_TICKS = 10
@@ -129,6 +130,7 @@ class CastleActor {
   private projectileSpawned = false
   private pendingProjectileSpawn: ProjectileSpawn | null = null
   private hurtTick = 0
+  private invulnerableTicks = 0
   private jumpCount = 0
   private dashTicks = 0
   private dashCooldown = 0
@@ -159,6 +161,10 @@ class CastleActor {
     return this.state === 'attack'
   }
 
+  get canBeHit(): boolean {
+    return this.state !== 'death' && this.invulnerableTicks <= 0
+  }
+
   reset(x: number, y: number, facing: Facing): void {
     this.position.x = x
     this.position.y = y
@@ -177,6 +183,7 @@ class CastleActor {
     this.projectileSpawned = false
     this.pendingProjectileSpawn = null
     this.hurtTick = 0
+    this.invulnerableTicks = 0
     this.jumpCount = 0
     this.dashTicks = 0
     this.dashCooldown = 0
@@ -187,6 +194,7 @@ class CastleActor {
   update(intent: IntentState, opponentX: number, platforms: Platform[]): void {
     this.prevPosition.x = this.position.x
     this.prevPosition.y = this.position.y
+    if (this.invulnerableTicks > 0) this.invulnerableTicks -= 1
     if (this.dashCooldown > 0) this.dashCooldown -= 1
 
     if (this.state === 'death') {
@@ -228,8 +236,8 @@ class CastleActor {
     if (this.attackMove) this.meter = clamp(this.meter + this.attackMove.damage * 0.8, 0, 100)
   }
 
-  applyHit(move: AttackMove, fromX: number): void {
-    if (this.state === 'death') return
+  applyHit(move: AttackMove, fromX: number): boolean {
+    if (!this.canBeHit) return false
     this.health = Math.max(0, this.health - Math.max(1, Math.round(move.damage)))
     this.velocity.x = this.position.x >= fromX ? 6 : -6
     this.velocity.y = move.knockbackY
@@ -240,13 +248,15 @@ class CastleActor {
     this.projectileSpawned = false
     this.pendingProjectileSpawn = null
     this.state = this.health <= 0 ? 'death' : 'hurt'
+    this.invulnerableTicks = this.shouldUseHitInvulnerability() && this.state !== 'death' ? INVULNERABLE_TICKS : 0
     const sheet = this.sheets
     if (this.state === 'death') this.animator.play(sheet.death, 6, false)
     else this.animator.play(sheet.takeHit, 4, false)
+    return true
   }
 
-  applyFlatDamage(damage: number, fromX: number, knockbackY: number): void {
-    if (this.state === 'death') return
+  applyFlatDamage(damage: number, fromX: number, knockbackY: number): boolean {
+    if (!this.canBeHit) return false
     this.health = Math.max(0, this.health - Math.max(1, Math.round(damage)))
     this.velocity.x = this.position.x >= fromX ? 5 : -5
     this.velocity.y = knockbackY
@@ -257,8 +267,10 @@ class CastleActor {
     this.projectileSpawned = false
     this.pendingProjectileSpawn = null
     this.state = this.health <= 0 ? 'death' : 'hurt'
+    this.invulnerableTicks = this.shouldUseHitInvulnerability() && this.state !== 'death' ? INVULNERABLE_TICKS : 0
     if (this.state === 'death') this.animator.play(this.sheets.death, 6, false)
     else this.animator.play(this.sheets.takeHit, 4, false)
+    return true
   }
 
   consumeProjectileSpawn(): ProjectileSpawn | null {
@@ -458,6 +470,7 @@ class CastleActor {
     const y = this.position.y
     const drawX = this.facing === 1 ? x - this.def.visual.anchorX * scale : x - (sheet.frameWidth - this.def.visual.anchorX) * scale
     const drawY = y - anchorY * scale
+    if (this.invulnerableTicks > 0 && Math.floor(this.invulnerableTicks / 4) % 2 === 0) return
     if (this.state === 'dash') {
       const { ctx } = renderer
       ctx.save()
@@ -478,6 +491,10 @@ class CastleActor {
 
   private shouldDrawJuliusWhipExtension(frame: number): boolean {
     return this.def.id === 'juliusBelmont' && this.state === 'attack' && (frame === 2 || frame === 3)
+  }
+
+  private shouldUseHitInvulnerability(): boolean {
+    return this.def.id === 'juliusBelmont'
   }
 
   private renderScale(): number {
@@ -619,7 +636,7 @@ export class CampaignScene extends Scene {
     if (intent.dashPressed) {
       this.player.tryDash(intent.moveX === 0 ? this.player.facing : intent.moveX)
     }
-    if (intent.specialPressed && this.tryUseSubweapon()) intent.specialPressed = false
+    if (intent.upHeld && intent.lightPressed && this.tryUseSubweapon()) intent.lightPressed = false
     this.player.update(intent, this.player.position.x + this.player.facing * 80, this.layout.platforms)
 
     for (const enemy of this.enemies) {
@@ -765,26 +782,29 @@ export class CampaignScene extends Scene {
       const playerAtk = this.player.activeAttack()
       const enemyAtk = enemy.activeAttack()
       if (playerAtk && rectsOverlap(playerAtk.box, enemy.hurtbox())) {
-        enemy.applyHit(playerAtk.spec, this.player.position.x)
-        this.player.markAttackConnected()
-        this.onHit(playerAtk.spec, enemy.isDead)
+        if (enemy.applyHit(playerAtk.spec, this.player.position.x)) {
+          this.player.markAttackConnected()
+          this.onHit(playerAtk.spec, enemy.isDead)
+        }
       }
       if (enemyAtk && rectsOverlap(enemyAtk.box, this.player.hurtbox())) {
-        this.player.applyHit(enemyAtk.spec, enemy.position.x)
-        enemy.markAttackConnected()
-        this.onHit(enemyAtk.spec, this.player.isDead)
+        if (this.player.applyHit(enemyAtk.spec, enemy.position.x)) {
+          enemy.markAttackConnected()
+          this.onHit(enemyAtk.spec, this.player.isDead)
+        }
       }
       if (this.contactHitCooldown <= 0 && rectsOverlap(this.player.hurtbox(), enemy.hurtbox())) {
-        this.player.applyHit(enemy.def.moves.light, enemy.position.x)
-        this.contactHitCooldown = CONTACT_HIT_COOLDOWN
-        this.onHit(enemy.def.moves.light, this.player.isDead)
+        if (this.player.applyHit(enemy.def.moves.light, enemy.position.x)) {
+          this.contactHitCooldown = CONTACT_HIT_COOLDOWN
+          this.onHit(enemy.def.moves.light, this.player.isDead)
+        }
       }
     }
     for (const projectile of this.projectiles) {
       if (projectile.hasHit) continue
       if (!rectsOverlap(projectileBox(projectile), this.player.hurtbox())) continue
+      if (!this.player.applyHit(projectile.spawn.move, projectile.spawn.x)) continue
       projectile.hasHit = true
-      this.player.applyHit(projectile.spawn.move, projectile.spawn.x)
       this.onHit(projectile.spawn.move, this.player.isDead)
     }
     for (const subweapon of this.subweapons) {
@@ -792,8 +812,8 @@ export class CampaignScene extends Scene {
       const box = subweaponBox(subweapon)
       for (const enemy of this.enemies) {
         if (enemy.isDead || !rectsOverlap(box, enemy.hurtbox())) continue
+        if (!enemy.applyFlatDamage(11, subweapon.position.x, -6)) continue
         subweapon.hasHit = true
-        enemy.applyFlatDamage(11, subweapon.position.x, -6)
         this.ctx.audio.hit()
         this.hitstop = Math.max(this.hitstop, 6)
         if (enemy.isDead) this.flashTicks = BIG_HIT_FLASH_TICKS
@@ -1056,8 +1076,8 @@ export class CampaignScene extends Scene {
     ctx.fillStyle = '#5a567a'
     ctx.font = '8px "Press Start 2P", monospace'
     ctx.textAlign = 'center'
-    ctx.fillText('A/D MOVE   J JUMP   R/D DASH', this.ctx.width / 2, this.ctx.height - 38)
-    ctx.fillText('K ATTACK   L HEAVY   ; SUBWEAPON   ESC PAUSE', this.ctx.width / 2, this.ctx.height - 22)
+    ctx.fillText('A/D MOVE   W UP   J JUMP   ; DASH', this.ctx.width / 2, this.ctx.height - 38)
+    ctx.fillText('K ATTACK   W+K SUBWEAPON   L HEAVY   ESC PAUSE', this.ctx.width / 2, this.ctx.height - 22)
     ctx.restore()
   }
 
