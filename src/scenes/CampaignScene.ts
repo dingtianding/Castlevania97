@@ -124,6 +124,7 @@ class CastleActor {
   state: 'idle' | 'run' | 'jump' | 'fall' | 'attack' | 'dash' | 'hurt' | 'death' = 'idle'
   private readonly sheets: SpriteSet
   private readonly animator: Animator
+  private readonly moveSpeedMultiplier: number
   private attackMove: AttackMove | null = null
   private attackTick = 0
   private attackConnected = false
@@ -141,10 +142,12 @@ class CastleActor {
     x: number,
     y: number,
     facing: Facing,
+    moveSpeedMultiplier = 1,
   ) {
     this.position = { x, y }
     this.prevPosition = { x, y }
     this.facing = facing
+    this.moveSpeedMultiplier = moveSpeedMultiplier
     this.sheets = buildSpriteSet(def, assets)
     this.animator = new Animator(this.sheets.idle, 8, true)
   }
@@ -329,7 +332,7 @@ class CastleActor {
   }
 
   private updateLocomotion(intent: IntentState, opponentX: number, platforms: Platform[]): void {
-    const moveSpeed = this.grounded ? WALK_SPEED : AIR_SPEED
+    const moveSpeed = (this.grounded ? WALK_SPEED : AIR_SPEED) * this.moveSpeedMultiplier
     const dashing = this.dashTicks > 0
     if (this.dashTicks > 0) {
       this.dashTicks -= 1
@@ -1155,7 +1158,7 @@ function buildEnemies(node: ReturnType<typeof getCampaignNode>, assets: AssetMan
   const count = node.isBoss ? 1 : campaignEnemyCount(def.id, node.difficulty)
   const slots = spread(layout.checkpointX + 380, layout.doorX - 180, count)
   return slots.map((x) => {
-    const enemy = new CastleActor(def, assets, x, layout.checkpointY, -1)
+    const enemy = new CastleActor(def, assets, x, layout.checkpointY, -1, 0.78)
     enemy.setMaxHealth(node.isBoss ? 180 : campaignEnemyHealth(def.id, node.difficulty))
     enemy.meter = def.id === 'dracula1999' ? 100 : 0
     return enemy
