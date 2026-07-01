@@ -12,7 +12,7 @@ export interface GameSettings {
 
 const DEFAULTS: GameSettings = {
   masterVolume: 0.85,
-  musicVolume: 0.35,
+  musicVolume: 0,
   sfxVolume: 0.6,
   reduceMotion: false,
   difficulty: 'normal',
