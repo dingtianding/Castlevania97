@@ -1156,10 +1156,18 @@ function buildEnemies(node: ReturnType<typeof getCampaignNode>, assets: AssetMan
   const slots = spread(layout.checkpointX + 380, layout.doorX - 180, count)
   return slots.map((x) => {
     const enemy = new CastleActor(def, assets, x, layout.checkpointY, -1)
-    enemy.setMaxHealth(node.isBoss ? 180 : node.difficulty === 'hard' ? 110 : 80)
+    enemy.setMaxHealth(node.isBoss ? 180 : campaignEnemyHealth(def.id, node.difficulty))
     enemy.meter = def.id === 'dracula1999' ? 100 : 0
     return enemy
   })
+}
+
+function campaignEnemyHealth(enemyId: string, difficulty: 'easy' | 'normal' | 'hard'): number {
+  const tiers =
+    enemyId === 'skeleton'
+      ? { easy: 32, normal: 46, hard: 60 }
+      : { easy: 28, normal: 40, hard: 52 }
+  return tiers[difficulty]
 }
 
 function enemyIntent(enemy: CastleActor, player: CastleActor, node: ReturnType<typeof getCampaignNode>, rng: Rng): IntentState {
