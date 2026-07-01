@@ -1152,7 +1152,7 @@ export class CampaignScene extends Scene {
 
 function buildEnemies(node: ReturnType<typeof getCampaignNode>, assets: AssetManager, layout: RoomLayout): CastleActor[] {
   const def = node.enemy
-  const count = node.isBoss ? 1 : node.difficulty === 'easy' ? 1 : node.difficulty === 'normal' ? 2 : 3
+  const count = node.isBoss ? 1 : campaignEnemyCount(def.id, node.difficulty)
   const slots = spread(layout.checkpointX + 380, layout.doorX - 180, count)
   return slots.map((x) => {
     const enemy = new CastleActor(def, assets, x, layout.checkpointY, -1)
@@ -1162,12 +1162,20 @@ function buildEnemies(node: ReturnType<typeof getCampaignNode>, assets: AssetMan
   })
 }
 
+function campaignEnemyCount(enemyId: string, difficulty: 'easy' | 'normal' | 'hard'): number {
+  if (enemyId === 'skeleton') {
+    if (difficulty === 'easy') return 2
+    if (difficulty === 'normal') return 3
+    return 4
+  }
+  if (enemyId === 'zombie') return difficulty === 'hard' ? 2 : 1
+  return difficulty === 'easy' ? 1 : difficulty === 'normal' ? 2 : 3
+}
+
 function campaignEnemyHealth(enemyId: string, difficulty: 'easy' | 'normal' | 'hard'): number {
-  const tiers =
-    enemyId === 'skeleton'
-      ? { easy: 32, normal: 46, hard: 60 }
-      : { easy: 28, normal: 40, hard: 52 }
-  return tiers[difficulty]
+  if (enemyId === 'skeleton') return 21
+  if (enemyId === 'zombie') return 6
+  return difficulty === 'easy' ? 28 : difficulty === 'normal' ? 40 : 52
 }
 
 function enemyIntent(enemy: CastleActor, player: CastleActor, node: ReturnType<typeof getCampaignNode>, rng: Rng): IntentState {
