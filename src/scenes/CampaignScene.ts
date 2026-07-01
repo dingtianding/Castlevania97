@@ -45,9 +45,64 @@ const ROOM_CLEAR_AUTO_ADVANCE_TICKS = 240
 const DEFEAT_RETRY_TICKS = 120
 const STARTING_HEARTS = 10
 const MAX_HEARTS = 99
-const SUBWEAPON_HEART_COST = 1
-const SUBWEAPON_SPEED = 9
-const SUBWEAPON_LIFETIME = 95
+const SUBWEAPON_ORDER = ['dagger', 'axe', 'cross', 'holyWater', 'stopwatch'] as const
+type SubweaponKind = (typeof SUBWEAPON_ORDER)[number]
+const SUBWEAPON_LABELS: Record<SubweaponKind, string> = {
+  dagger: 'DAGGER',
+  axe: 'AXE',
+  cross: 'CROSS',
+  holyWater: 'HOLY WATER',
+  stopwatch: 'STOPWATCH',
+}
+const SUBWEAPON_COSTS: Record<SubweaponKind, number> = {
+  dagger: 1,
+  axe: 1,
+  cross: 1,
+  holyWater: 1,
+  stopwatch: 5,
+}
+const SUBWEAPON_DAMAGE: Record<SubweaponKind, number> = {
+  dagger: 5,
+  axe: 9,
+  cross: 8,
+  holyWater: 5,
+  stopwatch: 0,
+}
+const SUBWEAPON_SPEED_X: Record<SubweaponKind, number> = {
+  dagger: 14,
+  axe: 8,
+  cross: 11,
+  holyWater: 7,
+  stopwatch: 0,
+}
+const SUBWEAPON_SPEED_Y: Record<SubweaponKind, number> = {
+  dagger: 0,
+  axe: -11,
+  cross: 0,
+  holyWater: -12,
+  stopwatch: 0,
+}
+const SUBWEAPON_GRAVITY: Record<SubweaponKind, number> = {
+  dagger: 0,
+  axe: 0.5,
+  cross: 0,
+  holyWater: 0.72,
+  stopwatch: 0,
+}
+const SUBWEAPON_LIFETIME: Record<SubweaponKind, number> = {
+  dagger: 80,
+  axe: 96,
+  cross: 140,
+  holyWater: 52,
+  stopwatch: 1,
+}
+const SUBWEAPON_BOX: Record<SubweaponKind, Rect> = {
+  dagger: { x: 0, y: 0, width: 20, height: 8 },
+  axe: { x: 0, y: 0, width: 18, height: 18 },
+  cross: { x: 0, y: 0, width: 18, height: 10 },
+  holyWater: { x: 0, y: 0, width: 18, height: 18 },
+  stopwatch: { x: 0, y: 0, width: 20, height: 20 },
+}
 
 interface Platform {
   x: number
@@ -93,10 +148,14 @@ interface ProjectileRuntime {
 }
 
 interface SubweaponRuntime {
+  kind: SubweaponKind
   position: Vec2
+  velocity: Vec2
   facing: Facing
   ticksLeft: number
   hasHit: boolean
+  phase?: 'outbound' | 'returning' | 'flame'
+  hitTargets?: Set<CastleActor>
 }
 
 interface Candle {
@@ -568,6 +627,8 @@ export class CampaignScene extends Scene {
   private contactHitCooldown = 0
   private defeatTicks = 0
   private hearts = STARTING_HEARTS
+  private selectedSubweaponIndex = 0
+  private enemyFreezeTicks = 0
   private readonly attackingLastTick = new Set<CastleActor>()
   private touchControls: TouchControls | null = null
   private readonly onKeyDown = (e: KeyboardEvent): void => {
@@ -634,16 +695,22 @@ export class CampaignScene extends Scene {
       this.transitionTicks -= 1
       return
     }
+    if (this.enemyFreezeTicks > 0) this.enemyFreezeTicks -= 1
 
     const intent = this.input.poll()
     if (intent.dashPressed) {
       this.player.tryDash(intent.moveX === 0 ? this.player.facing : intent.moveX)
+    }
+    if (intent.heavyPressed) {
+      this.cycleSubweapon()
+      intent.heavyPressed = false
     }
     if (intent.upHeld && intent.lightPressed && this.tryUseSubweapon()) intent.lightPressed = false
     this.player.update(intent, this.player.position.x + this.player.facing * 80, this.layout.platforms)
 
     for (const enemy of this.enemies) {
       if (enemy.isDead) continue
+      if (this.enemyFreezeTicks > 0) continue
       const ai = enemyIntent(enemy, this.player, this.node, this.ctx.rng)
       enemy.update(ai, this.player.position.x, this.layout.platforms)
     }
@@ -661,7 +728,7 @@ export class CampaignScene extends Scene {
       projectile.animator.update()
     }
     for (const subweapon of this.subweapons) {
-      subweapon.position.x += subweapon.facing * SUBWEAPON_SPEED
+      updateSubweapon(subweapon)
       subweapon.ticksLeft -= 1
     }
     for (const pickup of this.heartPickups) {
@@ -774,6 +841,7 @@ export class CampaignScene extends Scene {
     this.flashTicks = 0
     this.contactHitCooldown = 0
     this.defeatTicks = 0
+    this.enemyFreezeTicks = 0
     this.attackingLastTick.clear()
     this.ending = false
     this.save = { ...this.save, currentNodeId: nodeId, finished: false }
@@ -811,11 +879,24 @@ export class CampaignScene extends Scene {
       this.onHit(projectile.spawn.move, this.player.isDead)
     }
     for (const subweapon of this.subweapons) {
-      if (subweapon.hasHit) continue
       const box = subweaponBox(subweapon)
+      if (subweapon.kind === 'holyWater' && subweapon.phase === 'flame') {
+        for (const enemy of this.enemies) {
+          if (enemy.isDead) continue
+          if (subweapon.hitTargets?.has(enemy)) continue
+          if (!rectsOverlap(box, enemy.hurtbox())) continue
+          if (!enemy.applyFlatDamage(SUBWEAPON_DAMAGE.holyWater, subweapon.position.x, -4)) continue
+          subweapon.hitTargets?.add(enemy)
+          this.ctx.audio.hit()
+          this.hitstop = Math.max(this.hitstop, 4)
+          if (enemy.isDead) this.flashTicks = BIG_HIT_FLASH_TICKS
+        }
+        continue
+      }
+      if (subweapon.hasHit) continue
       for (const enemy of this.enemies) {
         if (enemy.isDead || !rectsOverlap(box, enemy.hurtbox())) continue
-        if (!enemy.applyFlatDamage(11, subweapon.position.x, -6)) continue
+        if (!enemy.applyFlatDamage(SUBWEAPON_DAMAGE[subweapon.kind], subweapon.position.x, -6)) continue
         subweapon.hasHit = true
         this.ctx.audio.hit()
         this.hitstop = Math.max(this.hitstop, 6)
@@ -826,19 +907,47 @@ export class CampaignScene extends Scene {
   }
 
   private tryUseSubweapon(): boolean {
-    if (this.hearts < SUBWEAPON_HEART_COST || this.player.isDead) return false
-    this.hearts -= SUBWEAPON_HEART_COST
-    this.subweapons.push({
+    if (this.player.isDead) return false
+    const kind = this.currentSubweapon()
+    const cost = SUBWEAPON_COSTS[kind]
+    if (this.hearts < cost) return false
+    this.hearts -= cost
+    if (kind === 'stopwatch') {
+      this.enemyFreezeTicks = Math.max(this.enemyFreezeTicks, 150)
+      this.ctx.audio.hit()
+      return true
+    }
+
+    const spawnY = this.player.position.y - (kind === 'holyWater' ? 66 : 70)
+    const spawn: SubweaponRuntime = {
+      kind,
       position: {
         x: this.player.position.x + this.player.facing * 36,
-        y: this.player.position.y - 70,
+        y: spawnY,
+      },
+      velocity: {
+        x: this.player.facing * SUBWEAPON_SPEED_X[kind],
+        y: SUBWEAPON_SPEED_Y[kind],
       },
       facing: this.player.facing,
-      ticksLeft: SUBWEAPON_LIFETIME,
+      ticksLeft: SUBWEAPON_LIFETIME[kind],
       hasHit: false,
-    })
+    }
+    if (kind === 'holyWater') {
+      spawn.phase = 'outbound'
+      spawn.hitTargets = new Set<CastleActor>()
+    }
+    this.subweapons.push(spawn)
     this.ctx.audio.swing()
     return true
+  }
+
+  private cycleSubweapon(): void {
+    this.selectedSubweaponIndex = (this.selectedSubweaponIndex + 1) % SUBWEAPON_ORDER.length
+  }
+
+  private currentSubweapon(): SubweaponKind {
+    return SUBWEAPON_ORDER[this.selectedSubweaponIndex] ?? SUBWEAPON_ORDER[0]!
   }
 
   private resolveCandles(): void {
@@ -1005,6 +1114,8 @@ export class CampaignScene extends Scene {
     ctx.fillText(`${this.chapter.year}  ${this.chapter.title.toUpperCase()}`, 40, 56)
     ctx.fillStyle = '#8a8aa0'
     ctx.fillText(this.node.title.toUpperCase(), 40, 72)
+    ctx.fillStyle = '#b7c7e6'
+    ctx.fillText(`SUB ${SUBWEAPON_LABELS[this.currentSubweapon()]}`, 266, 56)
     ctx.fillStyle = '#2a1014'
     ctx.fillRect(40, 90, 300, 10)
     ctx.fillStyle = '#b91d2d'
@@ -1080,7 +1191,7 @@ export class CampaignScene extends Scene {
     ctx.font = '8px "Press Start 2P", monospace'
     ctx.textAlign = 'center'
     ctx.fillText('A/D MOVE   W UP   J JUMP   ; DASH', this.ctx.width / 2, this.ctx.height - 38)
-    ctx.fillText('K ATTACK   W+K SUBWEAPON   L HEAVY   ESC PAUSE', this.ctx.width / 2, this.ctx.height - 22)
+    ctx.fillText('K ATTACK   W+K USE   L SWITCH   ESC PAUSE', this.ctx.width / 2, this.ctx.height - 22)
     ctx.restore()
   }
 
@@ -1249,20 +1360,89 @@ function renderProjectile(projectile: ProjectileRuntime, renderer: Renderer, cam
   drawSprite(renderer, projectile.sheet, projectile.animator.currentFrame, x, y, spec.scale, projectile.spawn.facing)
 }
 
+function updateSubweapon(subweapon: SubweaponRuntime): void {
+  if (subweapon.kind === 'stopwatch') return
+
+  if (subweapon.kind === 'holyWater' && subweapon.phase === 'flame') {
+    return
+  }
+
+  subweapon.velocity.y += SUBWEAPON_GRAVITY[subweapon.kind]
+  subweapon.position.x += subweapon.velocity.x
+  subweapon.position.y += subweapon.velocity.y
+
+  if (subweapon.kind === 'cross') {
+    if (subweapon.phase !== 'returning' && subweapon.ticksLeft <= 76) {
+      subweapon.phase = 'returning'
+      subweapon.velocity.x *= -1
+    }
+  }
+
+  if (subweapon.kind === 'holyWater' && subweapon.position.y >= FLOOR_Y - 18) {
+    subweapon.phase = 'flame'
+    subweapon.position.y = FLOOR_Y - 18
+    subweapon.velocity.x = 0
+    subweapon.velocity.y = 0
+    subweapon.ticksLeft = Math.min(subweapon.ticksLeft, 36)
+  }
+}
+
 function renderSubweapon(subweapon: SubweaponRuntime, renderer: Renderer, cameraX: number): void {
   const { ctx } = renderer
+  if (subweapon.kind === 'stopwatch') return
   const x = subweapon.position.x - cameraX
   const y = subweapon.position.y
   ctx.save()
   ctx.translate(x, y)
-  ctx.rotate(subweapon.facing * 0.32)
-  ctx.fillStyle = '#dfe8ff'
-  ctx.fillRect(-15, -3, 30, 6)
-  ctx.fillStyle = '#e8d4a0'
-  ctx.fillRect(7, -6, 10, 12)
-  ctx.strokeStyle = '#0b0912'
-  ctx.lineWidth = 2
-  ctx.strokeRect(-15, -3, 30, 6)
+  if (subweapon.kind === 'dagger') {
+    ctx.rotate(subweapon.facing * 0.1)
+    ctx.fillStyle = '#dfe8ff'
+    ctx.fillRect(-14, -2, 24, 4)
+    ctx.fillStyle = '#b91d2d'
+    ctx.fillRect(8, -4, 5, 8)
+    ctx.strokeStyle = '#0b0912'
+    ctx.lineWidth = 2
+    ctx.strokeRect(-14, -2, 24, 4)
+  } else if (subweapon.kind === 'axe') {
+    ctx.rotate(subweapon.facing * -0.2)
+    ctx.fillStyle = '#dfe8ff'
+    ctx.fillRect(-3, -12, 6, 18)
+    ctx.fillStyle = '#e8d4a0'
+    ctx.fillRect(-10, -14, 20, 10)
+    ctx.strokeStyle = '#0b0912'
+    ctx.lineWidth = 2
+    ctx.strokeRect(-3, -12, 6, 18)
+  } else if (subweapon.kind === 'cross') {
+    ctx.rotate(subweapon.facing * 0.14)
+    ctx.fillStyle = '#dfe8ff'
+    ctx.fillRect(-3, -12, 6, 24)
+    ctx.fillRect(-12, -3, 24, 6)
+    ctx.fillStyle = '#e8d4a0'
+    ctx.fillRect(-4, -4, 8, 8)
+    ctx.strokeStyle = '#0b0912'
+    ctx.lineWidth = 2
+    ctx.strokeRect(-3, -12, 6, 24)
+    ctx.strokeRect(-12, -3, 24, 6)
+  } else if (subweapon.kind === 'holyWater') {
+    if (subweapon.phase === 'flame') {
+      ctx.fillStyle = '#f6b74a'
+      ctx.fillRect(-18, -12, 36, 16)
+      ctx.fillStyle = '#fff0a8'
+      ctx.fillRect(-10, -18, 20, 10)
+      ctx.strokeStyle = '#b91d2d'
+      ctx.lineWidth = 2
+      ctx.strokeRect(-18, -12, 36, 16)
+    } else {
+      ctx.rotate(subweapon.facing * 0.24)
+      ctx.fillStyle = '#8dc2ff'
+      ctx.fillRect(-8, -11, 16, 18)
+      ctx.fillStyle = '#e8d4a0'
+      ctx.fillRect(-4, -16, 8, 5)
+      ctx.strokeStyle = '#0b0912'
+      ctx.lineWidth = 2
+      ctx.strokeRect(-8, -11, 16, 18)
+    }
+  }
   ctx.restore()
 }
 
@@ -1282,7 +1462,16 @@ function heartPickupBox(pickup: HeartPickup): Rect {
 }
 
 function subweaponBox(subweapon: SubweaponRuntime): Rect {
-  return { x: subweapon.position.x - 16, y: subweapon.position.y - 6, width: 32, height: 12 }
+  if (subweapon.kind === 'holyWater' && subweapon.phase === 'flame') {
+    return { x: subweapon.position.x - 18, y: subweapon.position.y - 12, width: 36, height: 20 }
+  }
+  const box = SUBWEAPON_BOX[subweapon.kind]
+  return {
+    x: subweapon.position.x - box.width / 2,
+    y: subweapon.position.y - box.height / 2,
+    width: box.width,
+    height: box.height,
+  }
 }
 
 function drawCandle(ctx: CanvasRenderingContext2D, candle: Candle): void {

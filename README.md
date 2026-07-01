@@ -21,9 +21,9 @@ Music starts muted by default. Open Settings to raise `MUSIC` if you want it on.
 | Fast fall | `S` |
 | Jump / confirm | `J` |
 | Light attack / menu back | `K` |
-| Heavy attack | `L` |
+| Switch subweapon | `L` |
 | Dash | `;` |
-| Subweapon | `W + K` |
+| Use subweapon | `W + K` |
 
 Menus use `J` to confirm and `K` to go back. Gamepad and touch input are also supported, and touch devices get on-screen controls.
 
@@ -33,6 +33,7 @@ Menus use `J` to confirm and `K` to go back. Gamepad and touch input are also su
 - Room enemies are tuned for fast reads and quick clears.
 - Player hit recovery includes a brief invulnerability window.
 - Campaign progress is saved in the browser.
+- Current subweapon cycle: dagger, axe, cross, holy water, stopwatch.
 
 ## Development
 
