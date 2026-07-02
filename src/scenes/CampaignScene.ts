@@ -576,7 +576,6 @@ class CastleActor {
     if (this.def.id !== 'skeleton' || this.state !== 'attack') return 0
     if (frame <= 2) return 0
     if (frame === 3) return 6
-    if (frame === 4) return -13
     return 0
   }
 
