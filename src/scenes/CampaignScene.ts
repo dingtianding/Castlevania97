@@ -530,7 +530,10 @@ class CastleActor {
     const anchorY = this.renderAnchorY()
     const x = this.position.x - cameraX
     const y = this.position.y
-    const drawX = this.facing === 1 ? x - this.def.visual.anchorX * scale : x - (sheet.frameWidth - this.def.visual.anchorX) * scale
+    const attackShiftX = this.def.id === 'skeleton' && this.state === 'attack' ? this.facing * 12 * scale : 0
+    const drawX =
+      (this.facing === 1 ? x - this.def.visual.anchorX * scale : x - (sheet.frameWidth - this.def.visual.anchorX) * scale) +
+      attackShiftX
     const drawY = y - anchorY * scale
     if (this.invulnerableTicks > 0 && Math.floor(this.invulnerableTicks / 4) % 2 === 0) return
     if (this.state === 'dash') {
