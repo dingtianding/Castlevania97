@@ -2,6 +2,7 @@ import type { CharacterDef } from './characters/CharacterDef.ts'
 import { armoredSkeleton, dracula1999, ghoul, juliusBelmont, sealGuardian, skeleton, zombie } from './characters/castlevaniaCampaign.ts'
 import type { StageId } from './stages.ts'
 import { RELIC_POOL, type RelicId } from './relics.ts'
+import { SOUL_POOL } from './souls.ts'
 
 const STORAGE_KEY = 'castlevania97.campaign.v1'
 
@@ -37,6 +38,7 @@ export interface CampaignSave {
   completedNodeIds: readonly string[]
   unlockedNodeIds: readonly string[]
   relicIds: readonly RelicId[]
+  souls: readonly string[]
   level: number
   xp: number
   gold: number
@@ -270,6 +272,7 @@ export function initialCampaignSave(): CampaignSave {
     completedNodeIds: [],
     unlockedNodeIds: firstChapter.nodeIds.slice(0, 1),
     relicIds: [],
+    souls: [],
     level: 1,
     xp: 0,
     gold: 0,
@@ -280,6 +283,13 @@ export function initialCampaignSave(): CampaignSave {
 export function addCampaignRelic(save: CampaignSave, relicId: RelicId): CampaignSave {
   if (save.relicIds.includes(relicId)) return save
   const next: CampaignSave = { ...save, relicIds: [...save.relicIds, relicId] }
+  saveCampaignSave(next)
+  return next
+}
+
+export function addCampaignSoul(save: CampaignSave, soulId: string): CampaignSave {
+  if (save.souls.includes(soulId)) return save
+  const next: CampaignSave = { ...save, souls: [...save.souls, soulId] }
   saveCampaignSave(next)
   return next
 }
@@ -359,6 +369,7 @@ export function completeCampaignBattle(save: CampaignSave): CampaignSave {
     completedNodeIds: Array.from(completed),
     unlockedNodeIds: Array.from(unlocked),
     relicIds: save.relicIds,
+    souls: save.souls,
     level: save.level,
     xp: save.xp,
     gold: save.gold,
@@ -422,6 +433,7 @@ function sanitizeCampaignSave(value: Partial<CampaignSave>): CampaignSave {
     completedNodeIds: completed,
     unlockedNodeIds: unlocked,
     relicIds: filterRelics(value.relicIds),
+    souls: filterSouls(value.souls),
     level: clampNumber(value.level, 1, MAX_LEVEL, 1),
     xp: clampNumber(value.xp, 0, Number.MAX_SAFE_INTEGER, 0),
     gold: clampNumber(value.gold, 0, Number.MAX_SAFE_INTEGER, 0),
@@ -438,6 +450,12 @@ function filterRelics(value: readonly RelicId[] | undefined): RelicId[] {
   if (!Array.isArray(value)) return []
   const valid = new Set(RELIC_POOL.map((relic) => relic.id))
   return value.filter((entry): entry is RelicId => valid.has(entry))
+}
+
+function filterSouls(value: readonly string[] | undefined): string[] {
+  if (!Array.isArray(value)) return []
+  const valid = new Set(SOUL_POOL.map((soul) => soul.id))
+  return value.filter((entry): entry is string => typeof entry === 'string' && valid.has(entry))
 }
 
 function filterExisting(value: readonly string[] | undefined): string[] {

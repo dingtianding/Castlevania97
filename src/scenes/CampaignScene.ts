@@ -4,8 +4,9 @@ import { ModeSelectScene } from './ModeSelectScene.ts'
 import { PauseScene } from './PauseScene.ts'
 import { AssetManager } from '../assets/AssetManager.ts'
 import { AUDIO_MANIFEST } from '../assets/manifest.ts'
-import { addCampaignRelic, completeCampaignBattle, getCampaignChapter, getCampaignNode, grantCampaignRewards, loadCampaignSave, MAX_LEVEL, xpForNextLevel } from '../data/campaign.ts'
+import { addCampaignRelic, addCampaignSoul, completeCampaignBattle, getCampaignChapter, getCampaignNode, grantCampaignRewards, loadCampaignSave, MAX_LEVEL, xpForNextLevel } from '../data/campaign.ts'
 import { buildRunModifiers, draftRelics, RELIC_POOL, type RelicDef, type RelicId, type RunModifiers } from '../data/relics.ts'
+import { buildSoulModifiers, soulForEnemy, SOUL_POOL, type SoulModifiers } from '../data/souls.ts'
 import { juliusBelmont as CAMPAIGN_HERO } from '../data/characters/castlevaniaCampaign.ts'
 import { getStage } from '../data/stages.ts'
 import type { CharacterDef } from '../data/characters/CharacterDef.ts'
@@ -235,7 +236,7 @@ class CastleActor {
   private glowPhase = 0
   private readonly sheets: SpriteSet
   private readonly animator: Animator
-  private readonly moveSpeedMultiplier: number
+  private moveSpeedMultiplier: number
   private attackMove: AttackMove | null = null
   private attackTick = 0
   private attackConnected = false
@@ -668,6 +669,10 @@ class CastleActor {
     this.health = value
   }
 
+  setMoveSpeedMultiplier(value: number): void {
+    this.moveSpeedMultiplier = value
+  }
+
   private currentSheet(): SpriteSheet {
     const s = this.sheets
     if (this.state === 'attack') return this.attackMove?.animKey === 'attack2' ? s.attack2 : s.attack1
@@ -719,6 +724,7 @@ export class CampaignScene extends Scene {
   private selectedSubweaponIndex = 0
   private enemyFreezeTicks = 0
   private runMods: RunModifiers = buildRunModifiers([])
+  private soulMods: SoulModifiers = buildSoulModifiers([])
   private playerDamageMult = 1
   private levelUpTicks = 0
   private readonly rewardedDeaths = new Set<CastleActor>()
@@ -969,11 +975,13 @@ export class CampaignScene extends Scene {
     this.chapter = getCampaignChapter(this.node.chapterId)
     this.layout = buildLayout(this.node.stage)
     this.runMods = buildRunModifiers(this.save.relicIds.map((id) => RELIC_POOL.find((relic) => relic.id === id)).filter((relic): relic is RelicDef => Boolean(relic)))
+    this.soulMods = buildSoulModifiers(this.save.souls)
     this.playerDamageMult = this.computeDamageMult()
-    this.player = new CastleActor(CAMPAIGN_HERO, this.ctx.assets, this.layout.checkpointX, this.layout.checkpointY, 1, this.runMods.moveSpeedMultiplier)
+    const moveSpeed = this.runMods.moveSpeedMultiplier * this.soulMods.moveSpeedMultiplier
+    this.player = new CastleActor(CAMPAIGN_HERO, this.ctx.assets, this.layout.checkpointX, this.layout.checkpointY, 1, moveSpeed)
     this.player.setMaxHealth(this.computeMaxHealth())
     this.player.reset(this.layout.checkpointX, this.layout.checkpointY, 1)
-    this.player.meterGainMultiplier = this.runMods.meterGainMultiplier
+    this.player.meterGainMultiplier = this.runMods.meterGainMultiplier * this.soulMods.meterGainMultiplier
     this.player.meter = this.runMods.startMeterBonus
     this.enemies = buildEnemies(this.node, this.ctx.assets, this.layout)
     this.projectiles = []
@@ -1156,11 +1164,11 @@ export class CampaignScene extends Scene {
   }
 
   private computeMaxHealth(): number {
-    return 100 + (this.save.level - 1) * 8 + this.runMods.maxHealthBonus
+    return 100 + (this.save.level - 1) * 8 + this.runMods.maxHealthBonus + this.soulMods.maxHealthBonus
   }
 
   private computeDamageMult(): number {
-    return this.runMods.damageMultiplier * (1 + (this.save.level - 1) * 0.04)
+    return this.runMods.damageMultiplier * this.soulMods.damageMultiplier * (1 + (this.save.level - 1) * 0.04)
   }
 
   private grantEnemyRewards(): void {
@@ -1173,7 +1181,33 @@ export class CampaignScene extends Scene {
       const hurt = enemy.hurtbox()
       this.spawnFloatingText(hurt.x + hurt.width / 2, hurt.y - 6, `+${reward.xp} XP`, '#b7c7e6')
       if (result.levelsGained > 0) this.onLevelUp()
+      this.tryDropSoul(enemy, hurt)
     }
+  }
+
+  private tryDropSoul(enemy: CastleActor, hurt: Rect): void {
+    const soul = soulForEnemy(enemy.def.id)
+    if (!soul || this.save.souls.includes(soul.id)) return
+    if (this.ctx.rng.next() >= soul.dropChance) return
+    this.save = addCampaignSoul(this.save, soul.id)
+    this.applySoulMods()
+    const cx = hurt.x + hurt.width / 2
+    this.spawnFloatingText(cx, hurt.y - 28, 'SOUL!', '#7ad6ff')
+    this.spawnFloatingText(cx, hurt.y - 10, soul.name.toUpperCase(), '#7ad6ff')
+    this.ctx.audio.hit()
+  }
+
+  /** Re-apply soul bonuses to the live player when a new soul drops mid-room:
+   *  bump max health by the delta (without a full heal), refresh damage/speed. */
+  private applySoulMods(): void {
+    const oldMax = this.player.maxHealth
+    this.soulMods = buildSoulModifiers(this.save.souls)
+    this.playerDamageMult = this.computeDamageMult()
+    const newMax = this.computeMaxHealth()
+    this.player.maxHealth = newMax
+    this.player.health = Math.min(newMax, this.player.health + Math.max(0, newMax - oldMax))
+    this.player.setMoveSpeedMultiplier(this.runMods.moveSpeedMultiplier * this.soulMods.moveSpeedMultiplier)
+    this.player.meterGainMultiplier = this.runMods.meterGainMultiplier * this.soulMods.meterGainMultiplier
   }
 
   private onLevelUp(): void {
@@ -1420,6 +1454,8 @@ export class CampaignScene extends Scene {
     ctx.fillStyle = '#f6b74a'
     ctx.font = '8px "Press Start 2P", monospace'
     ctx.fillText(`GOLD ${this.save.gold}`, 250, 104)
+    ctx.fillStyle = '#7ad6ff'
+    ctx.fillText(`SOULS ${this.save.souls.length}/${SOUL_POOL.length}`, 150, 104)
     this.drawRelicPips(ctx)
     ctx.restore()
   }
