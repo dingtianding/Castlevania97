@@ -1,6 +1,7 @@
 import type { CharacterDef } from './characters/CharacterDef.ts'
 import { dracula1999, juliusBelmont, sealGuardian, skeleton, zombie } from './characters/castlevaniaCampaign.ts'
 import type { StageId } from './stages.ts'
+import { RELIC_POOL, type RelicId } from './relics.ts'
 
 const STORAGE_KEY = 'castlevania97.campaign.v1'
 
@@ -33,6 +34,7 @@ export interface CampaignSave {
   currentNodeId: string | null
   completedNodeIds: readonly string[]
   unlockedNodeIds: readonly string[]
+  relicIds: readonly RelicId[]
   finished: boolean
 }
 
@@ -229,8 +231,16 @@ export function initialCampaignSave(): CampaignSave {
     currentNodeId: firstChapter.nodeIds[0] ?? null,
     completedNodeIds: [],
     unlockedNodeIds: firstChapter.nodeIds.slice(0, 1),
+    relicIds: [],
     finished: false,
   }
+}
+
+export function addCampaignRelic(save: CampaignSave, relicId: RelicId): CampaignSave {
+  if (save.relicIds.includes(relicId)) return save
+  const next: CampaignSave = { ...save, relicIds: [...save.relicIds, relicId] }
+  saveCampaignSave(next)
+  return next
 }
 
 export function loadCampaignSave(): CampaignSave {
@@ -307,6 +317,7 @@ export function completeCampaignBattle(save: CampaignSave): CampaignSave {
     currentNodeId,
     completedNodeIds: Array.from(completed),
     unlockedNodeIds: Array.from(unlocked),
+    relicIds: save.relicIds,
     finished,
   }
   saveCampaignSave(next)
@@ -366,8 +377,15 @@ function sanitizeCampaignSave(value: Partial<CampaignSave>): CampaignSave {
     currentNodeId,
     completedNodeIds: completed,
     unlockedNodeIds: unlocked,
+    relicIds: filterRelics(value.relicIds),
     finished: Boolean(value.finished),
   }
+}
+
+function filterRelics(value: readonly RelicId[] | undefined): RelicId[] {
+  if (!Array.isArray(value)) return []
+  const valid = new Set(RELIC_POOL.map((relic) => relic.id))
+  return value.filter((entry): entry is RelicId => valid.has(entry))
 }
 
 function filterExisting(value: readonly string[] | undefined): string[] {

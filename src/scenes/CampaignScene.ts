@@ -4,7 +4,8 @@ import { ModeSelectScene } from './ModeSelectScene.ts'
 import { PauseScene } from './PauseScene.ts'
 import { AssetManager } from '../assets/AssetManager.ts'
 import { AUDIO_MANIFEST } from '../assets/manifest.ts'
-import { completeCampaignBattle, getCampaignChapter, getCampaignNode, loadCampaignSave } from '../data/campaign.ts'
+import { addCampaignRelic, completeCampaignBattle, getCampaignChapter, getCampaignNode, loadCampaignSave } from '../data/campaign.ts'
+import { buildRunModifiers, draftRelics, RELIC_POOL, type RelicDef, type RelicId, type RunModifiers } from '../data/relics.ts'
 import { juliusBelmont as CAMPAIGN_HERO } from '../data/characters/castlevaniaCampaign.ts'
 import { getStage } from '../data/stages.ts'
 import type { CharacterDef } from '../data/characters/CharacterDef.ts'
@@ -104,6 +105,14 @@ const SUBWEAPON_BOX: Record<SubweaponKind, Rect> = {
   stopwatch: { x: 0, y: 0, width: 20, height: 20 },
 }
 
+const RELIC_PIP_COLORS: Record<RelicId, string> = {
+  vitality: '#b91d2d',
+  fury: '#f6b74a',
+  focus: '#8dc2ff',
+  quickstep: '#7ad67a',
+  catalyst: '#d67ad6',
+}
+
 interface Platform {
   x: number
   y: number
@@ -178,6 +187,7 @@ class CastleActor {
   maxHealth = 100
   health = 100
   meter = 0
+  meterGainMultiplier = 1
   grounded = true
   facing: Facing
   state: 'idle' | 'run' | 'jump' | 'fall' | 'attack' | 'dash' | 'hurt' | 'death' = 'idle'
@@ -295,12 +305,12 @@ class CastleActor {
 
   markAttackConnected(): void {
     this.attackConnected = true
-    if (this.attackMove) this.meter = clamp(this.meter + this.attackMove.damage * 0.8, 0, 100)
+    if (this.attackMove) this.meter = clamp(this.meter + this.attackMove.damage * 0.8 * this.meterGainMultiplier, 0, 100)
   }
 
-  applyHit(move: AttackMove, fromX: number): boolean {
+  applyHit(move: AttackMove, fromX: number, damageMultiplier = 1): boolean {
     if (!this.canBeHit) return false
-    this.health = Math.max(0, this.health - Math.max(1, Math.round(move.damage)))
+    this.health = Math.max(0, this.health - Math.max(1, Math.round(move.damage * damageMultiplier)))
     this.velocity.x = this.position.x >= fromX ? 6 : -6
     this.velocity.y = move.knockbackY
     this.grounded = false
@@ -317,9 +327,9 @@ class CastleActor {
     return true
   }
 
-  applyFlatDamage(damage: number, fromX: number, knockbackY: number): boolean {
+  applyFlatDamage(damage: number, fromX: number, knockbackY: number, damageMultiplier = 1): boolean {
     if (!this.canBeHit) return false
-    this.health = Math.max(0, this.health - Math.max(1, Math.round(damage)))
+    this.health = Math.max(0, this.health - Math.max(1, Math.round(damage * damageMultiplier)))
     this.velocity.x = this.position.x >= fromX ? 5 : -5
     this.velocity.y = knockbackY
     this.grounded = false
@@ -639,10 +649,33 @@ export class CampaignScene extends Scene {
   private hearts = STARTING_HEARTS
   private selectedSubweaponIndex = 0
   private enemyFreezeTicks = 0
+  private runMods: RunModifiers = buildRunModifiers([])
+  private drafting = false
+  private draftOptions: RelicDef[] = []
+  private draftIndex = 0
+  private pendingNodeId: string | null = null
   private readonly attackingLastTick = new Set<CastleActor>()
   private touchControls: TouchControls | null = null
   private readonly onKeyDown = (e: KeyboardEvent): void => {
     if (this.ctx.scenes.current !== this) return
+    if (this.drafting) {
+      if (this.draftOptions.length === 0) return
+      if (e.code === 'KeyA' || e.code === 'ArrowLeft') {
+        e.preventDefault()
+        this.draftIndex = (this.draftIndex - 1 + this.draftOptions.length) % this.draftOptions.length
+        return
+      }
+      if (e.code === 'KeyD' || e.code === 'ArrowRight') {
+        e.preventDefault()
+        this.draftIndex = (this.draftIndex + 1) % this.draftOptions.length
+        return
+      }
+      if (isMenuConfirm(e.code)) {
+        e.preventDefault()
+        this.pickDraft()
+      }
+      return
+    }
     if (this.ending && (isMenuConfirm(e.code) || isMenuCancel(e.code))) {
       e.preventDefault()
       this.ctx.scenes.replace(new TitleScene(this.ctx))
@@ -672,15 +705,33 @@ export class CampaignScene extends Scene {
     if (e.code === 'KeyM') this.ctx.scenes.replace(new ModeSelectScene(this.ctx))
   }
 
+  private readonly onPointerDown = (e: PointerEvent): void => {
+    if (!this.drafting || this.draftOptions.length === 0) return
+    const rect = this.ctx.renderer.canvas.getBoundingClientRect()
+    const px = ((e.clientX - rect.left) / rect.width) * this.ctx.width
+    const py = ((e.clientY - rect.top) / rect.height) * this.ctx.height
+    const layout = this.draftLayout()
+    const hit = this.draftOptions.findIndex((_opt, i) => {
+      const x = layout.startX + i * (layout.cardW + layout.gap)
+      return px >= x && px <= x + layout.cardW && py >= layout.y && py <= layout.y + layout.cardH
+    })
+    if (hit >= 0) {
+      this.draftIndex = hit
+      this.pickDraft()
+    }
+  }
+
   override enter(): void {
     this.ctx.audio.startBgm(AUDIO_MANIFEST['bgm.heartOfFire'])
     this.bindInput()
     window.addEventListener('keydown', this.onKeyDown)
+    this.ctx.renderer.canvas.addEventListener('pointerdown', this.onPointerDown)
     this.reloadFromSave()
   }
 
   override exit(): void {
     window.removeEventListener('keydown', this.onKeyDown)
+    this.ctx.renderer.canvas.removeEventListener('pointerdown', this.onPointerDown)
     this.input.dispose?.()
     this.touchControls?.dispose()
     this.touchControls = null
@@ -691,7 +742,7 @@ export class CampaignScene extends Scene {
     this.blink += 1
     if (this.flashTicks > 0) this.flashTicks -= 1
     if (this.contactHitCooldown > 0) this.contactHitCooldown -= 1
-    if (this.ending) return
+    if (this.ending || this.drafting) return
     if (this.defeatTicks > 0) {
       this.defeatTicks += 1
       if (this.defeatTicks > DEFEAT_RETRY_TICKS) this.reloadNode(this.node.id, true)
@@ -794,6 +845,7 @@ export class CampaignScene extends Scene {
     this.drawWorld()
     this.drawHud()
     if (this.ending) this.drawEnding()
+    else if (this.drafting) this.drawDraft()
     else if (this.defeatTicks > 0) this.drawDefeat()
     else if (this.isRoomClear) this.drawRoomClear()
     else if (Math.floor(this.blink / 30) % 2 === 0) this.drawPrompt()
@@ -837,8 +889,12 @@ export class CampaignScene extends Scene {
     this.node = getCampaignNode(nodeId)
     this.chapter = getCampaignChapter(this.node.chapterId)
     this.layout = buildLayout(this.node.stage)
-    this.player = new CastleActor(CAMPAIGN_HERO, this.ctx.assets, this.layout.checkpointX, this.layout.checkpointY, 1)
+    this.runMods = buildRunModifiers(this.save.relicIds.map((id) => RELIC_POOL.find((relic) => relic.id === id)).filter((relic): relic is RelicDef => Boolean(relic)))
+    this.player = new CastleActor(CAMPAIGN_HERO, this.ctx.assets, this.layout.checkpointX, this.layout.checkpointY, 1, this.runMods.moveSpeedMultiplier)
+    this.player.setMaxHealth(100 + this.runMods.maxHealthBonus)
     this.player.reset(this.layout.checkpointX, this.layout.checkpointY, 1)
+    this.player.meterGainMultiplier = this.runMods.meterGainMultiplier
+    this.player.meter = this.runMods.startMeterBonus
     this.enemies = buildEnemies(this.node, this.ctx.assets, this.layout)
     this.projectiles = []
     this.subweapons = []
@@ -862,7 +918,7 @@ export class CampaignScene extends Scene {
       const playerAtk = this.player.activeAttack()
       const enemyAtk = enemy.activeAttack()
       if (playerAtk && rectsOverlap(playerAtk.box, enemy.hurtbox())) {
-        if (enemy.applyHit(playerAtk.spec, this.player.position.x)) {
+        if (enemy.applyHit(playerAtk.spec, this.player.position.x, this.runMods.damageMultiplier)) {
           this.player.markAttackConnected()
           this.onHit(playerAtk.spec, enemy.isDead)
         }
@@ -894,7 +950,7 @@ export class CampaignScene extends Scene {
           if (enemy.isDead) continue
           if (subweapon.hitTargets?.has(enemy)) continue
           if (!rectsOverlap(box, enemy.hurtbox())) continue
-          if (!enemy.applyFlatDamage(SUBWEAPON_DAMAGE.holyWater, subweapon.position.x, -4)) continue
+          if (!enemy.applyFlatDamage(SUBWEAPON_DAMAGE.holyWater, subweapon.position.x, -4, this.runMods.damageMultiplier)) continue
           subweapon.hitTargets?.add(enemy)
           this.ctx.audio.hit()
           this.hitstop = Math.max(this.hitstop, 4)
@@ -905,7 +961,7 @@ export class CampaignScene extends Scene {
       if (subweapon.hasHit) continue
       for (const enemy of this.enemies) {
         if (enemy.isDead || !rectsOverlap(box, enemy.hurtbox())) continue
-        if (!enemy.applyFlatDamage(SUBWEAPON_DAMAGE[subweapon.kind], subweapon.position.x, -6)) continue
+        if (!enemy.applyFlatDamage(SUBWEAPON_DAMAGE[subweapon.kind], subweapon.position.x, -6, this.runMods.damageMultiplier)) continue
         subweapon.hasHit = true
         this.ctx.audio.hit()
         this.hitstop = Math.max(this.hitstop, 6)
@@ -1016,11 +1072,36 @@ export class CampaignScene extends Scene {
       this.ending = true
       return
     }
-    if (next.currentNodeId) {
-      this.reloadNode(next.currentNodeId)
-    } else {
+    if (!next.currentNodeId) {
       this.ending = true
+      return
     }
+    // Offer a relic between rooms while any remain undrafted; the run modifiers
+    // it grants persist to every future room via the campaign save.
+    const options = draftRelics(this.ctx.rng, this.save.relicIds, 3)
+    if (options.length > 0) {
+      this.drafting = true
+      this.draftOptions = options
+      this.draftIndex = 0
+      this.pendingNodeId = next.currentNodeId
+      this.ctx.audio.swing()
+      return
+    }
+    this.reloadNode(next.currentNodeId)
+  }
+
+  private pickDraft(): void {
+    const relic = this.draftOptions[this.draftIndex]
+    const nodeId = this.pendingNodeId
+    this.drafting = false
+    this.draftOptions = []
+    this.pendingNodeId = null
+    if (relic) {
+      this.save = addCampaignRelic(this.save, relic.id)
+      this.ctx.audio.hit()
+    }
+    if (nodeId) this.reloadNode(nodeId)
+    else this.ending = true
   }
 
   private drawWorld(): void {
@@ -1134,7 +1215,24 @@ export class CampaignScene extends Scene {
     ctx.fillStyle = '#e8d4a0'
     ctx.font = '8px "Press Start 2P", monospace'
     ctx.fillText(`HEARTS ${this.hearts.toString().padStart(2, '0')}`, 266, 72)
+    this.drawRelicPips(ctx)
     ctx.restore()
+  }
+
+  private drawRelicPips(ctx: CanvasRenderingContext2D): void {
+    if (this.save.relicIds.length === 0) return
+    const size = 12
+    const gap = 6
+    let x = 40
+    const y = 108
+    for (const id of this.save.relicIds) {
+      ctx.fillStyle = RELIC_PIP_COLORS[id] ?? '#e8d4a0'
+      ctx.fillRect(x, y, size, size)
+      ctx.strokeStyle = '#0b0912'
+      ctx.lineWidth = 2
+      ctx.strokeRect(x, y, size, size)
+      x += size + gap
+    }
   }
 
   private drawPrompt(): void {
@@ -1215,6 +1313,70 @@ export class CampaignScene extends Scene {
     ctx.fillText('J / K RETURN TO TITLE', this.ctx.width / 2, this.ctx.height - 164)
     ctx.restore()
   }
+
+  private draftLayout(): { startX: number; y: number; cardW: number; cardH: number; gap: number } {
+    const cardW = 250
+    const cardH = 220
+    const gap = this.draftOptions.length > 1 ? 32 : 0
+    const total = this.draftOptions.length * cardW + Math.max(0, this.draftOptions.length - 1) * gap
+    return { startX: (this.ctx.width - total) / 2, y: 168, cardW, cardH, gap }
+  }
+
+  private drawDraft(): void {
+    const { ctx } = this.ctx.renderer
+    const { width, height } = this.ctx
+    const layout = this.draftLayout()
+    ctx.save()
+    ctx.fillStyle = 'rgba(8, 6, 14, 0.86)'
+    ctx.fillRect(0, 0, width, height)
+
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillStyle = '#e8d4a0'
+    ctx.font = '20px "Press Start 2P", monospace'
+    ctx.fillText('RELIC FOUND', width / 2, 92)
+    ctx.fillStyle = '#b7c7e6'
+    ctx.font = '9px "Press Start 2P", monospace'
+    ctx.fillText('CHOOSE ONE BLESSING FOR THE HUNT AHEAD', width / 2, 122)
+
+    this.draftOptions.forEach((relic, i) => {
+      const x = layout.startX + i * (layout.cardW + layout.gap)
+      const selected = i === this.draftIndex
+      ctx.fillStyle = selected ? 'rgba(40, 33, 56, 0.96)' : 'rgba(16, 24, 43, 0.84)'
+      ctx.fillRect(x, layout.y, layout.cardW, layout.cardH)
+      ctx.strokeStyle = selected ? '#e8d4a0' : '#5a567a'
+      ctx.lineWidth = selected ? 3 : 2
+      ctx.strokeRect(x, layout.y, layout.cardW, layout.cardH)
+
+      ctx.textAlign = 'left'
+      ctx.textBaseline = 'top'
+      ctx.fillStyle = '#e8d4a0'
+      ctx.font = '12px "Press Start 2P", monospace'
+      ctx.fillText(relic.name.toUpperCase(), x + 16, layout.y + 20)
+      ctx.fillStyle = '#b7c7e6'
+      ctx.font = '9px "Press Start 2P", monospace'
+      wrapText(ctx, relic.blurb, x + 16, layout.y + 58, layout.cardW - 32, 16)
+      ctx.fillStyle = '#f6b74a'
+      ctx.font = '8px "Press Start 2P", monospace'
+      ctx.fillText(relicSummary(relic), x + 16, layout.y + layout.cardH - 26)
+    })
+
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillStyle = '#5a567a'
+    ctx.font = '9px "Press Start 2P", monospace'
+    ctx.fillText('A/D MOVE     J TAKE', width / 2, height - 44)
+    ctx.restore()
+  }
+}
+
+function relicSummary(relic: RelicDef): string {
+  if (relic.maxHealthBonus) return `+${relic.maxHealthBonus} MAX HP`
+  if (relic.damageMultiplier !== 1) return `${relic.damageMultiplier.toFixed(2)}X DAMAGE`
+  if (relic.meterGainMultiplier !== 1) return `${relic.meterGainMultiplier.toFixed(2)}X METER`
+  if (relic.moveSpeedMultiplier !== 1) return `${relic.moveSpeedMultiplier.toFixed(2)}X SPEED`
+  if (relic.startMeterBonus) return `+${relic.startMeterBonus} START METER`
+  return ''
 }
 
 function buildEnemies(node: ReturnType<typeof getCampaignNode>, assets: AssetManager, layout: RoomLayout): CastleActor[] {
