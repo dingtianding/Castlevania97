@@ -10,7 +10,7 @@ Castlevania97 is a campaign-first action game built around a younger Julius Belm
 - **Archive** - legacy versus, training, boss rush, move codices, and records.
 - **Settings** - audio, reduce motion, and CPU difficulty.
 
-Music starts muted by default. Open Settings to raise `MUSIC` if you want it on.
+Audio starts muted by default. Open Settings to raise `MASTER`, `MUSIC`, or `SFX` if you want sound on.
 
 ## Controls
 

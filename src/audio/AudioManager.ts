@@ -11,9 +11,9 @@ export class AudioManager {
   private musicGain: GainNode | null = null
   private sfxGain: GainNode | null = null
   private noise: AudioBuffer | null = null
-  private masterVolume = 0.85
-  private musicVolume = 0.35
-  private sfxVolume = 0.6
+  private masterVolume = 0
+  private musicVolume = 0
+  private sfxVolume = 0
 
   private bgmUrl: string | null = null
   private bgmBuffer: AudioBuffer | null = null
