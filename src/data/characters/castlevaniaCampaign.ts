@@ -178,8 +178,8 @@ export const skeleton: CharacterDef = {
   sprites: {
     idle: { key: 'skeleton.idle', frames: 6 },
     run: { key: 'skeleton.run', frames: 8 },
-    jump: { key: 'skeleton.roam', frames: 6 },
-    fall: { key: 'skeleton.roam', frames: 6 },
+    jump: { key: 'skeleton.roam', frames: 8 },
+    fall: { key: 'skeleton.roam', frames: 8 },
     attack1: { key: 'skeleton.attack', frames: 5 },
     attack2: { key: 'skeleton.attack', frames: 5 },
     takeHit: { key: 'skeleton.hurt', frames: 4 },
