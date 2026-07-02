@@ -37,7 +37,38 @@ export interface CampaignSave {
   completedNodeIds: readonly string[]
   unlockedNodeIds: readonly string[]
   relicIds: readonly RelicId[]
+  level: number
+  xp: number
+  gold: number
   finished: boolean
+}
+
+export const MAX_LEVEL = 50
+
+/** XP required to advance from `level` to `level + 1` — a gentle linear curve. */
+export function xpForNextLevel(level: number): number {
+  return 24 + (level - 1) * 18
+}
+
+/** Award XP and gold to a run, applying any level-ups. Returns the new save
+ *  plus how many levels were gained so the scene can celebrate + heal. */
+export function grantCampaignRewards(
+  save: CampaignSave,
+  xpGain: number,
+  goldGain: number,
+): { save: CampaignSave; levelsGained: number } {
+  let level = save.level
+  let xp = save.xp + Math.max(0, Math.round(xpGain))
+  let levelsGained = 0
+  while (level < MAX_LEVEL && xp >= xpForNextLevel(level)) {
+    xp -= xpForNextLevel(level)
+    level += 1
+    levelsGained += 1
+  }
+  if (level >= MAX_LEVEL) xp = 0
+  const next: CampaignSave = { ...save, level, xp, gold: save.gold + Math.max(0, Math.round(goldGain)) }
+  saveCampaignSave(next)
+  return { save: next, levelsGained }
 }
 
 export interface CampaignBattleSeed {
@@ -239,6 +270,9 @@ export function initialCampaignSave(): CampaignSave {
     completedNodeIds: [],
     unlockedNodeIds: firstChapter.nodeIds.slice(0, 1),
     relicIds: [],
+    level: 1,
+    xp: 0,
+    gold: 0,
     finished: false,
   }
 }
@@ -325,6 +359,9 @@ export function completeCampaignBattle(save: CampaignSave): CampaignSave {
     completedNodeIds: Array.from(completed),
     unlockedNodeIds: Array.from(unlocked),
     relicIds: save.relicIds,
+    level: save.level,
+    xp: save.xp,
+    gold: save.gold,
     finished,
   }
   saveCampaignSave(next)
@@ -385,8 +422,16 @@ function sanitizeCampaignSave(value: Partial<CampaignSave>): CampaignSave {
     completedNodeIds: completed,
     unlockedNodeIds: unlocked,
     relicIds: filterRelics(value.relicIds),
+    level: clampNumber(value.level, 1, MAX_LEVEL, 1),
+    xp: clampNumber(value.xp, 0, Number.MAX_SAFE_INTEGER, 0),
+    gold: clampNumber(value.gold, 0, Number.MAX_SAFE_INTEGER, 0),
     finished: Boolean(value.finished),
   }
+}
+
+function clampNumber(value: unknown, min: number, max: number, fallback: number): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return fallback
+  return Math.min(max, Math.max(min, Math.floor(value)))
 }
 
 function filterRelics(value: readonly RelicId[] | undefined): RelicId[] {

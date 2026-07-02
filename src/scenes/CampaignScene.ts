@@ -4,7 +4,7 @@ import { ModeSelectScene } from './ModeSelectScene.ts'
 import { PauseScene } from './PauseScene.ts'
 import { AssetManager } from '../assets/AssetManager.ts'
 import { AUDIO_MANIFEST } from '../assets/manifest.ts'
-import { addCampaignRelic, completeCampaignBattle, getCampaignChapter, getCampaignNode, loadCampaignSave } from '../data/campaign.ts'
+import { addCampaignRelic, completeCampaignBattle, getCampaignChapter, getCampaignNode, grantCampaignRewards, loadCampaignSave, MAX_LEVEL, xpForNextLevel } from '../data/campaign.ts'
 import { buildRunModifiers, draftRelics, RELIC_POOL, type RelicDef, type RelicId, type RunModifiers } from '../data/relics.ts'
 import { juliusBelmont as CAMPAIGN_HERO } from '../data/characters/castlevaniaCampaign.ts'
 import { getStage } from '../data/stages.ts'
@@ -194,6 +194,23 @@ interface Candle {
   x: number
   y: number
   broken: boolean
+}
+
+interface FloatingText {
+  x: number
+  y: number
+  text: string
+  color: string
+  ticksLeft: number
+}
+
+// XP and gold granted when each enemy type is defeated. Bosses use a fixed
+// bounty (see campaignEnemyReward) rather than this table.
+const ENEMY_REWARD: Record<string, { xp: number; gold: number }> = {
+  skeleton: { xp: 6, gold: 4 },
+  zombie: { xp: 5, gold: 3 },
+  ghoul: { xp: 4, gold: 2 },
+  armoredSkeleton: { xp: 14, gold: 10 },
 }
 
 interface HeartPickup {
@@ -702,6 +719,10 @@ export class CampaignScene extends Scene {
   private selectedSubweaponIndex = 0
   private enemyFreezeTicks = 0
   private runMods: RunModifiers = buildRunModifiers([])
+  private playerDamageMult = 1
+  private levelUpTicks = 0
+  private readonly rewardedDeaths = new Set<CastleActor>()
+  private floatingTexts: FloatingText[] = []
   private drafting = false
   private draftOptions: RelicDef[] = []
   private draftIndex = 0
@@ -863,6 +884,9 @@ export class CampaignScene extends Scene {
     this.resolveCandles()
     this.resolveHeartPickups()
     this.heartPickups = this.heartPickups.filter((pickup) => pickup.ticksLeft > 0)
+    this.grantEnemyRewards()
+    this.updateFloatingTexts()
+    if (this.levelUpTicks > 0) this.levelUpTicks -= 1
 
     if (this.player.isDead && this.player.hurtbox().y > 0) {
       this.defeatTicks = 1
@@ -903,6 +927,7 @@ export class CampaignScene extends Scene {
     else if (this.defeatTicks > 0) this.drawDefeat()
     else if (this.isRoomClear) this.drawRoomClear()
     else if (Math.floor(this.blink / 30) % 2 === 0) this.drawPrompt()
+    if (this.levelUpTicks > 0 && !this.ending && !this.drafting) this.drawLevelUp()
     this.drawFlash()
   }
 
@@ -944,8 +969,9 @@ export class CampaignScene extends Scene {
     this.chapter = getCampaignChapter(this.node.chapterId)
     this.layout = buildLayout(this.node.stage)
     this.runMods = buildRunModifiers(this.save.relicIds.map((id) => RELIC_POOL.find((relic) => relic.id === id)).filter((relic): relic is RelicDef => Boolean(relic)))
+    this.playerDamageMult = this.computeDamageMult()
     this.player = new CastleActor(CAMPAIGN_HERO, this.ctx.assets, this.layout.checkpointX, this.layout.checkpointY, 1, this.runMods.moveSpeedMultiplier)
-    this.player.setMaxHealth(100 + this.runMods.maxHealthBonus)
+    this.player.setMaxHealth(this.computeMaxHealth())
     this.player.reset(this.layout.checkpointX, this.layout.checkpointY, 1)
     this.player.meterGainMultiplier = this.runMods.meterGainMultiplier
     this.player.meter = this.runMods.startMeterBonus
@@ -961,6 +987,9 @@ export class CampaignScene extends Scene {
     this.contactHitCooldown = 0
     this.defeatTicks = 0
     this.enemyFreezeTicks = 0
+    this.levelUpTicks = 0
+    this.rewardedDeaths.clear()
+    this.floatingTexts = []
     this.attackingLastTick.clear()
     this.ending = false
     this.save = { ...this.save, currentNodeId: nodeId, finished: false }
@@ -972,7 +1001,7 @@ export class CampaignScene extends Scene {
       const playerAtk = this.player.activeAttack()
       const enemyAtk = enemy.activeAttack()
       if (playerAtk && rectsOverlap(playerAtk.box, enemy.hurtbox())) {
-        if (enemy.applyHit(playerAtk.spec, this.player.position.x, this.runMods.damageMultiplier)) {
+        if (enemy.applyHit(playerAtk.spec, this.player.position.x, this.playerDamageMult)) {
           this.player.markAttackConnected()
           this.onHit(playerAtk.spec, enemy.isDead)
         }
@@ -1004,7 +1033,7 @@ export class CampaignScene extends Scene {
           if (enemy.isDead) continue
           if (subweapon.hitTargets?.has(enemy)) continue
           if (!rectsOverlap(box, enemy.hurtbox())) continue
-          if (!enemy.applyFlatDamage(SUBWEAPON_DAMAGE.holyWater, subweapon.position.x, -4, this.runMods.damageMultiplier)) continue
+          if (!enemy.applyFlatDamage(SUBWEAPON_DAMAGE.holyWater, subweapon.position.x, -4, this.playerDamageMult)) continue
           subweapon.hitTargets?.add(enemy)
           this.ctx.audio.hit()
           this.hitstop = Math.max(this.hitstop, 4)
@@ -1015,7 +1044,7 @@ export class CampaignScene extends Scene {
       if (subweapon.hasHit) continue
       for (const enemy of this.enemies) {
         if (enemy.isDead || !rectsOverlap(box, enemy.hurtbox())) continue
-        if (!enemy.applyFlatDamage(SUBWEAPON_DAMAGE[subweapon.kind], subweapon.position.x, -6, this.runMods.damageMultiplier)) continue
+        if (!enemy.applyFlatDamage(SUBWEAPON_DAMAGE[subweapon.kind], subweapon.position.x, -6, this.playerDamageMult)) continue
         subweapon.hasHit = true
         this.ctx.audio.hit()
         this.hitstop = Math.max(this.hitstop, 6)
@@ -1126,6 +1155,47 @@ export class CampaignScene extends Scene {
     }
   }
 
+  private computeMaxHealth(): number {
+    return 100 + (this.save.level - 1) * 8 + this.runMods.maxHealthBonus
+  }
+
+  private computeDamageMult(): number {
+    return this.runMods.damageMultiplier * (1 + (this.save.level - 1) * 0.04)
+  }
+
+  private grantEnemyRewards(): void {
+    for (const enemy of this.enemies) {
+      if (!enemy.isDead || this.rewardedDeaths.has(enemy)) continue
+      this.rewardedDeaths.add(enemy)
+      const reward = campaignEnemyReward(enemy)
+      const result = grantCampaignRewards(this.save, reward.xp, reward.gold)
+      this.save = result.save
+      const hurt = enemy.hurtbox()
+      this.spawnFloatingText(hurt.x + hurt.width / 2, hurt.y - 6, `+${reward.xp} XP`, '#b7c7e6')
+      if (result.levelsGained > 0) this.onLevelUp()
+    }
+  }
+
+  private onLevelUp(): void {
+    this.levelUpTicks = 150
+    this.playerDamageMult = this.computeDamageMult()
+    this.player.setMaxHealth(this.computeMaxHealth()) // level-ups fully restore health
+    this.spawnFloatingText(this.player.position.x, this.player.position.y - 118, `LEVEL ${this.save.level}`, '#f6b74a')
+    this.ctx.audio.hit()
+  }
+
+  private spawnFloatingText(x: number, y: number, text: string, color: string): void {
+    this.floatingTexts.push({ x, y, text, color, ticksLeft: 60 })
+  }
+
+  private updateFloatingTexts(): void {
+    for (const entry of this.floatingTexts) {
+      entry.y -= 0.6
+      entry.ticksLeft -= 1
+    }
+    this.floatingTexts = this.floatingTexts.filter((entry) => entry.ticksLeft > 0)
+  }
+
   private resolveHeartPickups(): void {
     const playerBox = this.player.hurtbox()
     for (const pickup of this.heartPickups) {
@@ -1234,7 +1304,26 @@ export class CampaignScene extends Scene {
     for (const projectile of this.projectiles) renderProjectile(projectile, this.ctx.renderer, this.cameraX)
     for (const subweapon of this.subweapons) renderSubweapon(subweapon, this.ctx.renderer, this.cameraX)
     this.drawEnemyHealthBars()
+    this.drawFloatingTexts()
     if (DEBUG_HITBOXES) this.drawDebugBoxes()
+  }
+
+  private drawFloatingTexts(): void {
+    if (this.floatingTexts.length === 0) return
+    const { ctx } = this.ctx.renderer
+    ctx.save()
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.font = '9px "Press Start 2P", monospace'
+    for (const entry of this.floatingTexts) {
+      ctx.globalAlpha = Math.min(1, entry.ticksLeft / 20)
+      const x = entry.x - this.cameraX
+      ctx.fillStyle = '#0b0912'
+      ctx.fillText(entry.text, x + 1, entry.y + 1)
+      ctx.fillStyle = entry.color
+      ctx.fillText(entry.text, x, entry.y)
+    }
+    ctx.restore()
   }
 
   private drawEnemyHealthBars(): void {
@@ -1292,41 +1381,55 @@ export class CampaignScene extends Scene {
     const { ctx } = this.ctx.renderer
     ctx.save()
     ctx.fillStyle = 'rgba(8, 6, 14, 0.78)'
-    ctx.fillRect(24, 20, 392, 84)
+    ctx.fillRect(24, 20, 392, 96)
     ctx.strokeStyle = '#5a567a'
     ctx.lineWidth = 2
-    ctx.strokeRect(24, 20, 392, 84)
+    ctx.strokeRect(24, 20, 392, 96)
     ctx.textAlign = 'left'
     ctx.textBaseline = 'top'
     ctx.fillStyle = '#e8d4a0'
     ctx.font = '11px "Press Start 2P", monospace'
-    ctx.fillText('JULIUS BELMONT', 40, 36)
+    ctx.fillText('JULIUS BELMONT', 40, 34)
+    ctx.fillStyle = '#f6b74a'
+    ctx.font = '9px "Press Start 2P", monospace'
+    ctx.fillText(`LV ${this.save.level}`, 300, 35)
     ctx.fillStyle = '#b7c7e6'
     ctx.font = '8px "Press Start 2P", monospace'
-    ctx.fillText(`${this.chapter.year}  ${this.chapter.title.toUpperCase()}`, 40, 56)
+    ctx.fillText(`${this.chapter.year}  ${this.chapter.title.toUpperCase()}`, 40, 52)
     ctx.fillStyle = '#8a8aa0'
-    ctx.fillText(this.node.title.toUpperCase(), 40, 72)
+    ctx.fillText(this.node.title.toUpperCase(), 40, 66)
     ctx.fillStyle = '#b7c7e6'
-    ctx.fillText(`SUB ${SUBWEAPON_LABELS[this.currentSubweapon()]}`, 266, 56)
-    ctx.fillStyle = '#2a1014'
-    ctx.fillRect(40, 90, 300, 10)
-    ctx.fillStyle = '#b91d2d'
-    ctx.fillRect(40, 90, 300 * (this.player.health / this.player.maxHealth), 10)
-    ctx.strokeStyle = '#e8d4a0'
-    ctx.strokeRect(40, 90, 300, 10)
+    ctx.fillText(`SUB ${SUBWEAPON_LABELS[this.currentSubweapon()]}`, 250, 52)
     ctx.fillStyle = '#e8d4a0'
+    ctx.fillText(`HEARTS ${this.hearts.toString().padStart(2, '0')}`, 250, 66)
+    // Health bar
+    ctx.fillStyle = '#2a1014'
+    ctx.fillRect(40, 80, 300, 10)
+    ctx.fillStyle = '#b91d2d'
+    ctx.fillRect(40, 80, 300 * (this.player.health / this.player.maxHealth), 10)
+    ctx.strokeStyle = '#e8d4a0'
+    ctx.strokeRect(40, 80, 300, 10)
+    // XP bar
+    const xpRatio = this.save.level >= MAX_LEVEL ? 1 : clamp(this.save.xp / xpForNextLevel(this.save.level), 0, 1)
+    ctx.fillStyle = '#161326'
+    ctx.fillRect(40, 94, 300, 5)
+    ctx.fillStyle = '#6f7ad6'
+    ctx.fillRect(40, 94, 300 * xpRatio, 5)
+    ctx.strokeStyle = '#3a3550'
+    ctx.strokeRect(40, 94, 300, 5)
+    ctx.fillStyle = '#f6b74a'
     ctx.font = '8px "Press Start 2P", monospace'
-    ctx.fillText(`HEARTS ${this.hearts.toString().padStart(2, '0')}`, 266, 72)
+    ctx.fillText(`GOLD ${this.save.gold}`, 250, 104)
     this.drawRelicPips(ctx)
     ctx.restore()
   }
 
   private drawRelicPips(ctx: CanvasRenderingContext2D): void {
     if (this.save.relicIds.length === 0) return
-    const size = 12
-    const gap = 6
+    const size = 11
+    const gap = 5
     let x = 40
-    const y = 108
+    const y = 104
     for (const id of this.save.relicIds) {
       ctx.fillStyle = RELIC_PIP_COLORS[id] ?? '#e8d4a0'
       ctx.fillRect(x, y, size, size)
@@ -1335,6 +1438,22 @@ export class CampaignScene extends Scene {
       ctx.strokeRect(x, y, size, size)
       x += size + gap
     }
+  }
+
+  private drawLevelUp(): void {
+    const { ctx } = this.ctx.renderer
+    const alpha = Math.min(1, this.levelUpTicks / 30)
+    ctx.save()
+    ctx.globalAlpha = alpha
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillStyle = '#f6b74a'
+    ctx.font = '18px "Press Start 2P", monospace'
+    ctx.fillText('LEVEL UP', this.ctx.width / 2, 150)
+    ctx.fillStyle = '#e8d4a0'
+    ctx.font = '9px "Press Start 2P", monospace'
+    ctx.fillText(`JULIUS REACHES LEVEL ${this.save.level}`, this.ctx.width / 2, 176)
+    ctx.restore()
   }
 
   private drawPrompt(): void {
@@ -1507,6 +1626,11 @@ function buildEnemies(node: ReturnType<typeof getCampaignNode>, assets: AssetMan
     }
   }
   return enemies
+}
+
+function campaignEnemyReward(enemy: CastleActor): { xp: number; gold: number } {
+  if (enemy.isBoss) return { xp: 60, gold: 50 }
+  return ENEMY_REWARD[enemy.def.id] ?? { xp: 5, gold: 3 }
 }
 
 function campaignEnemySpeed(enemyId: string): number {
