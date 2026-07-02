@@ -1,5 +1,5 @@
 import type { CharacterDef } from './characters/CharacterDef.ts'
-import { dracula1999, juliusBelmont, skeleton, zombie } from './characters/castlevaniaCampaign.ts'
+import { dracula1999, juliusBelmont, sealGuardian, skeleton, zombie } from './characters/castlevaniaCampaign.ts'
 import type { StageId } from './stages.ts'
 
 const STORAGE_KEY = 'castlevania97.campaign.v1'
@@ -112,9 +112,9 @@ export const CAMPAIGN_NODES: readonly CampaignNodeDef[] = [
     year: 1997,
     blurb: 'A hidden chamber built around a lock that should have stayed buried.',
     story:
-      'At the chamber’s core is a seal that has already been cracked from the inside. Julius shatters the guardian and learns this is only the first of several locks.',
+      'At the chamber’s core is a seal that has already been cracked from the inside. Julius breaks the warden that keeps it open and learns this is only the first of several locks.',
     stage: 'catacombs',
-    enemy: skeleton,
+    enemy: sealGuardian,
     difficulty: 'normal',
     nextIds: ['1998-catacombs'],
     position: { x: 620, y: 230 },

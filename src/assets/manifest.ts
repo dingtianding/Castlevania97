@@ -56,6 +56,7 @@ import skeletonRoam from '../../assets/enemies/skeleton-roam.png'
 
 import demonIdle from '../../assets/demon-Files/demon-idle.png'
 import demonAttack from '../../assets/demon-Files/demon-attack-no-breath.png'
+import demonAttackFull from '../../assets/demon-Files/demon-attack.png'
 import demonBreathFire from '../../assets/demon-Files/breath-fire.png'
 
 /** key -> hashed URL. Keys are stable; AssetManager loads each into an Image. */
@@ -112,6 +113,7 @@ export const IMAGE_MANIFEST = {
 
   'demon.idle': demonIdle,
   'demon.attack': demonAttack,
+  'demon.attackFull': demonAttackFull,
   'demon.breathFire': demonBreathFire,
 } as const satisfies Record<string, string>
 
