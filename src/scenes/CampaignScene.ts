@@ -211,9 +211,11 @@ class CastleActor {
   health = 100
   meter = 0
   meterGainMultiplier = 1
+  isBoss = false
   grounded = true
   facing: Facing
   state: 'idle' | 'run' | 'jump' | 'fall' | 'attack' | 'dash' | 'hurt' | 'death' = 'idle'
+  private glowPhase = 0
   private readonly sheets: SpriteSet
   private readonly animator: Animator
   private readonly moveSpeedMultiplier: number
@@ -258,6 +260,10 @@ class CastleActor {
 
   get canBeHit(): boolean {
     return this.state !== 'death' && this.invulnerableTicks <= 0
+  }
+
+  get isEnraged(): boolean {
+    return this.isBoss && this.state !== 'death' && this.health / this.maxHealth < 0.35
   }
 
   reset(x: number, y: number, facing: Facing): void {
@@ -590,14 +596,17 @@ class CastleActor {
   }
 
   private drawGlow(renderer: Renderer, cameraX: number): void {
-    const rgb = ENEMY_GLOW[this.def.id]
+    const enraged = this.isEnraged
+    const rgb = enraged ? '224,48,52' : ENEMY_GLOW[this.def.id]
     if (!rgb || this.state === 'death') return
+    this.glowPhase += 1
+    const alpha = enraged ? 0.34 + 0.18 * Math.sin(this.glowPhase * 0.18) : 0.42
     const { ctx } = renderer
     const gx = this.position.x - cameraX
     const gy = this.position.y - this.def.visual.hurtbox.height * 0.5
-    const radius = this.def.visual.hurtbox.width * 0.95
+    const radius = this.def.visual.hurtbox.width * (enraged ? 1.1 : 0.95)
     const gradient = ctx.createRadialGradient(gx, gy, 0, gx, gy, radius)
-    gradient.addColorStop(0, `rgba(${rgb}, 0.42)`)
+    gradient.addColorStop(0, `rgba(${rgb}, ${alpha})`)
     gradient.addColorStop(1, `rgba(${rgb}, 0)`)
     ctx.save()
     ctx.fillStyle = gradient
@@ -1477,6 +1486,7 @@ function buildEnemies(node: ReturnType<typeof getCampaignNode>, assets: AssetMan
     const boss = new CastleActor(node.enemy, assets, layout.doorX - 180, layout.checkpointY, -1, 0.78)
     boss.setMaxHealth(campaignBossHealth(node.id))
     boss.meter = 100
+    boss.isBoss = true
     return [boss]
   }
   const groups = [
@@ -1577,14 +1587,30 @@ function enemyIntent(enemy: CastleActor, player: CastleActor, node: ReturnType<t
     return intent
   }
 
-  if (dist > 74) {
-    intent.moveX = dir
-  } else if (enemy.currentMove === null) {
-    if (node.isBoss && enemy.meter >= (enemy.def.moves.super.meterCost ?? 0)) intent.specialPressed = true
-    else if (node.difficulty === 'hard' || dist < 54) intent.heavyPressed = true
-    else intent.lightPressed = true
-  }
+  // Boss AI: three phases that ramp aggression as health falls. A phase-3
+  // (enraged) boss pressures from farther out, favors heavies, and fires supers
+  // as soon as meter allows. The winged Seal Warden also leaps to close gaps.
+  const ratio = enemy.health / enemy.maxHealth
+  const phase = ratio > 0.6 ? 1 : ratio > 0.3 ? 2 : 3
+  const approach = phase === 1 ? 74 : phase === 2 ? 96 : 124
+  const canSuper = enemy.meter >= (enemy.def.moves.super.meterCost ?? Number.POSITIVE_INFINITY)
+  const winged = kind === 'sealGuardian'
 
+  if (dist > approach) {
+    intent.moveX = dir
+    if (winged && enemy.grounded && phase >= 2 && rng.next() < 0.05) intent.jumpPressed = true
+    return intent
+  }
+  if (enemy.currentMove !== null) return intent
+
+  const superChance = phase === 1 ? 0.35 : phase === 2 ? 0.7 : 0.92
+  if (canSuper && rng.next() < superChance) {
+    intent.specialPressed = true
+    return intent
+  }
+  const heavyChance = phase === 1 ? 0.4 : phase === 2 ? 0.62 : 0.82
+  if (node.difficulty === 'hard' || dist < 54 || rng.next() < heavyChance) intent.heavyPressed = true
+  else intent.lightPressed = true
   return intent
 }
 
