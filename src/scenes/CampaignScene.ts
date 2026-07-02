@@ -4,7 +4,7 @@ import { ModeSelectScene } from './ModeSelectScene.ts'
 import { PauseScene } from './PauseScene.ts'
 import { AssetManager } from '../assets/AssetManager.ts'
 import { AUDIO_MANIFEST } from '../assets/manifest.ts'
-import { completeCampaignBattle, getCampaignChapter, getCampaignNode, getCampaignNodesForChapter, loadCampaignSave } from '../data/campaign.ts'
+import { completeCampaignBattle, getCampaignChapter, getCampaignNode, loadCampaignSave } from '../data/campaign.ts'
 import { juliusBelmont as CAMPAIGN_HERO } from '../data/characters/castlevaniaCampaign.ts'
 import { getStage } from '../data/stages.ts'
 import type { CharacterDef } from '../data/characters/CharacterDef.ts'
@@ -783,7 +783,6 @@ export class CampaignScene extends Scene {
     drawBackdrop(ctx, this.node.stage, this.isCastleGateNode)
     this.drawWorld()
     this.drawHud()
-    this.drawRouteProgress()
     if (this.ending) this.drawEnding()
     else if (this.defeatTicks > 0) this.drawDefeat()
     else if (this.isRoomClear) this.drawRoomClear()
@@ -1125,62 +1124,6 @@ export class CampaignScene extends Scene {
     ctx.fillStyle = '#e8d4a0'
     ctx.font = '8px "Press Start 2P", monospace'
     ctx.fillText(`HEARTS ${this.hearts.toString().padStart(2, '0')}`, 266, 72)
-    ctx.restore()
-  }
-
-  private drawRouteProgress(): void {
-    const { ctx } = this.ctx.renderer
-    const nodes = getCampaignNodesForChapter(this.chapter.id)
-    if (nodes.length <= 1) return
-
-    const x = 24
-    const y = 114
-    const width = 392
-    const centerY = y + 30
-    const startX = x + 52
-    const endX = x + width - 36
-    const step = (endX - startX) / Math.max(1, nodes.length - 1)
-
-    ctx.save()
-    ctx.fillStyle = 'rgba(8, 6, 14, 0.72)'
-    ctx.fillRect(x, y, width, 50)
-    ctx.strokeStyle = '#3c374f'
-    ctx.lineWidth = 2
-    ctx.strokeRect(x, y, width, 50)
-    ctx.textAlign = 'left'
-    ctx.textBaseline = 'top'
-    ctx.fillStyle = '#8a8aa0'
-    ctx.font = '7px "Press Start 2P", monospace'
-    ctx.fillText('OMEN ROUTE', x + 16, y + 12)
-
-    ctx.strokeStyle = '#3c374f'
-    ctx.lineWidth = 3
-    ctx.beginPath()
-    ctx.moveTo(startX, centerY)
-    ctx.lineTo(endX, centerY)
-    ctx.stroke()
-
-    nodes.forEach((node, i) => {
-      const dotX = startX + step * i
-      const completed = this.save.completedNodeIds.includes(node.id)
-      const current = node.id === this.node.id
-      ctx.fillStyle = completed ? '#e8d4a0' : current ? '#b91d2d' : '#2a2238'
-      ctx.beginPath()
-      ctx.arc(dotX, centerY, current ? 7 : 5, 0, Math.PI * 2)
-      ctx.fill()
-      ctx.strokeStyle = current ? '#e8d4a0' : '#5a567a'
-      ctx.lineWidth = 2
-      ctx.stroke()
-      if (node.isBoss) {
-        ctx.fillStyle = current ? '#e8d4a0' : '#8a8aa0'
-        ctx.fillRect(dotX - 2, centerY - 16, 4, 7)
-      }
-    })
-
-    ctx.textAlign = 'right'
-    ctx.fillStyle = '#8a8aa0'
-    ctx.font = '7px "Press Start 2P", monospace'
-    ctx.fillText(`${nodes.findIndex((node) => node.id === this.node.id) + 1}/${nodes.length}`, x + width - 16, y + 12)
     ctx.restore()
   }
 
