@@ -42,6 +42,9 @@ const INVULNERABLE_TICKS = 72
 const DEBUG_HITBOXES = new URLSearchParams(location.search).has('hitbox')
 const CONTACT_HIT_COOLDOWN = 24
 const BIG_HIT_FLASH_TICKS = 10
+const SPIKE_DAMAGE = 14
+const CRUMBLE_DELAY = 40
+const CRUMBLE_RESPAWN = 150
 const ROOM_CLEAR_AUTO_ADVANCE_TICKS = 240
 const DEFEAT_RETRY_TICKS = 120
 const STARTING_HEARTS = 10
@@ -125,10 +128,23 @@ interface Platform {
   y: number
   width: number
   height: number
+  /** Crumbling platforms drop away shortly after being stood on, then respawn. */
+  crumble?: boolean
+  crumbleTimer?: number
+  fallen?: boolean
+  respawnTimer?: number
+}
+
+interface Hazard {
+  x: number
+  y: number
+  width: number
+  height: number
 }
 
 interface RoomLayout {
   platforms: Platform[]
+  hazards: Hazard[]
   doorX: number
   doorY: number
   checkpointX: number
@@ -491,6 +507,7 @@ class CastleActor {
     let landed = false
     let landingY = FLOOR_Y
     for (const platform of platforms) {
+      if (platform.fallen) continue
       if (this.position.x < platform.x - 2 || this.position.x > platform.x + platform.width + 2) continue
       if (this.prevPosition.y <= platform.y && this.position.y >= platform.y && this.velocity.y >= 0) {
         landed = true
@@ -802,6 +819,8 @@ export class CampaignScene extends Scene {
       enemy.update(ai, this.player.position.x, this.layout.platforms)
     }
     this.playSwingSfx()
+    this.updateCrumblePlatforms()
+    this.resolveHazards()
 
     for (const actor of [this.player, ...this.enemies]) {
       const spawn = actor.consumeProjectileSpawn()
@@ -1055,6 +1074,49 @@ export class CampaignScene extends Scene {
     }
   }
 
+  private updateCrumblePlatforms(): void {
+    for (const platform of this.layout.platforms) {
+      if (!platform.crumble) continue
+      if (platform.fallen) {
+        platform.respawnTimer = (platform.respawnTimer ?? CRUMBLE_RESPAWN) - 1
+        if (platform.respawnTimer <= 0) {
+          platform.fallen = false
+          platform.crumbleTimer = CRUMBLE_DELAY
+        }
+        continue
+      }
+      const standing =
+        this.player.grounded &&
+        Math.abs(this.player.position.y - platform.y) < 6 &&
+        this.player.position.x > platform.x - 4 &&
+        this.player.position.x < platform.x + platform.width + 4
+      if (standing) {
+        platform.crumbleTimer = (platform.crumbleTimer ?? CRUMBLE_DELAY) - 1
+        if (platform.crumbleTimer <= 0) {
+          platform.fallen = true
+          platform.respawnTimer = CRUMBLE_RESPAWN
+          this.ctx.audio.hit()
+        }
+      } else if (platform.crumbleTimer !== undefined && platform.crumbleTimer < CRUMBLE_DELAY) {
+        platform.crumbleTimer = Math.min(CRUMBLE_DELAY, platform.crumbleTimer + 1)
+      }
+    }
+  }
+
+  private resolveHazards(): void {
+    if (this.player.isDead || !this.player.canBeHit) return
+    const box = this.player.hurtbox()
+    for (const hazard of this.layout.hazards) {
+      if (!rectsOverlap(box, hazardBox(hazard))) continue
+      if (this.player.applyFlatDamage(SPIKE_DAMAGE, hazard.x + hazard.width / 2, -12)) {
+        this.ctx.audio.hit()
+        this.hitstop = Math.max(this.hitstop, 6)
+        this.flashTicks = BIG_HIT_FLASH_TICKS
+      }
+      break
+    }
+  }
+
   private resolveHeartPickups(): void {
     const playerBox = this.player.hurtbox()
     for (const pickup of this.heartPickups) {
@@ -1135,11 +1197,16 @@ export class CampaignScene extends Scene {
     ctx.save()
     ctx.translate(-this.cameraX, 0)
     for (const platform of this.layout.platforms) {
-      ctx.fillStyle = '#2a2238'
-      ctx.fillRect(platform.x, platform.y, platform.width, platform.height)
-      ctx.fillStyle = '#5a567a'
-      ctx.fillRect(platform.x, platform.y - 4, platform.width, 4)
+      if (platform.fallen) continue
+      const crumbling = platform.crumble && platform.crumbleTimer !== undefined && platform.crumbleTimer < CRUMBLE_DELAY
+      const shake = crumbling ? Math.sin(this.blink * 0.9) * 2 : 0
+      const px = platform.x + shake
+      ctx.fillStyle = crumbling ? '#4a2a2a' : '#2a2238'
+      ctx.fillRect(px, platform.y, platform.width, platform.height)
+      ctx.fillStyle = crumbling ? '#a5675a' : platform.crumble ? '#7a6a4a' : '#5a567a'
+      ctx.fillRect(px, platform.y - 4, platform.width, 4)
     }
+    for (const hazard of this.layout.hazards) drawSpikes(ctx, hazard)
     for (const candle of this.candles) drawCandle(ctx, candle)
     for (const pickup of this.heartPickups) drawHeartPickup(ctx, pickup)
     const doorOpen = this.enemies.every((enemy) => enemy.isDead)
@@ -1666,6 +1733,28 @@ function subweaponBox(subweapon: SubweaponRuntime): Rect {
   }
 }
 
+function drawSpikes(ctx: CanvasRenderingContext2D, hazard: Hazard): void {
+  const count = Math.max(2, Math.floor(hazard.width / 16))
+  const width = hazard.width / count
+  ctx.save()
+  ctx.fillStyle = '#3a3550'
+  ctx.fillRect(hazard.x, hazard.y + hazard.height - 5, hazard.width, 5)
+  ctx.fillStyle = '#c9ccd6'
+  ctx.strokeStyle = '#0b0912'
+  ctx.lineWidth = 1
+  for (let i = 0; i < count; i += 1) {
+    const x = hazard.x + i * width
+    ctx.beginPath()
+    ctx.moveTo(x, hazard.y + hazard.height)
+    ctx.lineTo(x + width / 2, hazard.y)
+    ctx.lineTo(x + width, hazard.y + hazard.height)
+    ctx.closePath()
+    ctx.fill()
+    ctx.stroke()
+  }
+  ctx.restore()
+}
+
 function drawCandle(ctx: CanvasRenderingContext2D, candle: Candle): void {
   if (candle.broken) return
   ctx.save()
@@ -1690,36 +1779,44 @@ function drawHeartPickup(ctx: CanvasRenderingContext2D, pickup: HeartPickup): vo
   ctx.restore()
 }
 
+function spike(x: number, width: number): Hazard {
+  return { x, y: FLOOR_Y - 20, width, height: 20 }
+}
+
 function buildLayout(stage: string): RoomLayout {
+  const base = { doorX: ROOM_WIDTH - 128, doorY: FLOOR_Y, checkpointX: 120, checkpointY: FLOOR_Y }
   switch (stage) {
     case 'outer_wall':
       return {
+        ...base,
         backdrop: '#111221',
         doorX: ROOM_WIDTH - 132,
-        doorY: FLOOR_Y,
-        checkpointX: 120,
-        checkpointY: FLOOR_Y,
         platforms: [
           { x: 0, y: FLOOR_Y, width: ROOM_WIDTH, height: 22 },
           { x: 180, y: 414, width: 190, height: 12 },
           { x: 460, y: 356, width: 180, height: 12 },
-          { x: 760, y: 304, width: 210, height: 12 },
+          { x: 760, y: 304, width: 210, height: 12, crumble: true },
           { x: 1120, y: 344, width: 180, height: 12 },
         ],
+        hazards: [spike(600, 130), spike(1000, 150)],
       }
     case 'cathedral':
-      return { backdrop: '#100b16', doorX: ROOM_WIDTH - 128, doorY: FLOOR_Y, checkpointX: 120, checkpointY: FLOOR_Y, platforms: [{ x: 0, y: FLOOR_Y, width: ROOM_WIDTH, height: 22 }, { x: 220, y: 364, width: 220, height: 12 }, { x: 560, y: 302, width: 240, height: 12 }, { x: 990, y: 344, width: 220, height: 12 }] }
+      return { ...base, backdrop: '#100b16', platforms: [{ x: 0, y: FLOOR_Y, width: ROOM_WIDTH, height: 22 }, { x: 220, y: 364, width: 220, height: 12 }, { x: 560, y: 302, width: 240, height: 12 }, { x: 990, y: 344, width: 220, height: 12 }], hazards: [] }
     case 'library':
-      return { backdrop: '#08121e', doorX: ROOM_WIDTH - 128, doorY: FLOOR_Y, checkpointX: 120, checkpointY: FLOOR_Y, platforms: [{ x: 0, y: FLOOR_Y, width: ROOM_WIDTH, height: 22 }, { x: 180, y: 382, width: 160, height: 12 }, { x: 420, y: 320, width: 180, height: 12 }, { x: 680, y: 262, width: 220, height: 12 }, { x: 980, y: 324, width: 220, height: 12 }, { x: 1290, y: 284, width: 180, height: 12 }] }
+      return { ...base, backdrop: '#08121e', platforms: [{ x: 0, y: FLOOR_Y, width: ROOM_WIDTH, height: 22 }, { x: 180, y: 382, width: 160, height: 12 }, { x: 420, y: 320, width: 180, height: 12 }, { x: 680, y: 262, width: 220, height: 12, crumble: true }, { x: 980, y: 324, width: 220, height: 12 }, { x: 1290, y: 284, width: 180, height: 12 }], hazards: [spike(860, 120)] }
     case 'clock_tower':
-      return { backdrop: '#1a120b', doorX: ROOM_WIDTH - 128, doorY: FLOOR_Y, checkpointX: 120, checkpointY: FLOOR_Y, platforms: [{ x: 0, y: FLOOR_Y, width: ROOM_WIDTH, height: 22 }, { x: 160, y: 404, width: 170, height: 12 }, { x: 390, y: 350, width: 160, height: 12 }, { x: 640, y: 292, width: 160, height: 12 }, { x: 890, y: 238, width: 160, height: 12 }, { x: 1140, y: 304, width: 170, height: 12 }, { x: 1380, y: 246, width: 170, height: 12 }] }
+      return { ...base, backdrop: '#1a120b', platforms: [{ x: 0, y: FLOOR_Y, width: ROOM_WIDTH, height: 22 }, { x: 160, y: 404, width: 170, height: 12 }, { x: 390, y: 350, width: 160, height: 12, crumble: true }, { x: 640, y: 292, width: 160, height: 12 }, { x: 890, y: 238, width: 160, height: 12, crumble: true }, { x: 1140, y: 304, width: 170, height: 12 }, { x: 1380, y: 246, width: 170, height: 12, crumble: true }], hazards: [spike(540, 120), spike(820, 120), spike(1080, 140)] }
     case 'catacombs':
-      return { backdrop: '#081018', doorX: ROOM_WIDTH - 128, doorY: FLOOR_Y, checkpointX: 120, checkpointY: FLOOR_Y, platforms: [{ x: 0, y: FLOOR_Y, width: ROOM_WIDTH, height: 22 }, { x: 260, y: 378, width: 220, height: 12 }, { x: 620, y: 346, width: 220, height: 12 }, { x: 1020, y: 378, width: 200, height: 12 }] }
+      return { ...base, backdrop: '#081018', platforms: [{ x: 0, y: FLOOR_Y, width: ROOM_WIDTH, height: 22 }, { x: 260, y: 378, width: 220, height: 12 }, { x: 620, y: 346, width: 220, height: 12, crumble: true }, { x: 1020, y: 378, width: 200, height: 12 }], hazards: [spike(880, 150)] }
     case 'throne_room':
-      return { backdrop: '#13080c', doorX: ROOM_WIDTH - 128, doorY: FLOOR_Y, checkpointX: 120, checkpointY: FLOOR_Y, platforms: [{ x: 0, y: FLOOR_Y, width: ROOM_WIDTH, height: 22 }, { x: 360, y: 340, width: 200, height: 12 }, { x: 980, y: 340, width: 200, height: 12 }] }
+      return { ...base, backdrop: '#13080c', platforms: [{ x: 0, y: FLOOR_Y, width: ROOM_WIDTH, height: 22 }, { x: 360, y: 340, width: 200, height: 12 }, { x: 980, y: 340, width: 200, height: 12 }], hazards: [] }
     default:
-      return { backdrop: '#0e0f18', doorX: ROOM_WIDTH - 128, doorY: FLOOR_Y, checkpointX: 120, checkpointY: FLOOR_Y, platforms: [{ x: 0, y: FLOOR_Y, width: ROOM_WIDTH, height: 22 }, { x: 240, y: 382, width: 180, height: 12 }, { x: 520, y: 320, width: 200, height: 12 }, { x: 860, y: 372, width: 220, height: 12 }, { x: 1230, y: 300, width: 160, height: 12 }] }
+      return { ...base, backdrop: '#0e0f18', platforms: [{ x: 0, y: FLOOR_Y, width: ROOM_WIDTH, height: 22 }, { x: 240, y: 382, width: 180, height: 12 }, { x: 520, y: 320, width: 200, height: 12 }, { x: 860, y: 372, width: 220, height: 12 }, { x: 1230, y: 300, width: 160, height: 12 }], hazards: [] }
   }
+}
+
+function hazardBox(hazard: Hazard): Rect {
+  return { x: hazard.x, y: hazard.y, width: hazard.width, height: hazard.height }
 }
 
 function drawBackdrop(ctx: CanvasRenderingContext2D, stage: string, castleGate = false): void {
