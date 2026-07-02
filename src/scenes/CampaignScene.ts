@@ -530,7 +530,7 @@ class CastleActor {
     const anchorY = this.renderAnchorY()
     const x = this.position.x - cameraX
     const y = this.position.y
-    const attackShiftX = this.def.id === 'skeleton' && this.state === 'attack' ? this.facing * 12 * scale : 0
+    const attackShiftX = this.renderAttackShiftX(frame) * scale
     const drawX =
       (this.facing === 1 ? x - this.def.visual.anchorX * scale : x - (sheet.frameWidth - this.def.visual.anchorX) * scale) +
       attackShiftX
@@ -570,6 +570,14 @@ class CastleActor {
   private renderAnchorY(): number {
     if (this.def.id === 'juliusBelmont' && this.state === 'attack') return 98
     return this.def.visual.anchorY
+  }
+
+  private renderAttackShiftX(frame: number): number {
+    if (this.def.id !== 'skeleton' || this.state !== 'attack') return 0
+    if (frame <= 2) return 0
+    if (frame === 3) return 6
+    if (frame === 4) return -13
+    return 0
   }
 
   hurtbox(): Rect {
