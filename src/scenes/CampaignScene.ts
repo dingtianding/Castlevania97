@@ -105,6 +105,13 @@ const SUBWEAPON_BOX: Record<SubweaponKind, Rect> = {
   stopwatch: { x: 0, y: 0, width: 20, height: 20 },
 }
 
+// Variant enemies reuse base sprite sheets, so a soft aura (RGB triple) is what
+// visually separates, e.g., an armored skeleton from a plain one at a glance.
+const ENEMY_GLOW: Record<string, string> = {
+  armoredSkeleton: '126,168,255',
+  ghoul: '124,214,124',
+}
+
 const RELIC_PIP_COLORS: Record<RelicId, string> = {
   vitality: '#b91d2d',
   fury: '#f6b74a',
@@ -534,6 +541,7 @@ class CastleActor {
   }
 
   render(renderer: Renderer, cameraX: number): void {
+    this.drawGlow(renderer, cameraX)
     const sheet = this.currentSheet()
     const frame = this.animator.currentFrame
     const scale = this.renderScale()
@@ -564,6 +572,24 @@ class CastleActor {
     drawSprite(renderer, sheet, frame, drawX, drawY, scale, this.facing)
   }
 
+  private drawGlow(renderer: Renderer, cameraX: number): void {
+    const rgb = ENEMY_GLOW[this.def.id]
+    if (!rgb || this.state === 'death') return
+    const { ctx } = renderer
+    const gx = this.position.x - cameraX
+    const gy = this.position.y - this.def.visual.hurtbox.height * 0.5
+    const radius = this.def.visual.hurtbox.width * 0.95
+    const gradient = ctx.createRadialGradient(gx, gy, 0, gx, gy, radius)
+    gradient.addColorStop(0, `rgba(${rgb}, 0.42)`)
+    gradient.addColorStop(1, `rgba(${rgb}, 0)`)
+    ctx.save()
+    ctx.fillStyle = gradient
+    ctx.beginPath()
+    ctx.ellipse(gx, gy, radius, radius * 1.15, 0, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.restore()
+  }
+
   private shouldDrawJuliusWhipExtension(frame: number): boolean {
     return this.def.id === 'juliusBelmont' && this.state === 'attack' && (frame === 2 || frame === 3)
   }
@@ -583,7 +609,7 @@ class CastleActor {
   }
 
   private renderAttackShiftX(frame: number): number {
-    if (this.def.id !== 'skeleton' || this.state !== 'attack') return 0
+    if ((this.def.id !== 'skeleton' && this.def.id !== 'armoredSkeleton') || this.state !== 'attack') return 0
     if (frame <= 2) return 0
     if (frame === 3) return 6
     return 0
@@ -1380,15 +1406,36 @@ function relicSummary(relic: RelicDef): string {
 }
 
 function buildEnemies(node: ReturnType<typeof getCampaignNode>, assets: AssetManager, layout: RoomLayout): CastleActor[] {
-  const def = node.enemy
-  const count = node.isBoss ? 1 : campaignEnemyCount(def.id, node.difficulty)
-  const slots = spread(layout.checkpointX + 380, layout.doorX - 180, count)
-  return slots.map((x) => {
-    const enemy = new CastleActor(def, assets, x, layout.checkpointY, -1, 0.78)
-    enemy.setMaxHealth(node.isBoss ? campaignBossHealth(node.id) : campaignEnemyHealth(def.id, node.difficulty))
-    enemy.meter = node.isBoss ? 100 : 0
-    return enemy
-  })
+  if (node.isBoss) {
+    const boss = new CastleActor(node.enemy, assets, layout.doorX - 180, layout.checkpointY, -1, 0.78)
+    boss.setMaxHealth(campaignBossHealth(node.id))
+    boss.meter = 100
+    return [boss]
+  }
+  const groups = [
+    { def: node.enemy, count: campaignEnemyCount(node.enemy.id, node.difficulty) },
+    ...(node.extraEnemies ?? []).map((extra) => ({ def: extra.def, count: extra.count })),
+  ]
+  const total = Math.max(1, groups.reduce((sum, group) => sum + group.count, 0))
+  const slots = spread(layout.checkpointX + 360, layout.doorX - 160, total)
+  const enemies: CastleActor[] = []
+  let slot = 0
+  for (const group of groups) {
+    for (let i = 0; i < group.count; i += 1) {
+      const x = slots[slot] ?? layout.doorX - 200
+      const enemy = new CastleActor(group.def, assets, x, layout.checkpointY, -1, campaignEnemySpeed(group.def.id))
+      enemy.setMaxHealth(campaignEnemyHealth(group.def.id, node.difficulty))
+      enemies.push(enemy)
+      slot += 1
+    }
+  }
+  return enemies
+}
+
+function campaignEnemySpeed(enemyId: string): number {
+  if (enemyId === 'armoredSkeleton') return 0.58
+  if (enemyId === 'ghoul') return 1.02
+  return 0.78
 }
 
 function campaignBossHealth(nodeId: string): number {
@@ -1410,6 +1457,8 @@ function campaignEnemyCount(enemyId: string, difficulty: 'easy' | 'normal' | 'ha
 function campaignEnemyHealth(enemyId: string, difficulty: 'easy' | 'normal' | 'hard'): number {
   if (enemyId === 'skeleton') return 21
   if (enemyId === 'zombie') return 6
+  if (enemyId === 'ghoul') return 16
+  if (enemyId === 'armoredSkeleton') return difficulty === 'hard' ? 96 : 78
   return difficulty === 'easy' ? 28 : difficulty === 'normal' ? 40 : 52
 }
 
@@ -1424,6 +1473,28 @@ function enemyIntent(enemy: CastleActor, player: CastleActor, node: ReturnType<t
   if (kind === 'zombie') {
     if (dist > 92) intent.moveX = dir
     else if (enemy.currentMove === null) intent.lightPressed = true
+    return intent
+  }
+
+  if (kind === 'ghoul') {
+    // Fast and reckless: closes hard, then rakes or pounces from range.
+    if (dist > 74) intent.moveX = dir
+    else if (enemy.currentMove === null) {
+      if (dist > 52 && rng.next() < 0.4) intent.specialPressed = true
+      else if (rng.next() < 0.25) intent.heavyPressed = true
+      else intent.lightPressed = true
+    }
+    return intent
+  }
+
+  if (kind === 'armoredSkeleton') {
+    // Slow bruiser: walks in without jumping and leans on heavy swings.
+    if (dist > 150) intent.moveX = dir
+    else if (dist > 96) intent.moveX = dir
+    else if (enemy.currentMove === null) {
+      if (dist < 92 || node.difficulty === 'hard') intent.heavyPressed = true
+      else intent.lightPressed = true
+    }
     return intent
   }
 

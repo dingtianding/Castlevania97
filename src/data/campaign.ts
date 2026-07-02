@@ -1,5 +1,5 @@
 import type { CharacterDef } from './characters/CharacterDef.ts'
-import { dracula1999, juliusBelmont, sealGuardian, skeleton, zombie } from './characters/castlevaniaCampaign.ts'
+import { armoredSkeleton, dracula1999, ghoul, juliusBelmont, sealGuardian, skeleton, zombie } from './characters/castlevaniaCampaign.ts'
 import type { StageId } from './stages.ts'
 import { RELIC_POOL, type RelicId } from './relics.ts'
 
@@ -14,6 +14,8 @@ export interface CampaignNodeDef {
   story: string
   stage: StageId
   enemy: CharacterDef
+  /** Optional second-wave enemy types mixed into the room for variety. */
+  extraEnemies?: readonly { def: CharacterDef; count: number }[]
   difficulty: 'easy' | 'normal' | 'hard'
   nextIds: readonly string[]
   position: { x: number; y: number }
@@ -103,6 +105,7 @@ export const CAMPAIGN_NODES: readonly CampaignNodeDef[] = [
       'The books do not name Dracula directly. They name the signs around him: the seals, the thresholds, and the rites that must be broken before the war arrives.',
     stage: 'library',
     enemy: zombie,
+    extraEnemies: [{ def: ghoul, count: 2 }],
     difficulty: 'normal',
     nextIds: ['1997-seal'],
     position: { x: 390, y: 150 },
@@ -132,6 +135,7 @@ export const CAMPAIGN_NODES: readonly CampaignNodeDef[] = [
       'The underground passages connect the chapel ruins to newer work. Someone is moving relics beneath the province, using the dead as cover.',
     stage: 'catacombs',
     enemy: zombie,
+    extraEnemies: [{ def: armoredSkeleton, count: 1 }],
     difficulty: 'normal',
     nextIds: ['1998-clock'],
     position: { x: 160, y: 220 },
@@ -146,6 +150,7 @@ export const CAMPAIGN_NODES: readonly CampaignNodeDef[] = [
       'The tower keeps perfect time even when the rest of the world is broken. Julius realizes the cult is counting down to a war he has not yet seen.',
     stage: 'clock_tower',
     enemy: skeleton,
+    extraEnemies: [{ def: ghoul, count: 2 }],
     difficulty: 'hard',
     nextIds: ['1998-archive'],
     position: { x: 400, y: 150 },
@@ -175,6 +180,7 @@ export const CAMPAIGN_NODES: readonly CampaignNodeDef[] = [
       'Julius reaches the old causeway as the last omen takes shape. The enemy is no longer hiding behind rumor. It is testing how far a Belmont will follow.',
     stage: 'outer_wall',
     enemy: skeleton,
+    extraEnemies: [{ def: armoredSkeleton, count: 1 }],
     difficulty: 'hard',
     nextIds: ['1999-throne'],
     position: { x: 150, y: 210 },
@@ -189,6 +195,7 @@ export const CAMPAIGN_NODES: readonly CampaignNodeDef[] = [
       'Every clue from the year has been leading to this approach. Julius cuts through the final defenses with the seal nearly spent.',
     stage: 'outer_wall',
     enemy: zombie,
+    extraEnemies: [{ def: ghoul, count: 2 }, { def: armoredSkeleton, count: 1 }],
     difficulty: 'hard',
     nextIds: ['1999-dracula'],
     position: { x: 390, y: 150 },
