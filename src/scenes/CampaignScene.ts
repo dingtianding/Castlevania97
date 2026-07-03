@@ -46,6 +46,8 @@ const BIG_HIT_FLASH_TICKS = 10
 const SPIKE_DAMAGE = 14
 const CRUMBLE_DELAY = 40
 const CRUMBLE_RESPAWN = 150
+const DEATH_HOLD_TICKS = 44 // let the death animation play, then fade the corpse
+const DEATH_FADE_TICKS = 22
 const ROOM_CLEAR_AUTO_ADVANCE_TICKS = 240
 const DEFEAT_RETRY_TICKS = 120
 const STARTING_HEARTS = 10
@@ -234,6 +236,7 @@ class CastleActor {
   facing: Facing
   state: 'idle' | 'run' | 'jump' | 'fall' | 'attack' | 'dash' | 'hurt' | 'death' = 'idle'
   private glowPhase = 0
+  private deathTicks = 0
   private readonly sheets: SpriteSet
   private readonly animator: Animator
   private moveSpeedMultiplier: number
@@ -306,6 +309,7 @@ class CastleActor {
     this.jumpCount = 0
     this.dashTicks = 0
     this.dashCooldown = 0
+    this.deathTicks = 0
     this.animator.play(this.sheets.idle, 8, true)
     this.animator.reset()
   }
@@ -317,6 +321,7 @@ class CastleActor {
     if (this.dashCooldown > 0) this.dashCooldown -= 1
 
     if (this.state === 'death') {
+      this.deathTicks += 1
       this.updateAnimator()
       return
     }
@@ -595,6 +600,17 @@ class CastleActor {
       attackShiftX
     const drawY = y - anchorY * scale
     if (this.invulnerableTicks > 0 && Math.floor(this.invulnerableTicks / 4) % 2 === 0) return
+    if (this.state === 'death') {
+      // Play the death animation, then fade the corpse out and stop drawing it.
+      if (this.deathTicks >= DEATH_HOLD_TICKS + DEATH_FADE_TICKS) return
+      const alpha = clamp(1 - (this.deathTicks - DEATH_HOLD_TICKS) / DEATH_FADE_TICKS, 0, 1)
+      const { ctx } = renderer
+      ctx.save()
+      ctx.globalAlpha = alpha
+      drawSprite(renderer, sheet, frame, drawX, drawY, scale, this.facing)
+      ctx.restore()
+      return
+    }
     if (this.state === 'dash') {
       const { ctx } = renderer
       ctx.save()
