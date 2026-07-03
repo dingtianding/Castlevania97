@@ -742,6 +742,7 @@ export class CampaignScene extends Scene {
   private runMods: RunModifiers = buildRunModifiers([])
   private soulMods: SoulModifiers = buildSoulModifiers([])
   private playerDamageMult = 1
+  private playerDamageTakenMult = 1
   private levelUpTicks = 0
   private readonly rewardedDeaths = new Set<CastleActor>()
   private floatingTexts: FloatingText[] = []
@@ -1032,6 +1033,7 @@ export class CampaignScene extends Scene {
     this.runMods = buildRunModifiers(this.save.relicIds.map((id) => RELIC_POOL.find((relic) => relic.id === id)).filter((relic): relic is RelicDef => Boolean(relic)))
     this.soulMods = buildSoulModifiers(this.save.souls)
     this.playerDamageMult = this.computeDamageMult()
+    this.playerDamageTakenMult = this.computeDamageTakenMult()
     const moveSpeed = this.runMods.moveSpeedMultiplier * this.soulMods.moveSpeedMultiplier
     this.player = new CastleActor(CAMPAIGN_HERO, this.ctx.assets, this.layout.checkpointX, this.layout.checkpointY, 1, moveSpeed)
     this.player.setMaxHealth(this.computeMaxHealth())
@@ -1070,13 +1072,13 @@ export class CampaignScene extends Scene {
         }
       }
       if (enemyAtk && rectsOverlap(enemyAtk.box, this.player.hurtbox())) {
-        if (this.player.applyHit(enemyAtk.spec, enemy.position.x)) {
+        if (this.player.applyHit(enemyAtk.spec, enemy.position.x, this.playerDamageTakenMult)) {
           enemy.markAttackConnected()
           this.onHit(enemyAtk.spec, this.player.isDead)
         }
       }
       if (this.contactHitCooldown <= 0 && rectsOverlap(this.player.hurtbox(), enemy.hurtbox())) {
-        if (this.player.applyHit(enemy.def.moves.light, enemy.position.x)) {
+        if (this.player.applyHit(enemy.def.moves.light, enemy.position.x, this.playerDamageTakenMult)) {
           this.contactHitCooldown = CONTACT_HIT_COOLDOWN
           this.onHit(enemy.def.moves.light, this.player.isDead)
         }
@@ -1085,7 +1087,7 @@ export class CampaignScene extends Scene {
     for (const projectile of this.projectiles) {
       if (projectile.hasHit) continue
       if (!rectsOverlap(projectileBox(projectile), this.player.hurtbox())) continue
-      if (!this.player.applyHit(projectile.spawn.move, projectile.spawn.x)) continue
+      if (!this.player.applyHit(projectile.spawn.move, projectile.spawn.x, this.playerDamageTakenMult)) continue
       projectile.hasHit = true
       this.onHit(projectile.spawn.move, this.player.isDead)
     }
@@ -1209,7 +1211,7 @@ export class CampaignScene extends Scene {
     const box = this.player.hurtbox()
     for (const hazard of this.layout.hazards) {
       if (!rectsOverlap(box, hazardBox(hazard))) continue
-      if (this.player.applyFlatDamage(SPIKE_DAMAGE, hazard.x + hazard.width / 2, -12)) {
+      if (this.player.applyFlatDamage(SPIKE_DAMAGE, hazard.x + hazard.width / 2, -12, this.playerDamageTakenMult)) {
         this.ctx.audio.hit()
         this.hitstop = Math.max(this.hitstop, 6)
         this.flashTicks = BIG_HIT_FLASH_TICKS
@@ -1224,6 +1226,10 @@ export class CampaignScene extends Scene {
 
   private computeDamageMult(): number {
     return this.runMods.damageMultiplier * this.soulMods.damageMultiplier * (1 + (this.save.level - 1) * 0.04) * (1 + this.save.atkUpgrades * 0.06)
+  }
+
+  private computeDamageTakenMult(): number {
+    return Math.max(0.55, 1 - this.save.armorTier * 0.06)
   }
 
   private grantEnemyRewards(): void {
@@ -1399,6 +1405,13 @@ export class CampaignScene extends Scene {
         available: true,
       },
       {
+        id: 'armor',
+        name: 'ARMOR PLATE',
+        desc: this.save.armorTier < 7 ? `-6% DAMAGE TAKEN  (owned ${this.save.armorTier})` : 'Armor maxed out',
+        price: 45 + this.save.armorTier * 35,
+        available: this.save.armorTier < 7,
+      },
+      {
         id: 'soul',
         name: 'SOUL SHARD',
         desc: unownedSouls > 0 ? `A random enemy soul  (${unownedSouls} left)` : 'All souls collected',
@@ -1423,6 +1436,7 @@ export class CampaignScene extends Scene {
     this.save = { ...this.save, gold: this.save.gold - item.price }
     if (item.id === 'hp') this.save = { ...this.save, hpUpgrades: this.save.hpUpgrades + 1 }
     else if (item.id === 'atk') this.save = { ...this.save, atkUpgrades: this.save.atkUpgrades + 1 }
+    else if (item.id === 'armor') this.save = { ...this.save, armorTier: this.save.armorTier + 1 }
     else if (item.id === 'soul') {
       const unowned = SOUL_POOL.filter((soul) => !this.save.souls.includes(soul.id))
       const pick = unowned[this.ctx.rng.int(0, unowned.length - 1)]
@@ -1553,7 +1567,11 @@ export class CampaignScene extends Scene {
     ctx.fillText('JULIUS BELMONT', 40, 34)
     ctx.fillStyle = '#f6b74a'
     ctx.font = '9px "Press Start 2P", monospace'
-    ctx.fillText(`LV ${this.save.level}`, 300, 35)
+    ctx.fillText(`LV ${this.save.level}`, 288, 35)
+    if (this.save.armorTier > 0) {
+      ctx.fillStyle = '#9fb0d6'
+      ctx.fillText(`DEF ${this.save.armorTier}`, 356, 35)
+    }
     ctx.fillStyle = '#b7c7e6'
     ctx.font = '8px "Press Start 2P", monospace'
     ctx.fillText(`${this.chapter.year}  ${this.chapter.title.toUpperCase()}`, 40, 52)
