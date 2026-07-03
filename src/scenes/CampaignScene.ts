@@ -116,6 +116,7 @@ const SUBWEAPON_BOX: Record<SubweaponKind, Rect> = {
 const ENEMY_GLOW: Record<string, string> = {
   armoredSkeleton: '126,168,255',
   ghoul: '124,214,124',
+  boneThrower: '178,132,224',
 }
 
 const RELIC_PIP_COLORS: Record<RelicId, string> = {
@@ -207,6 +208,18 @@ interface FloatingText {
   ticksLeft: number
 }
 
+interface EnemyBone {
+  position: Vec2
+  velocity: Vec2
+  spin: number
+  ticksLeft: number
+  hasHit: boolean
+}
+
+const BONE_DAMAGE = 8
+const BONE_SPEED = 8
+const BONE_GRAVITY = 0.2
+
 // XP and gold granted when each enemy type is defeated. Bosses use a fixed
 // bounty (see campaignEnemyReward) rather than this table.
 const ENEMY_REWARD: Record<string, { xp: number; gold: number }> = {
@@ -214,6 +227,7 @@ const ENEMY_REWARD: Record<string, { xp: number; gold: number }> = {
   zombie: { xp: 5, gold: 3 },
   ghoul: { xp: 4, gold: 2 },
   armoredSkeleton: { xp: 14, gold: 10 },
+  boneThrower: { xp: 10, gold: 7 },
 }
 
 interface HeartPickup {
@@ -232,6 +246,8 @@ class CastleActor {
   meter = 0
   meterGainMultiplier = 1
   isBoss = false
+  rangedAttacker = false
+  private pendingRangedShot: { x: number; y: number; facing: Facing } | null = null
   grounded = true
   facing: Facing
   state: 'idle' | 'run' | 'jump' | 'fall' | 'attack' | 'dash' | 'hurt' | 'death' = 'idle'
@@ -310,6 +326,7 @@ class CastleActor {
     this.dashTicks = 0
     this.dashCooldown = 0
     this.deathTicks = 0
+    this.pendingRangedShot = null
     this.animator.play(this.sheets.idle, 8, true)
     this.animator.reset()
   }
@@ -403,6 +420,12 @@ class CastleActor {
     return spawn
   }
 
+  consumeRangedShot(): { x: number; y: number; facing: Facing } | null {
+    const shot = this.pendingRangedShot
+    this.pendingRangedShot = null
+    return shot
+  }
+
   tryJump(): void {
     if (!this.grounded && this.jumpCount >= 2) return
     this.velocity.y = JUMP_VELOCITY
@@ -485,6 +508,10 @@ class CastleActor {
     this.velocity.x = intent.moveX * ATTACK_DRIFT_SPEED
     if (intent.moveX > 0) this.facing = 1
     else if (intent.moveX < 0) this.facing = -1
+    // Ranged enemies (bone throwers) release a projectile once as the swing goes active.
+    if (this.rangedAttacker && this.attackMove && this.attackTick === this.attackMove.startup + 1) {
+      this.pendingRangedShot = { x: this.position.x + this.facing * 30, y: this.position.y - 66, facing: this.facing }
+    }
     if (this.attackMove?.projectile && !this.projectileSpawned) {
       const spawnTick = this.attackMove.projectile.spawnTick ?? this.attackMove.startup
       if (this.attackTick >= spawnTick) {
@@ -724,6 +751,7 @@ export class CampaignScene extends Scene {
   private enemies: CastleActor[] = []
   private projectiles: ProjectileRuntime[] = []
   private subweapons: SubweaponRuntime[] = []
+  private enemyBones: EnemyBone[] = []
   private candles: Candle[] = []
   private heartPickups: HeartPickup[] = []
   private input!: InputSource
@@ -921,6 +949,8 @@ export class CampaignScene extends Scene {
       if (this.enemyFreezeTicks > 0) continue
       const ai = enemyIntent(enemy, this.player, this.node, this.ctx.rng)
       enemy.update(ai, this.player.position.x, this.layout.platforms)
+      const shot = enemy.consumeRangedShot()
+      if (shot) this.spawnBone(shot)
     }
     this.playSwingSfx()
     this.updateCrumblePlatforms()
@@ -941,6 +971,13 @@ export class CampaignScene extends Scene {
       updateSubweapon(subweapon)
       subweapon.ticksLeft -= 1
     }
+    for (const bone of this.enemyBones) {
+      bone.velocity.y += BONE_GRAVITY
+      bone.position.x += bone.velocity.x
+      bone.position.y += bone.velocity.y
+      bone.spin += 0.5
+      bone.ticksLeft -= 1
+    }
     for (const pickup of this.heartPickups) {
       pickup.velocity.y += 0.34
       pickup.position.x += pickup.velocity.x
@@ -953,8 +990,10 @@ export class CampaignScene extends Scene {
     }
 
     this.resolveCombat()
+    this.resolveEnemyBones()
     this.projectiles = this.projectiles.filter((p) => p.ticksLeft > 0 && !p.hasHit)
     this.subweapons = this.subweapons.filter((p) => p.ticksLeft > 0 && !p.hasHit)
+    this.enemyBones = this.enemyBones.filter((b) => b.ticksLeft > 0 && !b.hasHit && b.position.y < FLOOR_Y + 30)
     this.resolveCandles()
     this.resolveHeartPickups()
     this.heartPickups = this.heartPickups.filter((pickup) => pickup.ticksLeft > 0)
@@ -1057,6 +1096,7 @@ export class CampaignScene extends Scene {
     this.enemies = buildEnemies(this.node, this.ctx.assets, this.layout)
     this.projectiles = []
     this.subweapons = []
+    this.enemyBones = []
     this.candles = buildCandles(this.layout)
     this.heartPickups = []
     this.clearTicks = 0
@@ -1217,6 +1257,30 @@ export class CampaignScene extends Scene {
         }
       } else if (platform.crumbleTimer !== undefined && platform.crumbleTimer < CRUMBLE_DELAY) {
         platform.crumbleTimer = Math.min(CRUMBLE_DELAY, platform.crumbleTimer + 1)
+      }
+    }
+  }
+
+  private spawnBone(shot: { x: number; y: number; facing: Facing }): void {
+    this.enemyBones.push({
+      position: { x: shot.x, y: shot.y },
+      velocity: { x: shot.facing * BONE_SPEED, y: -3.4 },
+      spin: 0,
+      ticksLeft: 110,
+      hasHit: false,
+    })
+    this.ctx.audio.swing()
+  }
+
+  private resolveEnemyBones(): void {
+    if (this.player.isDead) return
+    const box = this.player.hurtbox()
+    for (const bone of this.enemyBones) {
+      if (bone.hasHit || !rectsOverlap(boneBox(bone), box)) continue
+      if (this.player.applyFlatDamage(BONE_DAMAGE, bone.position.x, -6, this.playerDamageTakenMult)) {
+        bone.hasHit = true
+        this.ctx.audio.hit()
+        this.hitstop = Math.max(this.hitstop, 5)
       }
     }
   }
@@ -1493,6 +1557,7 @@ export class CampaignScene extends Scene {
     for (const enemy of this.enemies) enemy.render(this.ctx.renderer, this.cameraX)
     for (const projectile of this.projectiles) renderProjectile(projectile, this.ctx.renderer, this.cameraX)
     for (const subweapon of this.subweapons) renderSubweapon(subweapon, this.ctx.renderer, this.cameraX)
+    for (const bone of this.enemyBones) drawBone(bone, this.ctx.renderer, this.cameraX)
     this.drawEnemyHealthBars()
     this.drawFloatingTexts()
     if (DEBUG_HITBOXES) this.drawDebugBoxes()
@@ -1560,6 +1625,9 @@ export class CampaignScene extends Scene {
     }
     for (const subweapon of this.subweapons) {
       if (!subweapon.hasHit) stroke(subweaponBox(subweapon), '#f3f06a')
+    }
+    for (const bone of this.enemyBones) {
+      if (!bone.hasHit) stroke(boneBox(bone), '#b284e0')
     }
     for (const candle of this.candles) {
       if (!candle.broken) stroke(candleBox(candle), '#e8d4a0')
@@ -1980,6 +2048,7 @@ function buildEnemies(node: ReturnType<typeof getCampaignNode>, assets: AssetMan
       const x = slots[slot] ?? layout.doorX - 200
       const enemy = new CastleActor(group.def, assets, x, layout.checkpointY, -1, campaignEnemySpeed(group.def.id))
       enemy.setMaxHealth(campaignEnemyHealth(group.def.id, node.difficulty))
+      if (group.def.id === 'boneThrower') enemy.rangedAttacker = true
       enemies.push(enemy)
       slot += 1
     }
@@ -1995,6 +2064,7 @@ function campaignEnemyReward(enemy: CastleActor): { xp: number; gold: number } {
 function campaignEnemySpeed(enemyId: string): number {
   if (enemyId === 'armoredSkeleton') return 0.58
   if (enemyId === 'ghoul') return 1.02
+  if (enemyId === 'boneThrower') return 0.72
   return 0.78
 }
 
@@ -2018,6 +2088,7 @@ function campaignEnemyHealth(enemyId: string, difficulty: 'easy' | 'normal' | 'h
   if (enemyId === 'skeleton') return 21
   if (enemyId === 'zombie') return 6
   if (enemyId === 'ghoul') return 16
+  if (enemyId === 'boneThrower') return 18
   if (enemyId === 'armoredSkeleton') return difficulty === 'hard' ? 96 : 78
   return difficulty === 'easy' ? 28 : difficulty === 'normal' ? 40 : 52
 }
@@ -2044,6 +2115,14 @@ function enemyIntent(enemy: CastleActor, player: CastleActor, node: ReturnType<t
       else if (rng.next() < 0.25) intent.heavyPressed = true
       else intent.lightPressed = true
     }
+    return intent
+  }
+
+  if (kind === 'boneThrower') {
+    // Kites: backs away when the player closes, throws bones from mid range.
+    if (dist < 150) intent.moveX = dir === 1 ? -1 : 1
+    else if (dist > 330) intent.moveX = dir
+    else if (enemy.currentMove === null) intent.lightPressed = true
     return intent
   }
 
@@ -2240,6 +2319,27 @@ function subweaponBox(subweapon: SubweaponRuntime): Rect {
     width: box.width,
     height: box.height,
   }
+}
+
+function boneBox(bone: EnemyBone): Rect {
+  return { x: bone.position.x - 9, y: bone.position.y - 9, width: 18, height: 18 }
+}
+
+function drawBone(bone: EnemyBone, renderer: Renderer, cameraX: number): void {
+  const { ctx } = renderer
+  ctx.save()
+  ctx.translate(bone.position.x - cameraX, bone.position.y)
+  ctx.rotate(bone.spin)
+  ctx.fillStyle = '#e8e2cf'
+  ctx.strokeStyle = '#0b0912'
+  ctx.lineWidth = 1
+  ctx.fillRect(-8, -2, 16, 4)
+  ctx.strokeRect(-8, -2, 16, 4)
+  ctx.fillRect(-11, -5, 6, 10)
+  ctx.strokeRect(-11, -5, 6, 10)
+  ctx.fillRect(5, -5, 6, 10)
+  ctx.strokeRect(5, -5, 6, 10)
+  ctx.restore()
 }
 
 function drawSpikes(ctx: CanvasRenderingContext2D, hazard: Hazard): void {

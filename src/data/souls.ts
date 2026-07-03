@@ -59,6 +59,15 @@ export const SOUL_POOL: readonly SoulDef[] = [
     maxHealthBonus: 18,
   },
   {
+    id: 'bone-thrower-soul',
+    name: 'Marksman Soul',
+    enemyId: 'boneThrower',
+    dropChance: 0.3,
+    blurb: 'A hunter’s eye and steady hand. +8% attack and faster meter.',
+    damageMultiplier: 1.08,
+    meterGainMultiplier: 1.15,
+  },
+  {
     id: 'warden-soul',
     name: 'Seal Warden Soul',
     enemyId: 'sealGuardian',

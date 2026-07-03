@@ -1,5 +1,5 @@
 import type { CharacterDef } from './characters/CharacterDef.ts'
-import { armoredSkeleton, dracula1999, ghoul, juliusBelmont, sealGuardian, skeleton, zombie } from './characters/castlevaniaCampaign.ts'
+import { armoredSkeleton, boneThrower, dracula1999, ghoul, juliusBelmont, sealGuardian, skeleton, zombie } from './characters/castlevaniaCampaign.ts'
 import type { StageId } from './stages.ts'
 import { RELIC_POOL, type RelicId } from './relics.ts'
 import { SOUL_POOL } from './souls.ts'
@@ -187,7 +187,7 @@ export const CAMPAIGN_NODES: readonly CampaignNodeDef[] = [
       'The tower keeps perfect time even when the rest of the world is broken. Julius realizes the cult is counting down to a war he has not yet seen.',
     stage: 'clock_tower',
     enemy: skeleton,
-    extraEnemies: [{ def: ghoul, count: 2 }],
+    extraEnemies: [{ def: ghoul, count: 2 }, { def: boneThrower, count: 1 }],
     difficulty: 'hard',
     nextIds: ['1998-archive'],
     position: { x: 400, y: 150 },
@@ -232,7 +232,7 @@ export const CAMPAIGN_NODES: readonly CampaignNodeDef[] = [
       'Every clue from the year has been leading to this approach. Julius cuts through the final defenses with the seal nearly spent.',
     stage: 'outer_wall',
     enemy: zombie,
-    extraEnemies: [{ def: ghoul, count: 2 }, { def: armoredSkeleton, count: 1 }],
+    extraEnemies: [{ def: ghoul, count: 2 }, { def: boneThrower, count: 1 }],
     difficulty: 'hard',
     nextIds: ['1999-dracula'],
     position: { x: 390, y: 150 },

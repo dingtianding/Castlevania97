@@ -405,6 +405,87 @@ export const ghoul: CharacterDef = {
   },
 }
 
+// Bone Thrower — a ranged skeleton that keeps its distance and lobs bones
+// (spawned procedurally by CampaignScene when its light "throw" goes active).
+// Reuses the skeleton sheets with a violet aura; its melee is deliberately weak.
+export const boneThrower: CharacterDef = {
+  id: 'boneThrower',
+  name: 'BONE THROWER',
+  meta: {
+    archetype: 'SKELETAL ARCHER',
+    bio: 'A bone soldier that hangs back and hurls its own ribs. Deadly at range, fragile up close.',
+    stats: { power: 2, speed: 2, range: 5, technique: 3 },
+    moveNames: {
+      light: 'Bone Toss',
+      heavy: 'Bone Toss',
+      special: 'Bone Toss',
+      super: 'Rib Volley',
+    },
+  },
+  sprites: {
+    idle: { key: 'skeleton.idle', frames: 6 },
+    run: { key: 'skeleton.run', frames: 8 },
+    jump: { key: 'skeleton.roam', frames: 8 },
+    fall: { key: 'skeleton.roam', frames: 8 },
+    attack1: { key: 'skeleton.attack', frames: 5 },
+    attack2: { key: 'skeleton.attack', frames: 5 },
+    takeHit: { key: 'skeleton.hurt', frames: 4 },
+    death: { key: 'skeleton.death', frames: 6 },
+  },
+  visual: { anchorX: 80, anchorY: 126, scale: 0.72, hurtbox: { width: 56, height: 104 } },
+  moves: {
+    light: {
+      id: 'bone-toss',
+      animKey: 'attack1',
+      startup: 12,
+      active: 6,
+      recovery: 20,
+      damage: 4,
+      knockbackX: 4,
+      knockbackY: -3,
+      hitstop: 4,
+      hitbox: { forward: 20, top: 120, width: 60, height: 60 },
+    },
+    heavy: {
+      id: 'bone-toss-h',
+      animKey: 'attack1',
+      startup: 12,
+      active: 6,
+      recovery: 20,
+      damage: 4,
+      knockbackX: 4,
+      knockbackY: -3,
+      hitstop: 4,
+      hitbox: { forward: 20, top: 120, width: 60, height: 60 },
+    },
+    special: {
+      id: 'bone-toss-s',
+      animKey: 'attack1',
+      startup: 12,
+      active: 6,
+      recovery: 20,
+      damage: 4,
+      knockbackX: 4,
+      knockbackY: -3,
+      hitstop: 4,
+      hitbox: { forward: 20, top: 120, width: 60, height: 60 },
+    },
+    super: {
+      id: 'bone-toss-super',
+      animKey: 'attack2',
+      startup: 14,
+      active: 8,
+      recovery: 24,
+      damage: 6,
+      knockbackX: 6,
+      knockbackY: -5,
+      hitstop: 6,
+      meterCost: 100,
+      hitbox: { forward: 20, top: 118, width: 70, height: 66 },
+    },
+  },
+}
+
 export const sealGuardian: CharacterDef = {
   id: 'sealGuardian',
   name: 'SEAL WARDEN',
