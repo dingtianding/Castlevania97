@@ -6,7 +6,7 @@ import { AssetManager } from '../assets/AssetManager.ts'
 import { AUDIO_MANIFEST } from '../assets/manifest.ts'
 import { addCampaignRelic, addCampaignSoul, completeCampaignBattle, getCampaignChapter, getCampaignNode, grantCampaignRewards, loadCampaignSave, MAX_LEVEL, saveCampaignSave, xpForNextLevel } from '../data/campaign.ts'
 import { buildRunModifiers, draftRelics, RELIC_POOL, type RelicDef, type RelicId, type RunModifiers } from '../data/relics.ts'
-import { buildSoulModifiers, soulForEnemy, SOUL_POOL, type SoulModifiers } from '../data/souls.ts'
+import { buildSoulModifiers, getSoul, soulForEnemy, SOUL_POOL, type SoulDef, type SoulModifiers } from '../data/souls.ts'
 import { juliusBelmont as CAMPAIGN_HERO } from '../data/characters/castlevaniaCampaign.ts'
 import { getStage } from '../data/stages.ts'
 import type { CharacterDef } from '../data/characters/CharacterDef.ts'
@@ -751,6 +751,7 @@ export class CampaignScene extends Scene {
   private draftIndex = 0
   private shopping = false
   private shopIndex = 0
+  private showStatus = false
   private pendingNodeId: string | null = null
   private readonly attackingLastTick = new Set<CastleActor>()
   private touchControls: TouchControls | null = null
@@ -795,6 +796,18 @@ export class CampaignScene extends Scene {
         e.preventDefault()
         this.leaveShop()
       }
+      return
+    }
+    if (this.showStatus) {
+      if (e.code === 'KeyI' || e.code === 'Tab' || e.code === 'Escape' || isMenuCancel(e.code)) {
+        e.preventDefault()
+        this.showStatus = false
+      }
+      return
+    }
+    if ((e.code === 'KeyI' || e.code === 'Tab') && !this.ending && !this.drafting && !this.shopping && this.defeatTicks === 0) {
+      e.preventDefault()
+      this.showStatus = true
       return
     }
     if (this.ending && (isMenuConfirm(e.code) || isMenuCancel(e.code))) {
@@ -876,7 +889,7 @@ export class CampaignScene extends Scene {
     this.blink += 1
     if (this.flashTicks > 0) this.flashTicks -= 1
     if (this.contactHitCooldown > 0) this.contactHitCooldown -= 1
-    if (this.ending || this.drafting || this.shopping) return
+    if (this.ending || this.drafting || this.shopping || this.showStatus) return
     if (this.defeatTicks > 0) {
       this.defeatTicks += 1
       if (this.defeatTicks > DEFEAT_RETRY_TICKS) this.reloadNode(this.node.id, true)
@@ -986,6 +999,7 @@ export class CampaignScene extends Scene {
     if (this.ending) this.drawEnding()
     else if (this.drafting) this.drawDraft()
     else if (this.shopping) this.drawShop()
+    else if (this.showStatus) this.drawStatus()
     else if (this.defeatTicks > 0) this.drawDefeat()
     else if (this.isRoomClear) this.drawRoomClear()
     else if (Math.floor(this.blink / 30) % 2 === 0) this.drawPrompt()
@@ -1053,6 +1067,7 @@ export class CampaignScene extends Scene {
     this.defeatTicks = 0
     this.enemyFreezeTicks = 0
     this.levelUpTicks = 0
+    this.showStatus = false
     this.rewardedDeaths.clear()
     this.floatingTexts = []
     this.attackingLastTick.clear()
@@ -1644,7 +1659,7 @@ export class CampaignScene extends Scene {
     ctx.font = '8px "Press Start 2P", monospace'
     ctx.textAlign = 'center'
     ctx.fillText('A/D MOVE   W UP   J JUMP   ; DASH', this.ctx.width / 2, this.ctx.height - 38)
-    ctx.fillText('K ATTACK   W+K USE   L SWITCH   ESC PAUSE', this.ctx.width / 2, this.ctx.height - 22)
+    ctx.fillText('K ATTACK   W+K USE   L SWITCH   I STATUS   ESC PAUSE', this.ctx.width / 2, this.ctx.height - 22)
     ctx.restore()
   }
 
@@ -1835,6 +1850,104 @@ export class CampaignScene extends Scene {
     ctx.fillText('W/S MOVE     J BUY     K LEAVE', width / 2, height - 40)
     ctx.restore()
   }
+
+  private drawStatus(): void {
+    const { ctx } = this.ctx.renderer
+    const { width, height } = this.ctx
+    ctx.save()
+    ctx.fillStyle = 'rgba(6, 5, 12, 0.92)'
+    ctx.fillRect(0, 0, width, height)
+    ctx.strokeStyle = '#5a567a'
+    ctx.lineWidth = 2
+    ctx.strokeRect(56, 36, width - 112, height - 84)
+
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'top'
+    ctx.fillStyle = '#e8d4a0'
+    ctx.font = '18px "Press Start 2P", monospace'
+    ctx.fillText('JULIUS  —  STATUS', width / 2, 56)
+
+    // Left column: computed stats.
+    ctx.textAlign = 'left'
+    const statLabelX = 96
+    const statValueX = 270
+    let sy = 108
+    const stat = (label: string, value: string, color = '#b7c7e6'): void => {
+      ctx.font = '9px "Press Start 2P", monospace'
+      ctx.fillStyle = '#8a8aa0'
+      ctx.fillText(label, statLabelX, sy)
+      ctx.fillStyle = color
+      ctx.fillText(value, statValueX, sy)
+      sy += 24
+    }
+    stat('LEVEL', String(this.save.level), '#f6b74a')
+    stat('XP', this.save.level >= MAX_LEVEL ? 'MAX' : `${this.save.xp}/${xpForNextLevel(this.save.level)}`)
+    stat('MAX HP', String(this.computeMaxHealth()))
+    stat('ATTACK', `${this.computeDamageMult().toFixed(2)}x`)
+    stat('DEFENSE', `-${Math.round((1 - this.computeDamageTakenMult()) * 100)}%`)
+    stat('MOVE SPD', `${(this.runMods.moveSpeedMultiplier * this.soulMods.moveSpeedMultiplier).toFixed(2)}x`)
+    stat('GOLD', String(this.save.gold), '#f6b74a')
+    stat('HEARTS', String(this.hearts))
+
+    // Right column: relics and souls with names + effects.
+    const colX = width / 2 + 8
+    let ry = 108
+    ctx.fillStyle = '#e8d4a0'
+    ctx.font = '11px "Press Start 2P", monospace'
+    ctx.fillText('RELICS', colX, ry)
+    ry += 22
+    const ownedRelics = this.save.relicIds.map((id) => RELIC_POOL.find((relic) => relic.id === id)).filter((relic): relic is RelicDef => Boolean(relic))
+    if (ownedRelics.length === 0) {
+      ctx.fillStyle = '#5a567a'
+      ctx.font = '8px "Press Start 2P", monospace'
+      ctx.fillText('NONE YET', colX, ry)
+      ry += 20
+    } else {
+      for (const relic of ownedRelics) {
+        ctx.fillStyle = '#b7c7e6'
+        ctx.font = '8px "Press Start 2P", monospace'
+        ctx.fillText(relic.name.toUpperCase(), colX, ry)
+        ctx.fillStyle = '#8a8aa0'
+        ctx.fillText(relicSummary(relic), colX + 12, ry + 11)
+        ry += 26
+      }
+    }
+    ry += 12
+    ctx.fillStyle = '#7ad6ff'
+    ctx.font = '11px "Press Start 2P", monospace'
+    ctx.fillText('SOULS', colX, ry)
+    ry += 22
+    const ownedSouls = this.save.souls.map((id) => getSoul(id)).filter((soul): soul is SoulDef => Boolean(soul))
+    if (ownedSouls.length === 0) {
+      ctx.fillStyle = '#5a567a'
+      ctx.font = '8px "Press Start 2P", monospace'
+      ctx.fillText('NONE YET', colX, ry)
+    } else {
+      for (const soul of ownedSouls) {
+        ctx.fillStyle = '#b7c7e6'
+        ctx.font = '8px "Press Start 2P", monospace'
+        ctx.fillText(soul.name.toUpperCase(), colX, ry)
+        ctx.fillStyle = '#8a8aa0'
+        ctx.fillText(soulSummary(soul), colX + 12, ry + 11)
+        ry += 26
+      }
+    }
+
+    ctx.textAlign = 'center'
+    ctx.fillStyle = '#5a567a'
+    ctx.font = '9px "Press Start 2P", monospace'
+    ctx.fillText('I / K CLOSE', width / 2, height - 58)
+    ctx.restore()
+  }
+}
+
+function soulSummary(soul: SoulDef): string {
+  const parts: string[] = []
+  if (soul.maxHealthBonus) parts.push(`+${soul.maxHealthBonus} HP`)
+  if (soul.damageMultiplier && soul.damageMultiplier !== 1) parts.push(`+${Math.round((soul.damageMultiplier - 1) * 100)}% ATK`)
+  if (soul.moveSpeedMultiplier && soul.moveSpeedMultiplier !== 1) parts.push(`+${Math.round((soul.moveSpeedMultiplier - 1) * 100)}% SPD`)
+  if (soul.meterGainMultiplier && soul.meterGainMultiplier !== 1) parts.push(`+${Math.round((soul.meterGainMultiplier - 1) * 100)}% MTR`)
+  return parts.join('   ')
 }
 
 function relicSummary(relic: RelicDef): string {
