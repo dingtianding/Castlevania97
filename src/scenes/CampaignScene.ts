@@ -50,6 +50,7 @@ const DEATH_HOLD_TICKS = 44 // let the death animation play, then fade the corps
 const DEATH_FADE_TICKS = 22
 const ROOM_CLEAR_AUTO_ADVANCE_TICKS = 240
 const DEFEAT_RETRY_TICKS = 120
+const BOSS_INTRO_TICKS = 120 // cinematic name-reveal pause when a boss room starts
 const STARTING_HEARTS = 10
 const MAX_HEARTS = 99
 const SUBWEAPON_ORDER = ['dagger', 'axe', 'cross', 'holyWater', 'stopwatch'] as const
@@ -764,6 +765,7 @@ export class CampaignScene extends Scene {
   private flashTicks = 0
   private contactHitCooldown = 0
   private defeatTicks = 0
+  private bossIntroTicks = 0
   private hearts = STARTING_HEARTS
   private selectedSubweaponIndex = 0
   private enemyFreezeTicks = 0
@@ -931,6 +933,10 @@ export class CampaignScene extends Scene {
       this.transitionTicks -= 1
       return
     }
+    if (this.bossIntroTicks > 0) {
+      this.bossIntroTicks -= 1
+      return
+    }
     if (this.enemyFreezeTicks > 0) this.enemyFreezeTicks -= 1
 
     const intent = this.input.poll()
@@ -1041,9 +1047,18 @@ export class CampaignScene extends Scene {
     else if (this.showStatus) this.drawStatus()
     else if (this.defeatTicks > 0) this.drawDefeat()
     else if (this.isRoomClear) this.drawRoomClear()
-    else if (Math.floor(this.blink / 30) % 2 === 0) this.drawPrompt()
+    else {
+      this.drawBossBar()
+      if (Math.floor(this.blink / 30) % 2 === 0) this.drawPrompt()
+    }
     if (this.levelUpTicks > 0 && !this.ending && !this.drafting) this.drawLevelUp()
+    if (this.bossIntroTicks > 0) this.drawBossIntro()
     this.drawFlash()
+  }
+
+  private get bossActor(): CastleActor | null {
+    if (!this.node.isBoss) return null
+    return this.enemies.find((enemy) => enemy.isBoss) ?? null
   }
 
   private get isRoomClear(): boolean {
@@ -1105,6 +1120,7 @@ export class CampaignScene extends Scene {
     this.flashTicks = 0
     this.contactHitCooldown = 0
     this.defeatTicks = 0
+    this.bossIntroTicks = this.node.isBoss ? BOSS_INTRO_TICKS : 0
     this.enemyFreezeTicks = 0
     this.levelUpTicks = 0
     this.showStatus = false
@@ -1747,6 +1763,61 @@ export class CampaignScene extends Scene {
     ctx.fillStyle = '#8a8aa0'
     ctx.font = '8px "Press Start 2P", monospace'
     ctx.fillText('J ADVANCE     OR WALK TO THE DOOR', this.ctx.width / 2, this.ctx.height - 42)
+    ctx.restore()
+  }
+
+  private drawBossBar(): void {
+    const boss = this.bossActor
+    if (!boss || boss.isDead) return
+    const { ctx } = this.ctx.renderer
+    const w = 560
+    const x = this.ctx.width / 2 - w / 2
+    const y = this.ctx.height - 92
+    const ratio = clamp(boss.health / boss.maxHealth, 0, 1)
+    const enraged = ratio < 0.35
+    ctx.save()
+    ctx.textBaseline = 'alphabetic'
+    ctx.textAlign = 'center'
+    ctx.font = '11px "Press Start 2P", monospace'
+    ctx.fillStyle = enraged ? '#ff5658' : '#e8d4a0'
+    ctx.fillText(boss.def.name, this.ctx.width / 2, y - 8)
+    ctx.fillStyle = 'rgba(8, 6, 14, 0.82)'
+    ctx.fillRect(x - 4, y - 4, w + 8, 20)
+    ctx.fillStyle = '#2a1014'
+    ctx.fillRect(x, y, w, 12)
+    ctx.fillStyle = enraged ? '#ff3b3d' : '#b91d2d'
+    ctx.fillRect(x, y, w * ratio, 12)
+    ctx.strokeStyle = enraged ? '#ffd05a' : '#e8d4a0'
+    ctx.lineWidth = 2
+    ctx.strokeRect(x, y, w, 12)
+    ctx.restore()
+  }
+
+  private drawBossIntro(): void {
+    const boss = this.bossActor
+    if (!boss) return
+    const { ctx } = this.ctx.renderer
+    const t = this.bossIntroTicks
+    const alpha = Math.min(clamp((BOSS_INTRO_TICKS - t) / 18, 0, 1), clamp(t / 18, 0, 1))
+    const cy = this.ctx.height / 2
+    ctx.save()
+    ctx.globalAlpha = alpha
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillStyle = 'rgba(6, 4, 10, 0.72)'
+    ctx.fillRect(0, cy - 54, this.ctx.width, 108)
+    ctx.fillStyle = '#8a1418'
+    ctx.fillRect(0, cy - 54, this.ctx.width, 3)
+    ctx.fillRect(0, cy + 51, this.ctx.width, 3)
+    ctx.fillStyle = '#f6b74a'
+    ctx.font = '9px "Press Start 2P", monospace'
+    ctx.fillText('— BOSS —', this.ctx.width / 2, cy - 30)
+    ctx.fillStyle = '#f4e6c0'
+    ctx.font = '22px "Press Start 2P", monospace'
+    ctx.fillText(boss.def.name, this.ctx.width / 2, cy)
+    ctx.fillStyle = '#b7a6d6'
+    ctx.font = '9px "Press Start 2P", monospace'
+    ctx.fillText(boss.def.meta.archetype, this.ctx.width / 2, cy + 30)
     ctx.restore()
   }
 
