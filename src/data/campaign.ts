@@ -42,6 +42,9 @@ export interface CampaignSave {
   level: number
   xp: number
   gold: number
+  /** Permanent shop upgrades: each stacks a flat bonus (see CampaignScene). */
+  hpUpgrades: number
+  atkUpgrades: number
   finished: boolean
 }
 
@@ -276,6 +279,8 @@ export function initialCampaignSave(): CampaignSave {
     level: 1,
     xp: 0,
     gold: 0,
+    hpUpgrades: 0,
+    atkUpgrades: 0,
     finished: false,
   }
 }
@@ -373,6 +378,8 @@ export function completeCampaignBattle(save: CampaignSave): CampaignSave {
     level: save.level,
     xp: save.xp,
     gold: save.gold,
+    hpUpgrades: save.hpUpgrades,
+    atkUpgrades: save.atkUpgrades,
     finished,
   }
   saveCampaignSave(next)
@@ -437,6 +444,8 @@ function sanitizeCampaignSave(value: Partial<CampaignSave>): CampaignSave {
     level: clampNumber(value.level, 1, MAX_LEVEL, 1),
     xp: clampNumber(value.xp, 0, Number.MAX_SAFE_INTEGER, 0),
     gold: clampNumber(value.gold, 0, Number.MAX_SAFE_INTEGER, 0),
+    hpUpgrades: clampNumber(value.hpUpgrades, 0, 99, 0),
+    atkUpgrades: clampNumber(value.atkUpgrades, 0, 99, 0),
     finished: Boolean(value.finished),
   }
 }

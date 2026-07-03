@@ -4,7 +4,7 @@ import { ModeSelectScene } from './ModeSelectScene.ts'
 import { PauseScene } from './PauseScene.ts'
 import { AssetManager } from '../assets/AssetManager.ts'
 import { AUDIO_MANIFEST } from '../assets/manifest.ts'
-import { addCampaignRelic, addCampaignSoul, completeCampaignBattle, getCampaignChapter, getCampaignNode, grantCampaignRewards, loadCampaignSave, MAX_LEVEL, xpForNextLevel } from '../data/campaign.ts'
+import { addCampaignRelic, addCampaignSoul, completeCampaignBattle, getCampaignChapter, getCampaignNode, grantCampaignRewards, loadCampaignSave, MAX_LEVEL, saveCampaignSave, xpForNextLevel } from '../data/campaign.ts'
 import { buildRunModifiers, draftRelics, RELIC_POOL, type RelicDef, type RelicId, type RunModifiers } from '../data/relics.ts'
 import { buildSoulModifiers, soulForEnemy, SOUL_POOL, type SoulModifiers } from '../data/souls.ts'
 import { juliusBelmont as CAMPAIGN_HERO } from '../data/characters/castlevaniaCampaign.ts'
@@ -732,6 +732,8 @@ export class CampaignScene extends Scene {
   private drafting = false
   private draftOptions: RelicDef[] = []
   private draftIndex = 0
+  private shopping = false
+  private shopIndex = 0
   private pendingNodeId: string | null = null
   private readonly attackingLastTick = new Set<CastleActor>()
   private touchControls: TouchControls | null = null
@@ -752,6 +754,29 @@ export class CampaignScene extends Scene {
       if (isMenuConfirm(e.code)) {
         e.preventDefault()
         this.pickDraft()
+      }
+      return
+    }
+    if (this.shopping) {
+      const count = this.shopItems().length
+      if (e.code === 'KeyW' || e.code === 'ArrowUp') {
+        e.preventDefault()
+        this.shopIndex = (this.shopIndex - 1 + count) % count
+        return
+      }
+      if (e.code === 'KeyS' || e.code === 'ArrowDown') {
+        e.preventDefault()
+        this.shopIndex = (this.shopIndex + 1) % count
+        return
+      }
+      if (isMenuConfirm(e.code)) {
+        e.preventDefault()
+        this.buyShopItem()
+        return
+      }
+      if (isMenuCancel(e.code) || e.code === 'Escape') {
+        e.preventDefault()
+        this.leaveShop()
       }
       return
     }
@@ -785,18 +810,31 @@ export class CampaignScene extends Scene {
   }
 
   private readonly onPointerDown = (e: PointerEvent): void => {
-    if (!this.drafting || this.draftOptions.length === 0) return
     const rect = this.ctx.renderer.canvas.getBoundingClientRect()
     const px = ((e.clientX - rect.left) / rect.width) * this.ctx.width
     const py = ((e.clientY - rect.top) / rect.height) * this.ctx.height
-    const layout = this.draftLayout()
-    const hit = this.draftOptions.findIndex((_opt, i) => {
-      const x = layout.startX + i * (layout.cardW + layout.gap)
-      return px >= x && px <= x + layout.cardW && py >= layout.y && py <= layout.y + layout.cardH
-    })
-    if (hit >= 0) {
-      this.draftIndex = hit
-      this.pickDraft()
+    if (this.shopping) {
+      const items = this.shopItems()
+      const hit = items.findIndex((_item, i) => {
+        const r = this.shopRowRect(i)
+        return px >= r.x && px <= r.x + r.w && py >= r.y && py <= r.y + r.h
+      })
+      if (hit >= 0) {
+        this.shopIndex = hit
+        this.buyShopItem()
+      }
+      return
+    }
+    if (this.drafting && this.draftOptions.length > 0) {
+      const layout = this.draftLayout()
+      const hit = this.draftOptions.findIndex((_opt, i) => {
+        const x = layout.startX + i * (layout.cardW + layout.gap)
+        return px >= x && px <= x + layout.cardW && py >= layout.y && py <= layout.y + layout.cardH
+      })
+      if (hit >= 0) {
+        this.draftIndex = hit
+        this.pickDraft()
+      }
     }
   }
 
@@ -821,7 +859,7 @@ export class CampaignScene extends Scene {
     this.blink += 1
     if (this.flashTicks > 0) this.flashTicks -= 1
     if (this.contactHitCooldown > 0) this.contactHitCooldown -= 1
-    if (this.ending || this.drafting) return
+    if (this.ending || this.drafting || this.shopping) return
     if (this.defeatTicks > 0) {
       this.defeatTicks += 1
       if (this.defeatTicks > DEFEAT_RETRY_TICKS) this.reloadNode(this.node.id, true)
@@ -930,6 +968,7 @@ export class CampaignScene extends Scene {
     this.drawHud()
     if (this.ending) this.drawEnding()
     else if (this.drafting) this.drawDraft()
+    else if (this.shopping) this.drawShop()
     else if (this.defeatTicks > 0) this.drawDefeat()
     else if (this.isRoomClear) this.drawRoomClear()
     else if (Math.floor(this.blink / 30) % 2 === 0) this.drawPrompt()
@@ -1164,11 +1203,11 @@ export class CampaignScene extends Scene {
   }
 
   private computeMaxHealth(): number {
-    return 100 + (this.save.level - 1) * 8 + this.runMods.maxHealthBonus + this.soulMods.maxHealthBonus
+    return 100 + (this.save.level - 1) * 8 + this.runMods.maxHealthBonus + this.soulMods.maxHealthBonus + this.save.hpUpgrades * 20
   }
 
   private computeDamageMult(): number {
-    return this.runMods.damageMultiplier * this.soulMods.damageMultiplier * (1 + (this.save.level - 1) * 0.04)
+    return this.runMods.damageMultiplier * this.soulMods.damageMultiplier * (1 + (this.save.level - 1) * 0.04) * (1 + this.save.atkUpgrades * 0.06)
   }
 
   private grantEnemyRewards(): void {
@@ -1288,7 +1327,7 @@ export class CampaignScene extends Scene {
       this.ctx.audio.swing()
       return
     }
-    this.reloadNode(next.currentNodeId)
+    this.proceedToNode(next.currentNodeId)
   }
 
   private pickDraft(): void {
@@ -1301,8 +1340,80 @@ export class CampaignScene extends Scene {
       this.save = addCampaignRelic(this.save, relic.id)
       this.ctx.audio.hit()
     }
+    if (nodeId) this.proceedToNode(nodeId)
+    else this.ending = true
+  }
+
+  /** Between rooms: open the wandering merchant's shop when crossing into a new
+   *  chapter, otherwise load the next room directly. */
+  private proceedToNode(nodeId: string): void {
+    if (getCampaignNode(nodeId).chapterId !== this.node.chapterId) {
+      this.shopping = true
+      this.shopIndex = 0
+      this.pendingNodeId = nodeId
+      this.ctx.audio.swing()
+      return
+    }
+    this.reloadNode(nodeId)
+  }
+
+  private leaveShop(): void {
+    const nodeId = this.pendingNodeId
+    this.shopping = false
+    this.pendingNodeId = null
     if (nodeId) this.reloadNode(nodeId)
     else this.ending = true
+  }
+
+  private shopItems(): { id: string; name: string; desc: string; price: number; available: boolean }[] {
+    const unownedSouls = SOUL_POOL.filter((soul) => !this.save.souls.includes(soul.id)).length
+    return [
+      {
+        id: 'hp',
+        name: 'LIFE CRYSTAL',
+        desc: `+20 MAX HEALTH  (owned ${this.save.hpUpgrades})`,
+        price: 40 + this.save.hpUpgrades * 30,
+        available: true,
+      },
+      {
+        id: 'atk',
+        name: 'POWER SHARD',
+        desc: `+6% ATTACK  (owned ${this.save.atkUpgrades})`,
+        price: 50 + this.save.atkUpgrades * 40,
+        available: true,
+      },
+      {
+        id: 'soul',
+        name: 'SOUL SHARD',
+        desc: unownedSouls > 0 ? `A random enemy soul  (${unownedSouls} left)` : 'All souls collected',
+        price: 120,
+        available: unownedSouls > 0,
+      },
+      { id: 'leave', name: 'LEAVE SHOP', desc: 'Continue the hunt', price: 0, available: true },
+    ]
+  }
+
+  private buyShopItem(): void {
+    const item = this.shopItems()[this.shopIndex]
+    if (!item) return
+    if (item.id === 'leave') {
+      this.leaveShop()
+      return
+    }
+    if (!item.available || this.save.gold < item.price) {
+      this.ctx.audio.swing()
+      return
+    }
+    this.save = { ...this.save, gold: this.save.gold - item.price }
+    if (item.id === 'hp') this.save = { ...this.save, hpUpgrades: this.save.hpUpgrades + 1 }
+    else if (item.id === 'atk') this.save = { ...this.save, atkUpgrades: this.save.atkUpgrades + 1 }
+    else if (item.id === 'soul') {
+      const unowned = SOUL_POOL.filter((soul) => !this.save.souls.includes(soul.id))
+      const pick = unowned[this.ctx.rng.int(0, unowned.length - 1)]
+      if (pick) this.save = addCampaignSoul(this.save, pick.id)
+    }
+    saveCampaignSave(this.save)
+    this.ctx.audio.hit()
   }
 
   private drawWorld(): void {
@@ -1623,6 +1734,71 @@ export class CampaignScene extends Scene {
     ctx.fillStyle = '#5a567a'
     ctx.font = '9px "Press Start 2P", monospace'
     ctx.fillText('A/D MOVE     J TAKE', width / 2, height - 44)
+    ctx.restore()
+  }
+
+  private shopRowRect(index: number): { x: number; y: number; w: number; h: number } {
+    const w = 560
+    const h = 54
+    const x = (this.ctx.width - w) / 2
+    const y = 188 + index * (h + 12)
+    return { x, y, w, h }
+  }
+
+  private drawShop(): void {
+    const { ctx } = this.ctx.renderer
+    const { width, height } = this.ctx
+    const items = this.shopItems()
+    ctx.save()
+    // Backdrop: shop art dimmed under a dark wash.
+    ctx.fillStyle = '#0a0710'
+    ctx.fillRect(0, 0, width, height)
+    ctx.globalAlpha = 0.28
+    ctx.drawImage(this.ctx.assets.image('stage.shop'), width / 2 - 220, 40, 440, 300)
+    ctx.globalAlpha = 1
+    ctx.fillStyle = 'rgba(8, 6, 14, 0.72)'
+    ctx.fillRect(0, 0, width, height)
+
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillStyle = '#e8d4a0'
+    ctx.font = '20px "Press Start 2P", monospace'
+    ctx.fillText('WANDERING MERCHANT', width / 2, 96)
+    ctx.fillStyle = '#f6b74a'
+    ctx.font = '11px "Press Start 2P", monospace'
+    ctx.fillText(`GOLD ${this.save.gold}`, width / 2, 132)
+
+    items.forEach((item, i) => {
+      const rect = this.shopRowRect(i)
+      const selected = i === this.shopIndex
+      const affordable = item.id === 'leave' || (item.available && this.save.gold >= item.price)
+      ctx.fillStyle = selected ? 'rgba(40, 33, 56, 0.96)' : 'rgba(16, 24, 43, 0.82)'
+      ctx.fillRect(rect.x, rect.y, rect.w, rect.h)
+      ctx.strokeStyle = selected ? '#e8d4a0' : '#5a567a'
+      ctx.lineWidth = selected ? 3 : 2
+      ctx.strokeRect(rect.x, rect.y, rect.w, rect.h)
+
+      ctx.textAlign = 'left'
+      ctx.textBaseline = 'top'
+      ctx.fillStyle = affordable ? '#e8d4a0' : '#6a6480'
+      ctx.font = '12px "Press Start 2P", monospace'
+      ctx.fillText(item.name, rect.x + 18, rect.y + 12)
+      ctx.fillStyle = affordable ? '#b7c7e6' : '#5a567a'
+      ctx.font = '8px "Press Start 2P", monospace'
+      ctx.fillText(item.desc, rect.x + 18, rect.y + 34)
+      if (item.id !== 'leave') {
+        ctx.textAlign = 'right'
+        ctx.fillStyle = affordable ? '#f6b74a' : '#7a5a2a'
+        ctx.font = '11px "Press Start 2P", monospace'
+        ctx.fillText(`${item.price}G`, rect.x + rect.w - 18, rect.y + 20)
+      }
+    })
+
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillStyle = '#5a567a'
+    ctx.font = '9px "Press Start 2P", monospace'
+    ctx.fillText('W/S MOVE     J BUY     K LEAVE', width / 2, height - 40)
     ctx.restore()
   }
 }
