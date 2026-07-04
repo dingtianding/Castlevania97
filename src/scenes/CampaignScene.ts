@@ -4,7 +4,8 @@ import { ModeSelectScene } from './ModeSelectScene.ts'
 import { PauseScene } from './PauseScene.ts'
 import { AssetManager } from '../assets/AssetManager.ts'
 import { AUDIO_MANIFEST } from '../assets/manifest.ts'
-import { addCampaignRelic, addCampaignSoul, completeCampaignBattle, getCampaignChapter, getCampaignNode, grantCampaignRewards, loadCampaignSave, MAX_LEVEL, saveCampaignSave, xpForNextLevel } from '../data/campaign.ts'
+import { addCampaignEquipment, addCampaignRelic, addCampaignSoul, completeCampaignBattle, equipCampaignItem, equippedDefs, getCampaignChapter, getCampaignNode, grantCampaignRewards, loadCampaignSave, MAX_LEVEL, saveCampaignSave, unequipCampaignSlot, xpForNextLevel } from '../data/campaign.ts'
+import { buildEquipmentModifiers, EQUIP_SLOT_LABELS, EQUIP_SLOTS, equipmentForSlot, EQUIPMENT_POOL, getEquipment, type EquipmentDef, type EquipmentModifiers } from '../data/equipment.ts'
 import { buildRunModifiers, draftRelics, RELIC_POOL, type RelicDef, type RelicId, type RunModifiers } from '../data/relics.ts'
 import { buildSoulModifiers, getSoul, soulForEnemy, SOUL_POOL, type SoulDef, type SoulModifiers } from '../data/souls.ts'
 import { juliusBelmont as CAMPAIGN_HERO } from '../data/characters/castlevaniaCampaign.ts'
@@ -777,6 +778,7 @@ export class CampaignScene extends Scene {
   private enemyFreezeTicks = 0
   private runMods: RunModifiers = buildRunModifiers([])
   private soulMods: SoulModifiers = buildSoulModifiers([])
+  private equipMods: EquipmentModifiers = buildEquipmentModifiers([])
   private playerDamageMult = 1
   private playerDamageTakenMult = 1
   private levelUpTicks = 0
@@ -788,6 +790,8 @@ export class CampaignScene extends Scene {
   private shopping = false
   private shopIndex = 0
   private showStatus = false
+  private showEquipment = false
+  private equipSlotIndex = 0
   private pendingNodeId: string | null = null
   private readonly attackingLastTick = new Set<CastleActor>()
   private touchControls: TouchControls | null = null
@@ -834,7 +838,42 @@ export class CampaignScene extends Scene {
       }
       return
     }
+    if (this.showEquipment) {
+      if (e.code === 'KeyW' || e.code === 'ArrowUp') {
+        e.preventDefault()
+        this.equipSlotIndex = (this.equipSlotIndex - 1 + EQUIP_SLOTS.length) % EQUIP_SLOTS.length
+        return
+      }
+      if (e.code === 'KeyS' || e.code === 'ArrowDown') {
+        e.preventDefault()
+        this.equipSlotIndex = (this.equipSlotIndex + 1) % EQUIP_SLOTS.length
+        return
+      }
+      if (e.code === 'KeyA' || e.code === 'ArrowLeft') {
+        e.preventDefault()
+        this.cycleEquipSlot(-1)
+        return
+      }
+      if (e.code === 'KeyD' || e.code === 'ArrowRight' || isMenuConfirm(e.code)) {
+        e.preventDefault()
+        this.cycleEquipSlot(1)
+        return
+      }
+      if (isMenuCancel(e.code) || e.code === 'Escape' || e.code === 'KeyI' || e.code === 'Tab') {
+        e.preventDefault()
+        this.showEquipment = false
+      }
+      return
+    }
     if (this.showStatus) {
+      if (isMenuConfirm(e.code) && this.save.equipment.length > 0) {
+        e.preventDefault()
+        this.showStatus = false
+        this.showEquipment = true
+        this.equipSlotIndex = 0
+        this.ctx.audio.swing()
+        return
+      }
       if (e.code === 'KeyI' || e.code === 'Tab' || e.code === 'Escape' || isMenuCancel(e.code)) {
         e.preventDefault()
         this.showStatus = false
@@ -925,7 +964,7 @@ export class CampaignScene extends Scene {
     this.blink += 1
     if (this.flashTicks > 0) this.flashTicks -= 1
     if (this.contactHitCooldown > 0) this.contactHitCooldown -= 1
-    if (this.ending || this.drafting || this.shopping || this.showStatus) return
+    if (this.ending || this.drafting || this.shopping || this.showStatus || this.showEquipment) return
     if (this.defeatTicks > 0) {
       this.defeatTicks += 1
       if (this.defeatTicks > DEFEAT_RETRY_TICKS) this.reloadNode(this.node.id, true)
@@ -1050,6 +1089,7 @@ export class CampaignScene extends Scene {
     if (this.ending) this.drawEnding()
     else if (this.drafting) this.drawDraft()
     else if (this.shopping) this.drawShop()
+    else if (this.showEquipment) this.drawEquipment()
     else if (this.showStatus) this.drawStatus()
     else if (this.defeatTicks > 0) this.drawDefeat()
     else if (this.isRoomClear) this.drawRoomClear()
@@ -1106,14 +1146,15 @@ export class CampaignScene extends Scene {
     this.layout = buildLayout(this.node.stage)
     this.runMods = buildRunModifiers(this.save.relicIds.map((id) => RELIC_POOL.find((relic) => relic.id === id)).filter((relic): relic is RelicDef => Boolean(relic)))
     this.soulMods = buildSoulModifiers(this.save.souls)
+    this.equipMods = buildEquipmentModifiers(equippedDefs(this.save))
     this.playerDamageMult = this.computeDamageMult()
     this.playerDamageTakenMult = this.computeDamageTakenMult()
-    const moveSpeed = this.runMods.moveSpeedMultiplier * this.soulMods.moveSpeedMultiplier
+    const moveSpeed = this.computeMoveSpeedMult()
     this.player = new CastleActor(CAMPAIGN_HERO, this.ctx.assets, this.layout.checkpointX, this.layout.checkpointY, 1, moveSpeed)
     this.player.setMaxHealth(this.computeMaxHealth())
     this.player.reset(this.layout.checkpointX, this.layout.checkpointY, 1)
-    this.player.meterGainMultiplier = this.runMods.meterGainMultiplier * this.soulMods.meterGainMultiplier
-    this.player.meter = this.runMods.startMeterBonus
+    this.player.meterGainMultiplier = this.computeMeterGainMult()
+    this.player.meter = this.runMods.startMeterBonus + this.equipMods.startMeterBonus
     this.enemies = buildEnemies(this.node, this.ctx.assets, this.layout)
     this.projectiles = []
     this.subweapons = []
@@ -1130,6 +1171,7 @@ export class CampaignScene extends Scene {
     this.enemyFreezeTicks = 0
     this.levelUpTicks = 0
     this.showStatus = false
+    this.showEquipment = false
     this.rewardedDeaths.clear()
     this.floatingTexts = []
     this.attackingLastTick.clear()
@@ -1322,15 +1364,23 @@ export class CampaignScene extends Scene {
   }
 
   private computeMaxHealth(): number {
-    return 100 + (this.save.level - 1) * 8 + this.runMods.maxHealthBonus + this.soulMods.maxHealthBonus + this.save.hpUpgrades * 20
+    return 100 + (this.save.level - 1) * 8 + this.runMods.maxHealthBonus + this.soulMods.maxHealthBonus + this.equipMods.maxHealthBonus + this.save.hpUpgrades * 20
   }
 
   private computeDamageMult(): number {
-    return this.runMods.damageMultiplier * this.soulMods.damageMultiplier * (1 + (this.save.level - 1) * 0.04) * (1 + this.save.atkUpgrades * 0.06)
+    return this.runMods.damageMultiplier * this.soulMods.damageMultiplier * this.equipMods.damageMultiplier * (1 + (this.save.level - 1) * 0.04) * (1 + this.save.atkUpgrades * 0.06)
   }
 
   private computeDamageTakenMult(): number {
-    return Math.max(0.55, 1 - this.save.armorTier * 0.06)
+    return Math.max(0.4, (1 - this.save.armorTier * 0.06) * this.equipMods.damageTakenMultiplier)
+  }
+
+  private computeMoveSpeedMult(): number {
+    return this.runMods.moveSpeedMultiplier * this.soulMods.moveSpeedMultiplier * this.equipMods.moveSpeedMultiplier
+  }
+
+  private computeMeterGainMult(): number {
+    return this.runMods.meterGainMultiplier * this.soulMods.meterGainMultiplier * this.equipMods.meterGainMultiplier
   }
 
   private grantEnemyRewards(): void {
@@ -1359,17 +1409,24 @@ export class CampaignScene extends Scene {
     this.ctx.audio.hit()
   }
 
-  /** Re-apply soul bonuses to the live player when a new soul drops mid-room:
-   *  bump max health by the delta (without a full heal), refresh damage/speed. */
+  /** Re-apply soul bonuses to the live player when a new soul drops mid-room. */
   private applySoulMods(): void {
-    const oldMax = this.player.maxHealth
     this.soulMods = buildSoulModifiers(this.save.souls)
+    this.refreshLivePlayerStats()
+  }
+
+  /** Push every current modifier source onto the live player: bump max health by
+   *  the delta (without a full heal) and refresh damage/defense/speed/meter. Used
+   *  when a soul drops or the loadout changes mid-room. */
+  private refreshLivePlayerStats(): void {
+    const oldMax = this.player.maxHealth
     this.playerDamageMult = this.computeDamageMult()
+    this.playerDamageTakenMult = this.computeDamageTakenMult()
     const newMax = this.computeMaxHealth()
     this.player.maxHealth = newMax
     this.player.health = Math.min(newMax, this.player.health + Math.max(0, newMax - oldMax))
-    this.player.setMoveSpeedMultiplier(this.runMods.moveSpeedMultiplier * this.soulMods.moveSpeedMultiplier)
-    this.player.meterGainMultiplier = this.runMods.meterGainMultiplier * this.soulMods.meterGainMultiplier
+    this.player.setMoveSpeedMultiplier(this.computeMoveSpeedMult())
+    this.player.meterGainMultiplier = this.computeMeterGainMult()
   }
 
   private onLevelUp(): void {
@@ -1490,6 +1547,19 @@ export class CampaignScene extends Scene {
 
   private shopItems(): { id: string; name: string; desc: string; price: number; available: boolean }[] {
     const unownedSouls = SOUL_POOL.filter((soul) => !this.save.souls.includes(soul.id)).length
+    // Offer up to three not-yet-owned equipment pieces so the shelf stays fresh
+    // without becoming an overwhelming wall of gear.
+    const gear = EQUIPMENT_POOL.filter((item) => !this.save.equipment.includes(item.id))
+      .slice()
+      .sort((a, b) => a.price - b.price)
+      .slice(0, 3)
+      .map((item) => ({
+        id: `equip:${item.id}`,
+        name: item.name.toUpperCase(),
+        desc: `${EQUIP_SLOT_LABELS[item.slot]} · ${item.blurb}`,
+        price: item.price,
+        available: true,
+      }))
     return [
       {
         id: 'hp',
@@ -1519,6 +1589,7 @@ export class CampaignScene extends Scene {
         price: 120,
         available: unownedSouls > 0,
       },
+      ...gear,
       { id: 'leave', name: 'LEAVE SHOP', desc: 'Continue the hunt', price: 0, available: true },
     ]
   }
@@ -1542,8 +1613,34 @@ export class CampaignScene extends Scene {
       const unowned = SOUL_POOL.filter((soul) => !this.save.souls.includes(soul.id))
       const pick = unowned[this.ctx.rng.int(0, unowned.length - 1)]
       if (pick) this.save = addCampaignSoul(this.save, pick.id)
+    } else if (item.id.startsWith('equip:')) {
+      // Purchased gear lands in the inventory and auto-equips if the slot is open;
+      // the loadout screen (from Status) lets the player swap it afterward.
+      this.save = addCampaignEquipment(this.save, item.id.slice('equip:'.length) as EquipmentDef['id'])
+      // Keep the pointer from landing past the end after the row disappears.
+      this.shopIndex = Math.min(this.shopIndex, this.shopItems().length - 1)
     }
     saveCampaignSave(this.save)
+    this.ctx.audio.hit()
+  }
+
+  /** Cycle the currently selected slot through [empty, ...owned pieces] and apply
+   *  the change to the live player so stats update the moment you swap. */
+  private cycleEquipSlot(dir: number): void {
+    const slot = EQUIP_SLOTS[this.equipSlotIndex]
+    if (!slot) return
+    const owned = equipmentForSlot(slot).filter((item) => this.save.equipment.includes(item.id))
+    if (owned.length === 0) {
+      this.ctx.audio.swing()
+      return
+    }
+    const options: (EquipmentDef | null)[] = [null, ...owned]
+    const currentId = this.save.equipped[slot]
+    const currentIndex = Math.max(0, options.findIndex((opt) => (opt?.id ?? null) === (currentId ?? null)))
+    const next = options[(currentIndex + dir + options.length) % options.length] ?? null
+    this.save = next ? equipCampaignItem(this.save, next.id) : unequipCampaignSlot(this.save, slot)
+    this.equipMods = buildEquipmentModifiers(equippedDefs(this.save))
+    this.refreshLivePlayerStats()
     this.ctx.audio.hit()
   }
 
@@ -1932,10 +2029,12 @@ export class CampaignScene extends Scene {
   }
 
   private shopRowRect(index: number): { x: number; y: number; w: number; h: number } {
-    const w = 560
-    const h = 54
+    // Compact enough that the full list (base wares + up to 3 gear + LEAVE) fits
+    // on screen above the control hint.
+    const w = 600
+    const h = 44
     const x = (this.ctx.width - w) / 2
-    const y = 188 + index * (h + 12)
+    const y = 132 + index * (h + 6)
     return { x, y, w, h }
   }
 
@@ -1957,10 +2056,10 @@ export class CampaignScene extends Scene {
     ctx.textBaseline = 'middle'
     ctx.fillStyle = '#e8d4a0'
     ctx.font = '20px "Press Start 2P", monospace'
-    ctx.fillText('WANDERING MERCHANT', width / 2, 96)
+    ctx.fillText('WANDERING MERCHANT', width / 2, 68)
     ctx.fillStyle = '#f6b74a'
     ctx.font = '11px "Press Start 2P", monospace'
-    ctx.fillText(`GOLD ${this.save.gold}`, width / 2, 132)
+    ctx.fillText(`GOLD ${this.save.gold}`, width / 2, 104)
 
     items.forEach((item, i) => {
       const rect = this.shopRowRect(i)
@@ -1976,10 +2075,10 @@ export class CampaignScene extends Scene {
       ctx.textBaseline = 'top'
       ctx.fillStyle = affordable ? '#e8d4a0' : '#6a6480'
       ctx.font = '12px "Press Start 2P", monospace'
-      ctx.fillText(item.name, rect.x + 18, rect.y + 12)
+      ctx.fillText(item.name, rect.x + 18, rect.y + 8)
       ctx.fillStyle = affordable ? '#b7c7e6' : '#5a567a'
       ctx.font = '8px "Press Start 2P", monospace'
-      ctx.fillText(item.desc, rect.x + 18, rect.y + 34)
+      ctx.fillText(item.desc, rect.x + 18, rect.y + 27)
       if (item.id !== 'leave') {
         ctx.textAlign = 'right'
         ctx.fillStyle = affordable ? '#f6b74a' : '#7a5a2a'
@@ -2030,7 +2129,7 @@ export class CampaignScene extends Scene {
     stat('MAX HP', String(this.computeMaxHealth()))
     stat('ATTACK', `${this.computeDamageMult().toFixed(2)}x`)
     stat('DEFENSE', `-${Math.round((1 - this.computeDamageTakenMult()) * 100)}%`)
-    stat('MOVE SPD', `${(this.runMods.moveSpeedMultiplier * this.soulMods.moveSpeedMultiplier).toFixed(2)}x`)
+    stat('MOVE SPD', `${this.computeMoveSpeedMult().toFixed(2)}x`)
     stat('GOLD', String(this.save.gold), '#f6b74a')
     stat('HEARTS', String(this.hearts))
 
@@ -2081,7 +2180,78 @@ export class CampaignScene extends Scene {
     ctx.textAlign = 'center'
     ctx.fillStyle = '#5a567a'
     ctx.font = '9px "Press Start 2P", monospace'
-    ctx.fillText('I / K CLOSE', width / 2, height - 58)
+    const hint = this.save.equipment.length > 0 ? 'J EQUIPMENT     I / K CLOSE' : 'I / K CLOSE'
+    ctx.fillText(hint, width / 2, height - 58)
+    ctx.restore()
+  }
+
+  private equipRowRect(index: number): { x: number; y: number; w: number; h: number } {
+    const w = 620
+    const h = 56
+    const x = (this.ctx.width - w) / 2
+    const y = 150 + index * (h + 12)
+    return { x, y, w, h }
+  }
+
+  private drawEquipment(): void {
+    const { ctx } = this.ctx.renderer
+    const { width, height } = this.ctx
+    ctx.save()
+    ctx.fillStyle = 'rgba(6, 5, 12, 0.94)'
+    ctx.fillRect(0, 0, width, height)
+
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillStyle = '#e8d4a0'
+    ctx.font = '18px "Press Start 2P", monospace'
+    ctx.fillText('EQUIPMENT', width / 2, 84)
+    ctx.fillStyle = '#8a8aa0'
+    ctx.font = '8px "Press Start 2P", monospace'
+    ctx.fillText('A/D SWAP     W/S SLOT     K CLOSE', width / 2, 116)
+
+    EQUIP_SLOTS.forEach((slot, i) => {
+      const rect = this.equipRowRect(i)
+      const selected = i === this.equipSlotIndex
+      const equipped = this.save.equipped[slot]
+      const def = equipped ? getEquipment(equipped) : undefined
+      const ownedCount = equipmentForSlot(slot).filter((item) => this.save.equipment.includes(item.id)).length
+
+      ctx.fillStyle = selected ? 'rgba(40, 33, 56, 0.96)' : 'rgba(16, 24, 43, 0.82)'
+      ctx.fillRect(rect.x, rect.y, rect.w, rect.h)
+      ctx.strokeStyle = selected ? '#e8d4a0' : '#5a567a'
+      ctx.lineWidth = selected ? 3 : 2
+      ctx.strokeRect(rect.x, rect.y, rect.w, rect.h)
+
+      ctx.textAlign = 'left'
+      ctx.textBaseline = 'top'
+      ctx.fillStyle = '#8a8aa0'
+      ctx.font = '9px "Press Start 2P", monospace'
+      ctx.fillText(EQUIP_SLOT_LABELS[slot], rect.x + 18, rect.y + 12)
+      ctx.fillStyle = def ? '#e8d4a0' : '#6a6480'
+      ctx.font = '12px "Press Start 2P", monospace'
+      ctx.fillText(def ? def.name.toUpperCase() : '— EMPTY —', rect.x + 18, rect.y + 32)
+      if (def) {
+        ctx.textAlign = 'right'
+        ctx.fillStyle = '#b7c7e6'
+        ctx.font = '8px "Press Start 2P", monospace'
+        ctx.fillText(def.blurb, rect.x + rect.w - 18, rect.y + 12)
+      }
+      ctx.textAlign = 'right'
+      ctx.fillStyle = '#5a567a'
+      ctx.font = '8px "Press Start 2P", monospace'
+      ctx.fillText(`${ownedCount} OWNED`, rect.x + rect.w - 18, rect.y + 36)
+    })
+
+    // Live totals so the player sees the loadout's net effect while swapping.
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillStyle = '#f6b74a'
+    ctx.font = '9px "Press Start 2P", monospace'
+    ctx.fillText(
+      `HP ${this.computeMaxHealth()}    ATK ${this.computeDamageMult().toFixed(2)}x    DEF -${Math.round((1 - this.computeDamageTakenMult()) * 100)}%    SPD ${this.computeMoveSpeedMult().toFixed(2)}x`,
+      width / 2,
+      height - 54,
+    )
     ctx.restore()
   }
 }

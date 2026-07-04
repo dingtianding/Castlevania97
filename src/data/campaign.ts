@@ -3,6 +3,7 @@ import { armoredSkeleton, boneThrower, dracula1999, ghoul, juliusBelmont, sealGu
 import type { StageId } from './stages.ts'
 import { RELIC_POOL, type RelicId } from './relics.ts'
 import { SOUL_POOL } from './souls.ts'
+import { EQUIP_SLOTS, EQUIPMENT_POOL, getEquipment, type EquipmentDef, type EquipmentId, type EquipSlot } from './equipment.ts'
 
 const STORAGE_KEY = 'castlevania97.campaign.v1'
 
@@ -39,6 +40,10 @@ export interface CampaignSave {
   unlockedNodeIds: readonly string[]
   relicIds: readonly RelicId[]
   souls: readonly string[]
+  /** Owned equipment (SOTN-style inventory). */
+  equipment: readonly EquipmentId[]
+  /** Currently equipped piece per slot; an absent slot is empty. */
+  equipped: Partial<Record<EquipSlot, EquipmentId>>
   level: number
   xp: number
   gold: number
@@ -277,6 +282,8 @@ export function initialCampaignSave(): CampaignSave {
     unlockedNodeIds: firstChapter.nodeIds.slice(0, 1),
     relicIds: [],
     souls: [],
+    equipment: [],
+    equipped: {},
     level: 1,
     xp: 0,
     gold: 0,
@@ -299,6 +306,43 @@ export function addCampaignSoul(save: CampaignSave, soulId: string): CampaignSav
   const next: CampaignSave = { ...save, souls: [...save.souls, soulId] }
   saveCampaignSave(next)
   return next
+}
+
+/** Add a piece to the inventory and auto-equip it if its slot is empty. */
+export function addCampaignEquipment(save: CampaignSave, id: EquipmentId): CampaignSave {
+  const def = getEquipment(id)
+  if (!def || save.equipment.includes(id)) return save
+  const equipped = save.equipped[def.slot] ? save.equipped : { ...save.equipped, [def.slot]: id }
+  const next: CampaignSave = { ...save, equipment: [...save.equipment, id], equipped }
+  saveCampaignSave(next)
+  return next
+}
+
+/** Equip an owned piece into its slot (replacing whatever occupied it). */
+export function equipCampaignItem(save: CampaignSave, id: EquipmentId): CampaignSave {
+  const def = getEquipment(id)
+  if (!def || !save.equipment.includes(id)) return save
+  if (save.equipped[def.slot] === id) return save
+  const next: CampaignSave = { ...save, equipped: { ...save.equipped, [def.slot]: id } }
+  saveCampaignSave(next)
+  return next
+}
+
+/** Clear a slot so nothing is equipped there. */
+export function unequipCampaignSlot(save: CampaignSave, slot: EquipSlot): CampaignSave {
+  if (!save.equipped[slot]) return save
+  const equipped = { ...save.equipped }
+  delete equipped[slot]
+  const next: CampaignSave = { ...save, equipped }
+  saveCampaignSave(next)
+  return next
+}
+
+/** Resolve the equipped loadout into concrete defs for stat aggregation. */
+export function equippedDefs(save: CampaignSave): EquipmentDef[] {
+  return EQUIP_SLOTS.map((slot) => save.equipped[slot])
+    .map((id) => (id ? getEquipment(id) : undefined))
+    .filter((def): def is EquipmentDef => Boolean(def))
 }
 
 export function loadCampaignSave(): CampaignSave {
@@ -377,6 +421,8 @@ export function completeCampaignBattle(save: CampaignSave): CampaignSave {
     unlockedNodeIds: Array.from(unlocked),
     relicIds: save.relicIds,
     souls: save.souls,
+    equipment: save.equipment,
+    equipped: save.equipped,
     level: save.level,
     xp: save.xp,
     gold: save.gold,
@@ -444,6 +490,8 @@ function sanitizeCampaignSave(value: Partial<CampaignSave>): CampaignSave {
     unlockedNodeIds: unlocked,
     relicIds: filterRelics(value.relicIds),
     souls: filterSouls(value.souls),
+    equipment: filterEquipment(value.equipment),
+    equipped: filterEquipped(value.equipped, filterEquipment(value.equipment)),
     level: clampNumber(value.level, 1, MAX_LEVEL, 1),
     xp: clampNumber(value.xp, 0, Number.MAX_SAFE_INTEGER, 0),
     gold: clampNumber(value.gold, 0, Number.MAX_SAFE_INTEGER, 0),
@@ -469,6 +517,29 @@ function filterSouls(value: readonly string[] | undefined): string[] {
   if (!Array.isArray(value)) return []
   const valid = new Set(SOUL_POOL.map((soul) => soul.id))
   return value.filter((entry): entry is string => typeof entry === 'string' && valid.has(entry))
+}
+
+function filterEquipment(value: readonly EquipmentId[] | undefined): EquipmentId[] {
+  if (!Array.isArray(value)) return []
+  const valid = new Set(EQUIPMENT_POOL.map((item) => item.id))
+  return value.filter((entry): entry is EquipmentId => valid.has(entry))
+}
+
+/** Keep only equipped ids that are owned and whose slot matches their def. */
+function filterEquipped(
+  value: Partial<Record<EquipSlot, EquipmentId>> | undefined,
+  owned: readonly EquipmentId[],
+): Partial<Record<EquipSlot, EquipmentId>> {
+  const result: Partial<Record<EquipSlot, EquipmentId>> = {}
+  if (!value || typeof value !== 'object') return result
+  const ownedSet = new Set(owned)
+  for (const slot of EQUIP_SLOTS) {
+    const id = value[slot]
+    if (!id || !ownedSet.has(id)) continue
+    const def = getEquipment(id)
+    if (def && def.slot === slot) result[slot] = id
+  }
+  return result
 }
 
 function filterExisting(value: readonly string[] | undefined): string[] {
