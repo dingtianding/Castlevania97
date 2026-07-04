@@ -51,6 +51,11 @@ const DEATH_FADE_TICKS = 22
 const ROOM_CLEAR_AUTO_ADVANCE_TICKS = 240
 const DEFEAT_RETRY_TICKS = 120
 const BOSS_INTRO_TICKS = 120 // cinematic name-reveal pause when a boss room starts
+// Global shrink applied uniformly to every campaign actor's on-screen size and
+// hit target (Julius, enemies, and bosses) for a tighter classic-Castlevania read.
+// Feet stay planted because anchorY is scaled at draw time; attack reach is data
+// (absolute px) so it is intentionally left untouched.
+const ACTOR_SCALE = 0.8
 const STARTING_HEARTS = 10
 const MAX_HEARTS = 99
 const SUBWEAPON_ORDER = ['dagger', 'axe', 'cross', 'holyWater', 'stopwatch'] as const
@@ -665,8 +670,8 @@ class CastleActor {
     const alpha = enraged ? 0.34 + 0.18 * Math.sin(this.glowPhase * 0.18) : 0.42
     const { ctx } = renderer
     const gx = this.position.x - cameraX
-    const gy = this.position.y - this.def.visual.hurtbox.height * 0.5
-    const radius = this.def.visual.hurtbox.width * (enraged ? 1.1 : 0.95)
+    const gy = this.position.y - this.def.visual.hurtbox.height * ACTOR_SCALE * 0.5
+    const radius = this.def.visual.hurtbox.width * ACTOR_SCALE * (enraged ? 1.1 : 0.95)
     const gradient = ctx.createRadialGradient(gx, gy, 0, gx, gy, radius)
     gradient.addColorStop(0, `rgba(${rgb}, ${alpha})`)
     gradient.addColorStop(1, `rgba(${rgb}, 0)`)
@@ -687,8 +692,8 @@ class CastleActor {
   }
 
   private renderScale(): number {
-    if (this.def.id === 'juliusBelmont' && this.state === 'attack') return 0.84
-    return this.def.visual.scale
+    if (this.def.id === 'juliusBelmont' && this.state === 'attack') return 0.84 * ACTOR_SCALE
+    return this.def.visual.scale * ACTOR_SCALE
   }
 
   private renderAnchorY(): number {
@@ -704,7 +709,8 @@ class CastleActor {
   }
 
   hurtbox(): Rect {
-    const { width, height } = this.def.visual.hurtbox
+    const width = this.def.visual.hurtbox.width * ACTOR_SCALE
+    const height = this.def.visual.hurtbox.height * ACTOR_SCALE
     return { x: this.position.x - width / 2, y: this.position.y - height, width, height }
   }
 
