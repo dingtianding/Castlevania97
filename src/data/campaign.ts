@@ -38,6 +38,8 @@ export interface CampaignSave {
   currentNodeId: string | null
   completedNodeIds: readonly string[]
   unlockedNodeIds: readonly string[]
+  /** Rooms the player has entered — drives fog-of-war on the castle map. */
+  visitedNodeIds: readonly string[]
   relicIds: readonly RelicId[]
   souls: readonly string[]
   /** Owned equipment (SOTN-style inventory). */
@@ -280,6 +282,7 @@ export function initialCampaignSave(): CampaignSave {
     currentNodeId: firstChapter.nodeIds[0] ?? null,
     completedNodeIds: [],
     unlockedNodeIds: firstChapter.nodeIds.slice(0, 1),
+    visitedNodeIds: firstChapter.nodeIds.slice(0, 1),
     relicIds: [],
     souls: [],
     equipment: [],
@@ -292,6 +295,14 @@ export function initialCampaignSave(): CampaignSave {
     armorTier: 0,
     finished: false,
   }
+}
+
+/** Record that the player has entered a room, revealing it on the castle map. */
+export function markCampaignVisited(save: CampaignSave, nodeId: string): CampaignSave {
+  if (save.visitedNodeIds.includes(nodeId)) return save
+  const next: CampaignSave = { ...save, visitedNodeIds: [...save.visitedNodeIds, nodeId] }
+  saveCampaignSave(next)
+  return next
 }
 
 export function addCampaignRelic(save: CampaignSave, relicId: RelicId): CampaignSave {
@@ -419,6 +430,7 @@ export function completeCampaignBattle(save: CampaignSave): CampaignSave {
     currentNodeId,
     completedNodeIds: Array.from(completed),
     unlockedNodeIds: Array.from(unlocked),
+    visitedNodeIds: save.visitedNodeIds,
     relicIds: save.relicIds,
     souls: save.souls,
     equipment: save.equipment,
@@ -483,11 +495,18 @@ function sanitizeCampaignSave(value: Partial<CampaignSave>): CampaignSave {
         ? value.currentNodeId
         : chapterDef.nodeIds[0] ?? null
 
+  // Reveal at least everything cleared plus the current room, so saves made
+  // before the map existed still show sensible fog-of-war.
+  const visited = new Set(filterExisting(value.visitedNodeIds))
+  completed.forEach((id) => visited.add(id))
+  if (currentNodeId) visited.add(currentNodeId)
+
   return {
     chapterId: chapterDef.id,
     currentNodeId,
     completedNodeIds: completed,
     unlockedNodeIds: unlocked,
+    visitedNodeIds: Array.from(visited),
     relicIds: filterRelics(value.relicIds),
     souls: filterSouls(value.souls),
     equipment: filterEquipment(value.equipment),

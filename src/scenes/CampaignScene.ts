@@ -4,7 +4,8 @@ import { ModeSelectScene } from './ModeSelectScene.ts'
 import { PauseScene } from './PauseScene.ts'
 import { AssetManager } from '../assets/AssetManager.ts'
 import { AUDIO_MANIFEST } from '../assets/manifest.ts'
-import { addCampaignEquipment, addCampaignRelic, addCampaignSoul, completeCampaignBattle, equipCampaignItem, equippedDefs, getCampaignChapter, getCampaignNode, grantCampaignRewards, loadCampaignSave, MAX_LEVEL, saveCampaignSave, unequipCampaignSlot, xpForNextLevel } from '../data/campaign.ts'
+import { addCampaignEquipment, addCampaignRelic, addCampaignSoul, completeCampaignBattle, equipCampaignItem, equippedDefs, getCampaignChapter, getCampaignNode, grantCampaignRewards, loadCampaignSave, markCampaignVisited, MAX_LEVEL, saveCampaignSave, unequipCampaignSlot, xpForNextLevel } from '../data/campaign.ts'
+import { CASTLE_CELLS, CASTLE_ROOM_IDS, castleDoors, castleGridBounds, castleNeighbor, isBossRoom, type MapDir } from '../data/castleMap.ts'
 import { buildEquipmentModifiers, EQUIP_SLOT_LABELS, EQUIP_SLOTS, equipmentForSlot, EQUIPMENT_POOL, getEquipment, type EquipmentDef, type EquipmentModifiers } from '../data/equipment.ts'
 import { buildRunModifiers, draftRelics, RELIC_POOL, type RelicDef, type RelicId, type RunModifiers } from '../data/relics.ts'
 import { buildSoulModifiers, getSoul, soulForEnemy, SOUL_POOL, type SoulDef, type SoulModifiers } from '../data/souls.ts'
@@ -791,6 +792,8 @@ export class CampaignScene extends Scene {
   private shopIndex = 0
   private showStatus = false
   private showEquipment = false
+  private showMap = false
+  private mapCursorId = ''
   private equipSlotIndex = 0
   private pendingNodeId: string | null = null
   private readonly attackingLastTick = new Set<CastleActor>()
@@ -880,10 +883,31 @@ export class CampaignScene extends Scene {
       }
       return
     }
-    if ((e.code === 'KeyI' || e.code === 'Tab') && !this.ending && !this.drafting && !this.shopping && this.defeatTicks === 0) {
-      e.preventDefault()
-      this.showStatus = true
+    if (this.showMap) {
+      const dir = mapDirForKey(e.code)
+      if (dir) {
+        e.preventDefault()
+        this.moveMapCursor(dir)
+        return
+      }
+      if (e.code === 'Space' || e.code === 'Escape' || isMenuCancel(e.code) || isMenuConfirm(e.code)) {
+        e.preventDefault()
+        this.showMap = false
+      }
       return
+    }
+    // Start (Enter) opens the character menu; Select (Space) opens the castle map.
+    if (this.canOpenOverlay) {
+      if (e.code === 'Space') {
+        e.preventDefault()
+        this.openMap()
+        return
+      }
+      if (e.code === 'Enter' || e.code === 'KeyI' || e.code === 'Tab') {
+        e.preventDefault()
+        this.showStatus = true
+        return
+      }
     }
     if (this.ending && (isMenuConfirm(e.code) || isMenuCancel(e.code))) {
       e.preventDefault()
@@ -964,7 +988,7 @@ export class CampaignScene extends Scene {
     this.blink += 1
     if (this.flashTicks > 0) this.flashTicks -= 1
     if (this.contactHitCooldown > 0) this.contactHitCooldown -= 1
-    if (this.ending || this.drafting || this.shopping || this.showStatus || this.showEquipment) return
+    if (this.ending || this.drafting || this.shopping || this.showStatus || this.showEquipment || this.showMap) return
     if (this.defeatTicks > 0) {
       this.defeatTicks += 1
       if (this.defeatTicks > DEFEAT_RETRY_TICKS) this.reloadNode(this.node.id, true)
@@ -1089,6 +1113,7 @@ export class CampaignScene extends Scene {
     if (this.ending) this.drawEnding()
     else if (this.drafting) this.drawDraft()
     else if (this.shopping) this.drawShop()
+    else if (this.showMap) this.drawMap()
     else if (this.showEquipment) this.drawEquipment()
     else if (this.showStatus) this.drawStatus()
     else if (this.defeatTicks > 0) this.drawDefeat()
@@ -1109,6 +1134,28 @@ export class CampaignScene extends Scene {
 
   private get isRoomClear(): boolean {
     return !this.player.isDead && this.enemies.length > 0 && this.enemies.every((enemy) => enemy.isDead)
+  }
+
+  /** True when the room is in normal play, i.e. no blocking overlay is up. */
+  private get canOpenOverlay(): boolean {
+    return !this.ending && !this.drafting && !this.shopping && !this.showStatus && !this.showEquipment && this.defeatTicks === 0
+  }
+
+  private isRoomRevealed(nodeId: string): boolean {
+    return this.save.visitedNodeIds.includes(nodeId) || this.save.unlockedNodeIds.includes(nodeId)
+  }
+
+  private openMap(): void {
+    this.showMap = true
+    this.mapCursorId = this.node.id
+    this.ctx.audio.swing()
+  }
+
+  private moveMapCursor(dir: MapDir): void {
+    const next = castleNeighbor(this.mapCursorId, dir)
+    if (!next || !this.isRoomRevealed(next)) return
+    this.mapCursorId = next
+    this.ctx.audio.swing()
   }
 
   private get isCastleGateNode(): boolean {
@@ -1175,8 +1222,10 @@ export class CampaignScene extends Scene {
     this.rewardedDeaths.clear()
     this.floatingTexts = []
     this.attackingLastTick.clear()
+    this.showMap = false
     this.ending = false
     this.save = { ...this.save, currentNodeId: nodeId, finished: false }
+    this.save = markCampaignVisited(this.save, nodeId)
   }
 
   private resolveCombat(): void {
@@ -1845,8 +1894,8 @@ export class CampaignScene extends Scene {
     ctx.fillStyle = '#5a567a'
     ctx.font = '8px "Press Start 2P", monospace'
     ctx.textAlign = 'center'
-    ctx.fillText('A/D MOVE   W UP   J JUMP   ; DASH', this.ctx.width / 2, this.ctx.height - 38)
-    ctx.fillText('K ATTACK   W+K USE   L SWITCH   I STATUS   ESC PAUSE', this.ctx.width / 2, this.ctx.height - 22)
+    ctx.fillText('A/D MOVE   W UP   J JUMP   ; DASH   K ATTACK   W+K USE', this.ctx.width / 2, this.ctx.height - 38)
+    ctx.fillText('ENTER MENU   SPACE MAP   L SWITCH   ESC PAUSE', this.ctx.width / 2, this.ctx.height - 22)
     ctx.restore()
   }
 
@@ -2092,6 +2141,137 @@ export class CampaignScene extends Scene {
     ctx.fillStyle = '#5a567a'
     ctx.font = '9px "Press Start 2P", monospace'
     ctx.fillText('W/S MOVE     J BUY     K LEAVE', width / 2, height - 40)
+    ctx.restore()
+  }
+
+  private roomMapState(id: string): 'current' | 'completed' | 'visited' | 'known' | 'hidden' {
+    if (id === this.node.id) return 'current'
+    if (this.save.completedNodeIds.includes(id)) return 'completed'
+    if (this.save.visitedNodeIds.includes(id)) return 'visited'
+    if (this.save.unlockedNodeIds.includes(id)) return 'known'
+    return 'hidden'
+  }
+
+  private drawMap(): void {
+    const { ctx } = this.ctx.renderer
+    const { width, height } = this.ctx
+    ctx.save()
+    ctx.fillStyle = 'rgba(6, 5, 12, 0.94)'
+    ctx.fillRect(0, 0, width, height)
+    ctx.strokeStyle = '#5a567a'
+    ctx.lineWidth = 2
+    ctx.strokeRect(56, 36, width - 112, height - 84)
+
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'top'
+    ctx.fillStyle = '#e8d4a0'
+    ctx.font = '18px "Press Start 2P", monospace'
+    ctx.fillText('CASTLE MAP', width / 2, 56)
+    ctx.fillStyle = '#8a8aa0'
+    ctx.font = '9px "Press Start 2P", monospace'
+    ctx.fillText(this.chapter.title.toUpperCase(), width / 2, 84)
+
+    const bounds = castleGridBounds()
+    const cellW = 86
+    const cellH = 54
+    const gap = 30
+    const gridW = bounds.cols * cellW + (bounds.cols - 1) * gap
+    const originX = width / 2 - gridW / 2
+    const originY = 132
+    const pulse = 0.5 + 0.5 * Math.sin(this.blink * 0.12)
+
+    const cellRect = (id: string): { x: number; y: number } => {
+      const cell = CASTLE_CELLS[id]!
+      return {
+        x: originX + (cell.col - bounds.minCol) * (cellW + gap),
+        y: originY + (cell.row - bounds.minRow) * (cellH + gap),
+      }
+    }
+
+    // Corridors first, so room cells sit on top of the connecting stubs.
+    ctx.fillStyle = '#3a3658'
+    for (const id of CASTLE_ROOM_IDS) {
+      if (this.roomMapState(id) === 'hidden') continue
+      const { x, y } = cellRect(id)
+      const doors = castleDoors(id)
+      const neighborShown = (dir: MapDir): boolean => {
+        const n = castleNeighbor(id, dir)
+        return Boolean(n && this.roomMapState(n) !== 'hidden')
+      }
+      const cx = x + cellW / 2
+      const cy = y + cellH / 2
+      if (doors.e && neighborShown('e')) ctx.fillRect(x + cellW, cy - 4, gap, 8)
+      if (doors.w && neighborShown('w')) ctx.fillRect(x - gap, cy - 4, gap, 8)
+      if (doors.s && neighborShown('s')) ctx.fillRect(cx - 4, y + cellH, 8, gap)
+      if (doors.n && neighborShown('n')) ctx.fillRect(cx - 4, y - gap, 8, gap)
+    }
+
+    for (const id of CASTLE_ROOM_IDS) {
+      const state = this.roomMapState(id)
+      if (state === 'hidden') continue
+      const { x, y } = cellRect(id)
+      let fill = '#141428'
+      let border = '#4a4668'
+      if (state === 'current') {
+        fill = `rgba(232, 212, 160, ${0.5 + 0.4 * pulse})`
+        border = '#fff2cc'
+      } else if (state === 'completed') {
+        fill = '#243a5a'
+        border = '#6a86b8'
+      } else if (state === 'visited') {
+        fill = '#2a2340'
+        border = '#7a6ab0'
+      } else {
+        // known but never entered — a dim, dashed outline (fog just lifting).
+        fill = 'rgba(20, 20, 40, 0.4)'
+        border = '#4a4668'
+      }
+      ctx.fillStyle = fill
+      ctx.fillRect(x, y, cellW, cellH)
+      ctx.lineWidth = 2
+      ctx.strokeStyle = border
+      ctx.strokeRect(x, y, cellW, cellH)
+      // Boss rooms carry a red pip so their danger reads at a glance.
+      if (isBossRoom(id)) {
+        ctx.fillStyle = state === 'known' ? '#5a2226' : '#e0393a'
+        ctx.beginPath()
+        ctx.arc(x + cellW / 2, y + cellH / 2, 7, 0, Math.PI * 2)
+        ctx.fill()
+      }
+    }
+
+    // Cursor ring on the inspected room.
+    if (this.mapCursorId && this.roomMapState(this.mapCursorId) !== 'hidden') {
+      const { x, y } = cellRect(this.mapCursorId)
+      ctx.lineWidth = 2
+      ctx.strokeStyle = `rgba(246, 183, 74, ${0.55 + 0.45 * pulse})`
+      ctx.strokeRect(x - 5, y - 5, cellW + 10, cellH + 10)
+    }
+
+    // Inspected-room caption.
+    const cursorState = this.mapCursorId ? this.roomMapState(this.mapCursorId) : 'hidden'
+    ctx.textAlign = 'center'
+    if (cursorState !== 'hidden') {
+      const node = getCampaignNode(this.mapCursorId)
+      const label =
+        cursorState === 'current' ? 'YOU ARE HERE' :
+        cursorState === 'completed' ? 'CLEARED' :
+        cursorState === 'visited' ? 'EXPLORED' : 'NOT YET REACHED'
+      ctx.fillStyle = '#e8d4a0'
+      ctx.font = '11px "Press Start 2P", monospace'
+      ctx.fillText(node.title.toUpperCase(), width / 2, height - 108)
+      ctx.fillStyle = cursorState === 'current' ? '#f6b74a' : '#7a8ab0'
+      ctx.font = '8px "Press Start 2P", monospace'
+      ctx.fillText(label + (isBossRoom(this.mapCursorId) ? '   • BOSS' : ''), width / 2, height - 90)
+      ctx.fillStyle = '#8a8aa0'
+      ctx.textAlign = 'left'
+      wrapText(ctx, node.blurb, width / 2 - 240, height - 74, 480, 13, 2)
+      ctx.textAlign = 'center'
+    }
+
+    ctx.fillStyle = '#5a567a'
+    ctx.font = '8px "Press Start 2P", monospace'
+    ctx.fillText('ARROWS / WASD  MOVE      SPACE / K  CLOSE', width / 2, height - 40)
     ctx.restore()
   }
 
@@ -2748,6 +2928,26 @@ function spread(start: number, end: number, count: number): number[] {
   if (count <= 1) return [end]
   const step = (end - start) / Math.max(1, count - 1)
   return Array.from({ length: count }, (_unused, i) => Math.round(start + i * step))
+}
+
+/** Map an arrow/WASD key to a castle-map direction, or null for other keys. */
+function mapDirForKey(code: string): MapDir | null {
+  switch (code) {
+    case 'ArrowUp':
+    case 'KeyW':
+      return 'n'
+    case 'ArrowDown':
+    case 'KeyS':
+      return 's'
+    case 'ArrowLeft':
+    case 'KeyA':
+      return 'w'
+    case 'ArrowRight':
+    case 'KeyD':
+      return 'e'
+    default:
+      return null
+  }
 }
 
 function wrapText(
