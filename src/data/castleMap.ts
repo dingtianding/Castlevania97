@@ -18,33 +18,42 @@ export interface CastleCell {
 /** Grid coordinates per node id. Row 0 is the top of the castle. Every linked
  *  pair is exactly one orthogonal step apart so doors derive cleanly. */
 export const CASTLE_CELLS: Readonly<Record<string, CastleCell>> = {
-  // Chapter 1 — base of the castle (row 3), running left to right, with a
-  // reliquary tucked up off the library.
-  '1997-chapel': { col: 0, row: 3 },
-  '1997-nave': { col: 1, row: 3 },
-  '1997-library': { col: 2, row: 3 },
-  '1997-reliquary': { col: 2, row: 2 },
-  '1997-seal': { col: 3, row: 3 },
-  // Chapter 2 — climbs the right side (up off the seal) then runs left, with a
-  // flooded cistern pocket beside the catacombs.
-  '1998-catacombs': { col: 3, row: 2 },
-  '1998-cistern': { col: 4, row: 2 },
-  '1998-clock': { col: 3, row: 1 },
-  '1998-belfry': { col: 2, row: 1 },
-  '1998-archive': { col: 1, row: 1 },
-  // Chapter 3 — top floor (up off the archive), running to Dracula's gate, with
-  // a broken rampart branching off to the left.
-  '1999-wall': { col: 1, row: 0 },
-  '1999-rampart': { col: 0, row: 0 },
-  '1999-throne': { col: 2, row: 0 },
-  '1999-dracula': { col: 3, row: 0 },
-  // Chapter 4 — beyond the gate, sprawling right into the castle interior with
-  // a broken spire and a sunken vault dropping off the main hall.
-  'gate-ascent': { col: 4, row: 0 },
-  'gate-spire': { col: 4, row: 1 },
-  'gate-hall': { col: 5, row: 0 },
-  'gate-vault': { col: 5, row: 1 },
-  'gate-keep': { col: 6, row: 0 },
+  // Castle Corridor — the entrance spine along the base (row 6), with a dead-end
+  // alcove tucked up off the grand corridor.
+  'cor-entrance': { col: 0, row: 6 },
+  'cor-grand': { col: 1, row: 6 },
+  'cor-alcove': { col: 1, row: 5 },
+  'cor-skull': { col: 2, row: 6 },
+  // Underground Reservoir — continues along the base then drops a sunken cistern.
+  'res-descent': { col: 3, row: 6 },
+  'res-cistern': { col: 3, row: 5 },
+  'res-golem': { col: 4, row: 6 },
+  // Chapel — climbs the right side with a bell loft off the nave.
+  'chp-nave': { col: 4, row: 5 },
+  'chp-loft': { col: 5, row: 5 },
+  'chp-manticore': { col: 4, row: 4 },
+  // Study — runs left across the mid floor.
+  'std-reading': { col: 3, row: 4 },
+  'std-archive': { col: 2, row: 4 },
+  // Dance Hall — turns up on the left.
+  'dnc-ballroom': { col: 1, row: 4 },
+  'dnc-greatarmor': { col: 1, row: 3 },
+  // Inner Quarters — cuts back right.
+  'inr-servants': { col: 2, row: 3 },
+  'inr-headhunter': { col: 3, row: 3 },
+  // Clock Tower — a vertical climb up the middle.
+  'clk-ascent': { col: 3, row: 2 },
+  'clk-death': { col: 3, row: 1 },
+  // Floating Garden — spreads right up top with a sky bridge dead-end.
+  'grd-hanging': { col: 4, row: 1 },
+  'grd-skybridge': { col: 5, row: 1 },
+  'grd-legion': { col: 4, row: 0 },
+  // Top Floor — runs left along the summit.
+  'top-keep': { col: 3, row: 0 },
+  'top-antechamber': { col: 2, row: 0 },
+  // Forbidden Area — the final rooms at the top-left.
+  'fbd-gate': { col: 1, row: 0 },
+  'fbd-chaos': { col: 0, row: 0 },
 }
 
 /** Undirected adjacency built from every node's `nextIds`. */

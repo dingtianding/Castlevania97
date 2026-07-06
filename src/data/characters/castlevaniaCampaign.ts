@@ -667,3 +667,82 @@ export const dracula1999: CharacterDef = {
     },
   },
 }
+
+// Aria-of-Sorrow area bosses. Each reuses an existing sprite set and moveset
+// (the demon defs are large and carry supers; the armored knight is a bruiser)
+// but carries its own name, archetype, and bio so the boss bar and name-reveal
+// read as the authentic Aria encounter. Boss HP is tuned per node in
+// CampaignScene's campaignBossHealth.
+function cloneBoss(
+  base: CharacterDef,
+  id: string,
+  name: string,
+  archetype: string,
+  bio: string,
+): CharacterDef {
+  return { ...base, id, name, meta: { ...base.meta, archetype, bio } }
+}
+
+export const creakingSkull = cloneBoss(
+  armoredSkeleton,
+  'creakingSkull',
+  'CREAKING SKULL',
+  'CORRIDOR SENTINEL',
+  'A giant of stacked bone that guards the first corridor. Slow, but every swing is a wall.',
+)
+
+export const bigGolem = cloneBoss(
+  sealGuardian,
+  'bigGolem',
+  'BIG GOLEM',
+  'RESERVOIR GUARDIAN',
+  'A flooded colossus that rose from the reservoir. It closes fast and hits like a tide.',
+)
+
+export const manticore = cloneBoss(
+  sealGuardian,
+  'manticore',
+  'MANTICORE',
+  'CHAPEL BEAST',
+  'A winged horror nesting in the chapel rafters. It punishes anyone who stands still.',
+)
+
+export const greatArmor = cloneBoss(
+  armoredSkeleton,
+  'greatArmor',
+  'GREAT ARMOR',
+  'DANCE HALL KNIGHT',
+  'Empty ceremonial plate that still keeps the guard. Relentless with its heavy blade.',
+)
+
+export const headhunter = cloneBoss(
+  armoredSkeleton,
+  'headhunter',
+  'HEADHUNTER',
+  'INNER QUARTERS STALKER',
+  'A trophy-taker that hunts the inner quarters. Trades blows and takes heads.',
+)
+
+export const death = cloneBoss(
+  dracula1999,
+  'death',
+  'DEATH',
+  'THE REAPER',
+  'The castle’s oldest servant, waiting at the top of the clock. Reach, damage, and no mercy.',
+)
+
+export const legion = cloneBoss(
+  sealGuardian,
+  'legion',
+  'LEGION',
+  'GARDEN HORDE',
+  'A single body woven from many, adrift in the floating garden. It never stops coming.',
+)
+
+export const chaos = cloneBoss(
+  dracula1999,
+  'chaos',
+  'CHAOS',
+  'FORBIDDEN ONE',
+  'The shape the castle keeps in its forbidden heart — the war itself, two years too soon.',
+)

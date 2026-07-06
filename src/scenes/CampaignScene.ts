@@ -1159,7 +1159,7 @@ export class CampaignScene extends Scene {
   }
 
   private get isCastleGateNode(): boolean {
-    return this.node.id === '1999-dracula'
+    return this.node.id === 'fbd-gate'
   }
 
   private bindInput(): void {
@@ -2502,10 +2502,17 @@ function campaignEnemySpeed(enemyId: string): number {
 }
 
 function campaignBossHealth(nodeId: string): number {
-  if (nodeId === '1997-seal') return 210
-  if (nodeId === '1999-dracula') return 240
-  if (nodeId === 'gate-keep') return 300
-  return 180
+  const bossHp: Record<string, number> = {
+    'cor-skull': 200,
+    'res-golem': 240,
+    'chp-manticore': 230,
+    'dnc-greatarmor': 240,
+    'inr-headhunter': 250,
+    'clk-death': 280,
+    'grd-legion': 270,
+    'fbd-chaos': 340,
+  }
+  return bossHp[nodeId] ?? 180
 }
 
 function campaignEnemyCount(enemyId: string, difficulty: 'easy' | 'normal' | 'hard'): number {
