@@ -2504,6 +2504,7 @@ function campaignEnemySpeed(enemyId: string): number {
 function campaignBossHealth(nodeId: string): number {
   if (nodeId === '1997-seal') return 210
   if (nodeId === '1999-dracula') return 240
+  if (nodeId === 'gate-keep') return 300
   return 180
 }
 

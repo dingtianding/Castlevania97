@@ -38,6 +38,13 @@ export const CASTLE_CELLS: Readonly<Record<string, CastleCell>> = {
   '1999-rampart': { col: 0, row: 0 },
   '1999-throne': { col: 2, row: 0 },
   '1999-dracula': { col: 3, row: 0 },
+  // Chapter 4 — beyond the gate, sprawling right into the castle interior with
+  // a broken spire and a sunken vault dropping off the main hall.
+  'gate-ascent': { col: 4, row: 0 },
+  'gate-spire': { col: 4, row: 1 },
+  'gate-hall': { col: 5, row: 0 },
+  'gate-vault': { col: 5, row: 1 },
+  'gate-keep': { col: 6, row: 0 },
 }
 
 /** Undirected adjacency built from every node's `nextIds`. */
