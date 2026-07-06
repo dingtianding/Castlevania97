@@ -2172,12 +2172,18 @@ export class CampaignScene extends Scene {
     ctx.fillText(this.chapter.title.toUpperCase(), width / 2, 84)
 
     const bounds = castleGridBounds()
-    const cellW = 86
-    const cellH = 54
-    const gap = 30
+    // Fit the whole castle into the panel, scaling cells to the grid size so the
+    // map stays readable however many rooms exist.
+    const areaTop = 108
+    const availW = width - 220
+    const availH = height - 120 - areaTop
+    const gap = 22
+    const cellW = Math.min(90, (availW - (bounds.cols - 1) * gap) / bounds.cols)
+    const cellH = Math.min(56, (availH - (bounds.rows - 1) * gap) / bounds.rows)
     const gridW = bounds.cols * cellW + (bounds.cols - 1) * gap
+    const gridH = bounds.rows * cellH + (bounds.rows - 1) * gap
     const originX = width / 2 - gridW / 2
-    const originY = 132
+    const originY = areaTop + (availH - gridH) / 2
     const pulse = 0.5 + 0.5 * Math.sin(this.blink * 0.12)
 
     const cellRect = (id: string): { x: number; y: number } => {

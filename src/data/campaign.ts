@@ -100,7 +100,7 @@ export const CAMPAIGN_CHAPTERS: readonly CampaignChapterDef[] = [
       'In 1997, a younger Julius Belmont follows his first true lead: graves opened without tracks, bells ringing with no wind, and old seals warming beneath ruined chapels.',
     outro:
       'Julius seals the first breach and learns the disturbance is not random. Someone is testing the locks two years before the great war begins.',
-    nodeIds: ['1997-chapel', '1997-library', '1997-seal'],
+    nodeIds: ['1997-chapel', '1997-nave', '1997-library', '1997-reliquary', '1997-seal'],
   },
   {
     id: '1998-ash',
@@ -110,7 +110,7 @@ export const CAMPAIGN_CHAPTERS: readonly CampaignChapterDef[] = [
       'The trail widens across the same dark year. Forgotten orders, old pages, and a broken chain of priests point Julius toward the hands preparing Dracula’s return.',
     outro:
       'The second seal falls. Julius is still too early for the war, but no longer too young to understand what is coming.',
-    nodeIds: ['1998-catacombs', '1998-clock', '1998-archive'],
+    nodeIds: ['1998-catacombs', '1998-cistern', '1998-clock', '1998-belfry', '1998-archive'],
   },
   {
     id: '1999-war',
@@ -120,7 +120,7 @@ export const CAMPAIGN_CHAPTERS: readonly CampaignChapterDef[] = [
       'The last omen of 1997 pulls Julius toward a forbidden horizon. The signs no longer point to villages or crypts. They point to the place the Belmonts will one day have to enter.',
     outro:
       'Julius survives the omen and carries its warning forward. The war is still ahead, but the young Belmont has seen where the final road will end.',
-    nodeIds: ['1999-wall', '1999-throne', '1999-dracula'],
+    nodeIds: ['1999-wall', '1999-rampart', '1999-throne', '1999-dracula'],
   },
 ]
 
@@ -136,8 +136,23 @@ export const CAMPAIGN_NODES: readonly CampaignNodeDef[] = [
     stage: 'cathedral',
     enemy: skeleton,
     difficulty: 'easy',
-    nextIds: ['1997-library'],
+    nextIds: ['1997-nave'],
     position: { x: 160, y: 220 },
+  },
+  {
+    id: '1997-nave',
+    chapterId: '1997-dusk',
+    title: 'Shattered Nave',
+    year: 1997,
+    blurb: 'The chapel’s broken nave, where fallen bells still toll for no one.',
+    story:
+      'Julius presses past the collapsed transept. The dead here rose only days ago, and something is driving them toward the sealed annex deeper in.',
+    stage: 'cathedral',
+    enemy: skeleton,
+    extraEnemies: [{ def: ghoul, count: 1 }],
+    difficulty: 'easy',
+    nextIds: ['1997-library'],
+    position: { x: 260, y: 200 },
   },
   {
     id: '1997-library',
@@ -151,8 +166,23 @@ export const CAMPAIGN_NODES: readonly CampaignNodeDef[] = [
     enemy: zombie,
     extraEnemies: [{ def: ghoul, count: 2 }],
     difficulty: 'normal',
-    nextIds: ['1997-seal'],
+    nextIds: ['1997-reliquary', '1997-seal'],
     position: { x: 390, y: 150 },
+  },
+  {
+    id: '1997-reliquary',
+    chapterId: '1997-dusk',
+    title: 'Hidden Reliquary',
+    year: 1997,
+    blurb: 'A concealed vault of relics the cult tried, and failed, to empty.',
+    story:
+      'Behind a false shelf lies a reliquary the old priests died protecting. Julius clears its wardens and recovers what the enemy came here to steal.',
+    stage: 'library',
+    enemy: zombie,
+    extraEnemies: [{ def: boneThrower, count: 1 }],
+    difficulty: 'normal',
+    nextIds: [],
+    position: { x: 390, y: 60 },
   },
   {
     id: '1997-seal',
@@ -181,8 +211,23 @@ export const CAMPAIGN_NODES: readonly CampaignNodeDef[] = [
     enemy: zombie,
     extraEnemies: [{ def: armoredSkeleton, count: 1 }],
     difficulty: 'normal',
-    nextIds: ['1998-clock'],
+    nextIds: ['1998-cistern', '1998-clock'],
     position: { x: 160, y: 220 },
+  },
+  {
+    id: '1998-cistern',
+    chapterId: '1998-ash',
+    title: 'Flooded Cistern',
+    year: 1997,
+    blurb: 'A drowned cistern beneath the catacombs where the water never stills.',
+    story:
+      'The cult moved relics through the flooded cistern to hide their trail. Julius wades its length and cuts down the guards left behind to sink the evidence.',
+    stage: 'catacombs',
+    enemy: zombie,
+    extraEnemies: [{ def: armoredSkeleton, count: 1 }],
+    difficulty: 'normal',
+    nextIds: [],
+    position: { x: 240, y: 300 },
   },
   {
     id: '1998-clock',
@@ -196,8 +241,23 @@ export const CAMPAIGN_NODES: readonly CampaignNodeDef[] = [
     enemy: skeleton,
     extraEnemies: [{ def: ghoul, count: 2 }, { def: boneThrower, count: 1 }],
     difficulty: 'hard',
-    nextIds: ['1998-archive'],
+    nextIds: ['1998-belfry'],
     position: { x: 400, y: 150 },
+  },
+  {
+    id: '1998-belfry',
+    chapterId: '1998-ash',
+    title: 'Iron Belfry',
+    year: 1997,
+    blurb: 'The clock tower’s belfry, a cage of swinging iron over the long drop.',
+    story:
+      'Above the gears hangs the belfry, its bells rigged to sound the cult’s countdown. Julius silences them one strike at a time before the toll can carry.',
+    stage: 'clock_tower',
+    enemy: skeleton,
+    extraEnemies: [{ def: boneThrower, count: 1 }, { def: ghoul, count: 1 }],
+    difficulty: 'hard',
+    nextIds: ['1998-archive'],
+    position: { x: 500, y: 90 },
   },
   {
     id: '1998-archive',
@@ -226,8 +286,23 @@ export const CAMPAIGN_NODES: readonly CampaignNodeDef[] = [
     enemy: skeleton,
     extraEnemies: [{ def: armoredSkeleton, count: 1 }],
     difficulty: 'hard',
-    nextIds: ['1999-throne'],
+    nextIds: ['1999-rampart', '1999-throne'],
     position: { x: 150, y: 210 },
+  },
+  {
+    id: '1999-rampart',
+    chapterId: '1999-war',
+    year: 1997,
+    title: 'Broken Rampart',
+    blurb: 'A crumbling rampart off the causeway, exposed to the storm and the watchers.',
+    story:
+      'Julius takes the high rampart to break the enemy’s sightline on the road below. The defenders posted here are the last to hold any real discipline.',
+    stage: 'outer_wall',
+    enemy: skeleton,
+    extraEnemies: [{ def: armoredSkeleton, count: 1 }],
+    difficulty: 'hard',
+    nextIds: [],
+    position: { x: 60, y: 120 },
   },
   {
     id: '1999-throne',

@@ -18,18 +18,26 @@ export interface CastleCell {
 /** Grid coordinates per node id. Row 0 is the top of the castle. Every linked
  *  pair is exactly one orthogonal step apart so doors derive cleanly. */
 export const CASTLE_CELLS: Readonly<Record<string, CastleCell>> = {
-  // Chapter 1 — base of the castle, left to right.
-  '1997-chapel': { col: 0, row: 2 },
-  '1997-library': { col: 1, row: 2 },
-  '1997-seal': { col: 2, row: 2 },
-  // Chapter 2 — one floor up, running back right to left.
-  '1998-catacombs': { col: 2, row: 1 },
-  '1998-clock': { col: 1, row: 1 },
-  '1998-archive': { col: 0, row: 1 },
-  // Chapter 3 — top floor, left to right to the gate.
-  '1999-wall': { col: 0, row: 0 },
-  '1999-throne': { col: 1, row: 0 },
-  '1999-dracula': { col: 2, row: 0 },
+  // Chapter 1 — base of the castle (row 3), running left to right, with a
+  // reliquary tucked up off the library.
+  '1997-chapel': { col: 0, row: 3 },
+  '1997-nave': { col: 1, row: 3 },
+  '1997-library': { col: 2, row: 3 },
+  '1997-reliquary': { col: 2, row: 2 },
+  '1997-seal': { col: 3, row: 3 },
+  // Chapter 2 — climbs the right side (up off the seal) then runs left, with a
+  // flooded cistern pocket beside the catacombs.
+  '1998-catacombs': { col: 3, row: 2 },
+  '1998-cistern': { col: 4, row: 2 },
+  '1998-clock': { col: 3, row: 1 },
+  '1998-belfry': { col: 2, row: 1 },
+  '1998-archive': { col: 1, row: 1 },
+  // Chapter 3 — top floor (up off the archive), running to Dracula's gate, with
+  // a broken rampart branching off to the left.
+  '1999-wall': { col: 1, row: 0 },
+  '1999-rampart': { col: 0, row: 0 },
+  '1999-throne': { col: 2, row: 0 },
+  '1999-dracula': { col: 3, row: 0 },
 }
 
 /** Undirected adjacency built from every node's `nextIds`. */
