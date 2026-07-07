@@ -45,6 +45,10 @@ const WALL_MARGIN = 48
 const HURT_TICKS = 20
 const INVULNERABLE_TICKS = 72
 const DEBUG_HITBOXES = new URLSearchParams(location.search).has('hitbox')
+// GBA-style downscale of the game world. Disable with ?nopixel for the crisp
+// high-res look; PIXELATE_FACTOR ~3 lands near the GBA's 240x160 chunkiness.
+const GBA_PIXELATE = !new URLSearchParams(location.search).has('nopixel')
+const PIXELATE_FACTOR = 3
 const CONTACT_HIT_COOLDOWN = 24
 const BIG_HIT_FLASH_TICKS = 10
 const SPIKE_DAMAGE = 14
@@ -1192,6 +1196,9 @@ export class CampaignScene extends Scene {
     ctx.fillRect(0, 0, width, height)
     drawBackdrop(ctx, this.node.stage, this.isCastleGateNode)
     this.drawWorld()
+    // Crush the rendered world down to a GBA-style resolution + 15-bit palette,
+    // then draw the crisp HUD/menus on top (so text stays readable).
+    if (GBA_PIXELATE) pixelateWorld(renderer)
     this.drawHud()
     if (this.ending) this.drawEnding()
     else if (this.perkChoosing) this.drawPerkChoice()
@@ -3142,6 +3149,40 @@ function drawBone(bone: EnemyBone, renderer: Renderer, cameraX: number): void {
   ctx.fillRect(5, -5, 6, 10)
   ctx.strokeRect(5, -5, 6, 10)
   ctx.restore()
+}
+
+// Reused offscreen buffer for the GBA downscale so we don't allocate per frame.
+let _pixelBuf: HTMLCanvasElement | null = null
+
+/** Downscale the whole canvas to a low resolution, quantize to 15-bit color,
+ *  and blit it back nearest-neighbor — a GBA-style crunch of everything drawn
+ *  so far. Called after the world and before the HUD so text stays sharp. */
+function pixelateWorld(renderer: Renderer): void {
+  const { canvas, ctx, width, height } = renderer
+  const w = Math.max(1, Math.floor(width / PIXELATE_FACTOR))
+  const h = Math.max(1, Math.floor(height / PIXELATE_FACTOR))
+  if (!_pixelBuf) _pixelBuf = document.createElement('canvas')
+  const buf = _pixelBuf
+  if (buf.width !== w || buf.height !== h) {
+    buf.width = w
+    buf.height = h
+  }
+  const bctx = buf.getContext('2d', { willReadFrequently: true })
+  if (!bctx) return
+  bctx.imageSmoothingEnabled = false
+  bctx.clearRect(0, 0, w, h)
+  bctx.drawImage(canvas, 0, 0, width, height, 0, 0, w, h)
+  // Snap each channel to the GBA's 5-bits-per-channel palette for retro banding.
+  const img = bctx.getImageData(0, 0, w, h)
+  const d = img.data
+  for (let i = 0; i < d.length; i += 4) {
+    d[i] = d[i]! & 0xf8
+    d[i + 1] = d[i + 1]! & 0xf8
+    d[i + 2] = d[i + 2]! & 0xf8
+  }
+  bctx.putImageData(img, 0, 0)
+  ctx.imageSmoothingEnabled = false
+  ctx.drawImage(buf, 0, 0, w, h, 0, 0, width, height)
 }
 
 function soulBoltBox(bolt: SoulBolt): Rect {
