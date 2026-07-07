@@ -3,6 +3,7 @@ import { armoredSkeleton, bigGolem, boneThrower, chaos, creakingSkull, death, gh
 import type { StageId } from './stages.ts'
 import { RELIC_POOL, type RelicId } from './relics.ts'
 import { SOUL_POOL } from './souls.ts'
+import { POWERUP_POOL, type PowerUpId } from './powerups.ts'
 import { EQUIP_SLOTS, EQUIPMENT_POOL, getEquipment, type EquipmentDef, type EquipmentId, type EquipSlot } from './equipment.ts'
 
 const STORAGE_KEY = 'castlevania97.campaign.v1'
@@ -46,6 +47,8 @@ export interface CampaignSave {
   equipment: readonly EquipmentId[]
   /** Currently equipped piece per slot; an absent slot is empty. */
   equipped: Partial<Record<EquipSlot, EquipmentId>>
+  /** Level-up power-ups, stackable: perkId -> times chosen (see powerups.ts). */
+  perks: Readonly<Record<string, number>>
   level: number
   xp: number
   gold: number
@@ -607,6 +610,7 @@ export function initialCampaignSave(): CampaignSave {
     souls: [],
     equipment: [],
     equipped: {},
+    perks: {},
     level: 1,
     xp: 0,
     gold: 0,
@@ -621,6 +625,16 @@ export function initialCampaignSave(): CampaignSave {
 export function markCampaignVisited(save: CampaignSave, nodeId: string): CampaignSave {
   if (save.visitedNodeIds.includes(nodeId)) return save
   const next: CampaignSave = { ...save, visitedNodeIds: [...save.visitedNodeIds, nodeId] }
+  saveCampaignSave(next)
+  return next
+}
+
+/** Take a level-up power-up, stacking it on top of any prior copies. */
+export function addCampaignPerk(save: CampaignSave, perkId: PowerUpId): CampaignSave {
+  const next: CampaignSave = {
+    ...save,
+    perks: { ...save.perks, [perkId]: (save.perks[perkId] ?? 0) + 1 },
+  }
   saveCampaignSave(next)
   return next
 }
@@ -755,6 +769,7 @@ export function completeCampaignBattle(save: CampaignSave): CampaignSave {
     souls: save.souls,
     equipment: save.equipment,
     equipped: save.equipped,
+    perks: save.perks,
     level: save.level,
     xp: save.xp,
     gold: save.gold,
@@ -831,6 +846,7 @@ function sanitizeCampaignSave(value: Partial<CampaignSave>): CampaignSave {
     souls: filterSouls(value.souls),
     equipment: filterEquipment(value.equipment),
     equipped: filterEquipped(value.equipped, filterEquipment(value.equipment)),
+    perks: filterPerks(value.perks),
     level: clampNumber(value.level, 1, MAX_LEVEL, 1),
     xp: clampNumber(value.xp, 0, Number.MAX_SAFE_INTEGER, 0),
     gold: clampNumber(value.gold, 0, Number.MAX_SAFE_INTEGER, 0),
@@ -850,6 +866,18 @@ function filterRelics(value: readonly RelicId[] | undefined): RelicId[] {
   if (!Array.isArray(value)) return []
   const valid = new Set(RELIC_POOL.map((relic) => relic.id))
   return value.filter((entry): entry is RelicId => valid.has(entry))
+}
+
+function filterPerks(value: Readonly<Record<string, number>> | undefined): Record<string, number> {
+  const result: Record<string, number> = {}
+  if (!value || typeof value !== 'object') return result
+  const valid = new Set(POWERUP_POOL.map((perk) => perk.id))
+  for (const [id, count] of Object.entries(value)) {
+    if (valid.has(id as PowerUpId) && typeof count === 'number' && Number.isFinite(count) && count > 0) {
+      result[id] = Math.min(99, Math.floor(count))
+    }
+  }
+  return result
 }
 
 function filterSouls(value: readonly string[] | undefined): string[] {

@@ -4,7 +4,8 @@ import { ModeSelectScene } from './ModeSelectScene.ts'
 import { PauseScene } from './PauseScene.ts'
 import { AssetManager } from '../assets/AssetManager.ts'
 import { AUDIO_MANIFEST } from '../assets/manifest.ts'
-import { addCampaignEquipment, addCampaignRelic, addCampaignSoul, completeCampaignBattle, equipCampaignItem, equippedDefs, getCampaignChapter, getCampaignNode, grantCampaignRewards, loadCampaignSave, markCampaignVisited, MAX_LEVEL, saveCampaignSave, unequipCampaignSlot, xpForNextLevel } from '../data/campaign.ts'
+import { addCampaignEquipment, addCampaignPerk, addCampaignRelic, addCampaignSoul, completeCampaignBattle, equipCampaignItem, equippedDefs, getCampaignChapter, getCampaignNode, grantCampaignRewards, loadCampaignSave, markCampaignVisited, MAX_LEVEL, saveCampaignSave, unequipCampaignSlot, xpForNextLevel } from '../data/campaign.ts'
+import { draftPowerUps, powerUpStacks, type PowerUpDef } from '../data/powerups.ts'
 import { CASTLE_CELLS, CASTLE_ROOM_IDS, castleDoors, castleGridBounds, castleNeighbor, isBossRoom, type MapDir } from '../data/castleMap.ts'
 import { buildEquipmentModifiers, EQUIP_SLOT_LABELS, EQUIP_SLOTS, equipmentForSlot, EQUIPMENT_POOL, getEquipment, type EquipmentDef, type EquipmentModifiers } from '../data/equipment.ts'
 import { buildRunModifiers, draftRelics, RELIC_POOL, type RelicDef, type RelicId, type RunModifiers } from '../data/relics.ts'
@@ -50,7 +51,6 @@ const CRUMBLE_DELAY = 40
 const CRUMBLE_RESPAWN = 150
 const DEATH_HOLD_TICKS = 44 // let the death animation play, then fade the corpse
 const DEATH_FADE_TICKS = 22
-const ROOM_CLEAR_AUTO_ADVANCE_TICKS = 240
 const DEFEAT_RETRY_TICKS = 120
 const BOSS_INTRO_TICKS = 120 // cinematic name-reveal pause when a boss room starts
 // Global shrink applied uniformly to every campaign actor's on-screen size and
@@ -788,6 +788,10 @@ export class CampaignScene extends Scene {
   private drafting = false
   private draftOptions: RelicDef[] = []
   private draftIndex = 0
+  private perkChoosing = false
+  private perkOptions: PowerUpDef[] = []
+  private perkIndex = 0
+  private pendingLevelUps = 0
   private shopping = false
   private shopIndex = 0
   private showStatus = false
@@ -815,6 +819,24 @@ export class CampaignScene extends Scene {
       if (isMenuConfirm(e.code)) {
         e.preventDefault()
         this.pickDraft()
+      }
+      return
+    }
+    if (this.perkChoosing) {
+      if (this.perkOptions.length === 0) return
+      if (e.code === 'KeyA' || e.code === 'ArrowLeft') {
+        e.preventDefault()
+        this.perkIndex = (this.perkIndex - 1 + this.perkOptions.length) % this.perkOptions.length
+        return
+      }
+      if (e.code === 'KeyD' || e.code === 'ArrowRight') {
+        e.preventDefault()
+        this.perkIndex = (this.perkIndex + 1) % this.perkOptions.length
+        return
+      }
+      if (isMenuConfirm(e.code)) {
+        e.preventDefault()
+        this.pickPerk()
       }
       return
     }
@@ -926,11 +948,6 @@ export class CampaignScene extends Scene {
         return
       }
     }
-    if (!this.ending && this.isRoomClear && isMenuConfirm(e.code)) {
-      e.preventDefault()
-      this.advanceRoom()
-      return
-    }
     if (e.code === 'Escape') {
       e.preventDefault()
       this.ctx.scenes.push(new PauseScene(this.ctx))
@@ -951,6 +968,18 @@ export class CampaignScene extends Scene {
       if (hit >= 0) {
         this.shopIndex = hit
         this.buyShopItem()
+      }
+      return
+    }
+    if (this.perkChoosing && this.perkOptions.length > 0) {
+      const layout = this.perkLayout()
+      const hit = this.perkOptions.findIndex((_opt, i) => {
+        const x = layout.startX + i * (layout.cardW + layout.gap)
+        return px >= x && px <= x + layout.cardW && py >= layout.y && py <= layout.y + layout.cardH
+      })
+      if (hit >= 0) {
+        this.perkIndex = hit
+        this.pickPerk()
       }
       return
     }
@@ -988,7 +1017,7 @@ export class CampaignScene extends Scene {
     this.blink += 1
     if (this.flashTicks > 0) this.flashTicks -= 1
     if (this.contactHitCooldown > 0) this.contactHitCooldown -= 1
-    if (this.ending || this.drafting || this.shopping || this.showStatus || this.showEquipment || this.showMap) return
+    if (this.ending || this.drafting || this.perkChoosing || this.shopping || this.showStatus || this.showEquipment || this.showMap) return
     if (this.defeatTicks > 0) {
       this.defeatTicks += 1
       if (this.defeatTicks > DEFEAT_RETRY_TICKS) this.reloadNode(this.node.id, true)
@@ -1084,10 +1113,15 @@ export class CampaignScene extends Scene {
       return
     }
 
-    if (!this.player.isDead && this.enemies.every((enemy) => enemy.isDead)) {
+    // Rooms no longer auto-advance. Once cleared, the player chooses: walk to the
+    // exit on the right to move on, or back to the entrance on the left to make
+    // the enemies respawn and grind for XP (classic Castlevania reentry).
+    if (!this.player.isDead && this.enemies.length > 0 && this.enemies.every((enemy) => enemy.isDead)) {
       this.clearTicks += 1
-      if (this.clearTicks > ROOM_CLEAR_AUTO_ADVANCE_TICKS || this.player.position.x >= this.layout.doorX - 24) {
+      if (this.player.position.x >= this.layout.doorX - 24) {
         this.advanceRoom()
+      } else if (this.clearTicks > 20 && this.player.position.x <= WALL_MARGIN + 12) {
+        this.respawnEnemies()
       }
     } else {
       this.clearTicks = 0
@@ -1111,6 +1145,7 @@ export class CampaignScene extends Scene {
     this.drawWorld()
     this.drawHud()
     if (this.ending) this.drawEnding()
+    else if (this.perkChoosing) this.drawPerkChoice()
     else if (this.drafting) this.drawDraft()
     else if (this.shopping) this.drawShop()
     else if (this.showMap) this.drawMap()
@@ -1122,7 +1157,7 @@ export class CampaignScene extends Scene {
       this.drawBossBar()
       if (Math.floor(this.blink / 30) % 2 === 0) this.drawPrompt()
     }
-    if (this.levelUpTicks > 0 && !this.ending && !this.drafting) this.drawLevelUp()
+    if (this.levelUpTicks > 0 && !this.ending && !this.drafting && !this.perkChoosing) this.drawLevelUp()
     if (this.bossIntroTicks > 0) this.drawBossIntro()
     this.drawFlash()
   }
@@ -1219,6 +1254,9 @@ export class CampaignScene extends Scene {
     this.levelUpTicks = 0
     this.showStatus = false
     this.showEquipment = false
+    this.perkChoosing = false
+    this.perkOptions = []
+    this.pendingLevelUps = 0
     this.rewardedDeaths.clear()
     this.floatingTexts = []
     this.attackingLastTick.clear()
@@ -1413,23 +1451,23 @@ export class CampaignScene extends Scene {
   }
 
   private computeMaxHealth(): number {
-    return 100 + (this.save.level - 1) * 8 + this.runMods.maxHealthBonus + this.soulMods.maxHealthBonus + this.equipMods.maxHealthBonus + this.save.hpUpgrades * 20
+    return 100 + (this.save.level - 1) * 8 + this.runMods.maxHealthBonus + this.soulMods.maxHealthBonus + this.equipMods.maxHealthBonus + this.save.hpUpgrades * 20 + this.perkStacks('vigor') * 18
   }
 
   private computeDamageMult(): number {
-    return this.runMods.damageMultiplier * this.soulMods.damageMultiplier * this.equipMods.damageMultiplier * (1 + (this.save.level - 1) * 0.04) * (1 + this.save.atkUpgrades * 0.06)
+    return this.runMods.damageMultiplier * this.soulMods.damageMultiplier * this.equipMods.damageMultiplier * (1 + (this.save.level - 1) * 0.04) * (1 + this.save.atkUpgrades * 0.06) * (1 + this.perkStacks('might') * 0.07)
   }
 
   private computeDamageTakenMult(): number {
-    return Math.max(0.4, (1 - this.save.armorTier * 0.06) * this.equipMods.damageTakenMultiplier)
+    return Math.max(0.4, (1 - this.save.armorTier * 0.06) * (1 - this.perkStacks('ward') * 0.05) * this.equipMods.damageTakenMultiplier)
   }
 
   private computeMoveSpeedMult(): number {
-    return this.runMods.moveSpeedMultiplier * this.soulMods.moveSpeedMultiplier * this.equipMods.moveSpeedMultiplier
+    return this.runMods.moveSpeedMultiplier * this.soulMods.moveSpeedMultiplier * this.equipMods.moveSpeedMultiplier * (1 + this.perkStacks('swiftness') * 0.06)
   }
 
   private computeMeterGainMult(): number {
-    return this.runMods.meterGainMultiplier * this.soulMods.meterGainMultiplier * this.equipMods.meterGainMultiplier
+    return this.runMods.meterGainMultiplier * this.soulMods.meterGainMultiplier * this.equipMods.meterGainMultiplier * (1 + this.perkStacks('focus') * 0.12)
   }
 
   private grantEnemyRewards(): void {
@@ -1484,6 +1522,51 @@ export class CampaignScene extends Scene {
     this.player.setMaxHealth(this.computeMaxHealth()) // level-ups fully restore health
     this.spawnFloatingText(this.player.position.x, this.player.position.y - 118, `LEVEL ${this.save.level}`, '#f6b74a')
     this.ctx.audio.hit()
+    // Each level earns a power-up pick. Levels can stack in a single tick, so
+    // queue them and present one choice at a time.
+    this.pendingLevelUps += 1
+    if (!this.perkChoosing) this.openPerkChoice()
+  }
+
+  private openPerkChoice(): void {
+    this.perkOptions = draftPowerUps(this.ctx.rng, 3)
+    this.perkIndex = 0
+    this.perkChoosing = true
+    this.ctx.audio.swing()
+  }
+
+  private pickPerk(): void {
+    const perk = this.perkOptions[this.perkIndex]
+    if (perk) {
+      this.save = addCampaignPerk(this.save, perk.id)
+      this.refreshLivePlayerStats()
+      this.ctx.audio.hit()
+      this.spawnFloatingText(this.player.position.x, this.player.position.y - 118, perk.name.toUpperCase(), '#f6b74a')
+    }
+    this.pendingLevelUps = Math.max(0, this.pendingLevelUps - 1)
+    if (this.pendingLevelUps > 0) {
+      this.openPerkChoice()
+    } else {
+      this.perkChoosing = false
+      this.perkOptions = []
+    }
+  }
+
+  /** Rebuild the current room's enemies so the player can re-fight them for XP —
+   *  triggered by walking back to the entrance of a cleared room. */
+  private respawnEnemies(): void {
+    this.enemies = buildEnemies(this.node, this.ctx.assets, this.layout)
+    this.rewardedDeaths.clear()
+    this.projectiles = []
+    this.enemyBones = []
+    this.clearTicks = 0
+    this.enemyFreezeTicks = 0
+    this.bossIntroTicks = this.node.isBoss ? BOSS_INTRO_TICKS : 0
+    this.ctx.audio.swing()
+  }
+
+  private perkStacks(id: string): number {
+    return powerUpStacks(this.save.perks, id)
   }
 
   private spawnFloatingText(x: number, y: number, text: string, color: string): void {
@@ -1914,7 +1997,7 @@ export class CampaignScene extends Scene {
     ctx.fillText('ROOM CLEAR', this.ctx.width / 2, this.ctx.height - 60)
     ctx.fillStyle = '#8a8aa0'
     ctx.font = '8px "Press Start 2P", monospace'
-    ctx.fillText('J ADVANCE     OR WALK TO THE DOOR', this.ctx.width / 2, this.ctx.height - 42)
+    ctx.fillText('WALK RIGHT: NEXT ROOM      WALK LEFT: RESPAWN & GRIND', this.ctx.width / 2, this.ctx.height - 42)
     ctx.restore()
   }
 
@@ -2067,6 +2150,72 @@ export class CampaignScene extends Scene {
       ctx.fillStyle = '#f6b74a'
       ctx.font = '8px "Press Start 2P", monospace'
       ctx.fillText(relicSummary(relic), x + 16, layout.y + layout.cardH - 26)
+    })
+
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillStyle = '#5a567a'
+    ctx.font = '9px "Press Start 2P", monospace'
+    ctx.fillText('A/D MOVE     J TAKE', width / 2, height - 44)
+    ctx.restore()
+  }
+
+  private perkLayout(): { startX: number; y: number; cardW: number; cardH: number; gap: number } {
+    const cardW = 250
+    const cardH = 220
+    const gap = this.perkOptions.length > 1 ? 32 : 0
+    const total = this.perkOptions.length * cardW + Math.max(0, this.perkOptions.length - 1) * gap
+    return { startX: (this.ctx.width - total) / 2, y: 168, cardW, cardH, gap }
+  }
+
+  private drawPerkChoice(): void {
+    const { ctx } = this.ctx.renderer
+    const { width, height } = this.ctx
+    const layout = this.perkLayout()
+    ctx.save()
+    ctx.fillStyle = 'rgba(8, 6, 14, 0.86)'
+    ctx.fillRect(0, 0, width, height)
+
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillStyle = '#f6b74a'
+    ctx.font = '20px "Press Start 2P", monospace'
+    ctx.fillText(`LEVEL ${this.save.level}`, width / 2, 82)
+    ctx.fillStyle = '#e8d4a0'
+    ctx.font = '12px "Press Start 2P", monospace'
+    ctx.fillText('CHOOSE A POWER-UP', width / 2, 116)
+    if (this.pendingLevelUps > 1) {
+      ctx.fillStyle = '#8a8aa0'
+      ctx.font = '8px "Press Start 2P", monospace'
+      ctx.fillText(`${this.pendingLevelUps - 1} MORE TO CHOOSE`, width / 2, 138)
+    }
+
+    this.perkOptions.forEach((perk, i) => {
+      const x = layout.startX + i * (layout.cardW + layout.gap)
+      const selected = i === this.perkIndex
+      const stacks = this.perkStacks(perk.id)
+      ctx.fillStyle = selected ? 'rgba(48, 38, 26, 0.96)' : 'rgba(24, 20, 14, 0.84)'
+      ctx.fillRect(x, layout.y, layout.cardW, layout.cardH)
+      ctx.strokeStyle = selected ? '#f6b74a' : '#5a567a'
+      ctx.lineWidth = selected ? 3 : 2
+      ctx.strokeRect(x, layout.y, layout.cardW, layout.cardH)
+
+      ctx.textAlign = 'left'
+      ctx.textBaseline = 'top'
+      ctx.fillStyle = '#f6b74a'
+      ctx.font = '12px "Press Start 2P", monospace'
+      ctx.fillText(perk.name.toUpperCase() + (stacks > 0 ? `  LV${stacks + 1}` : ''), x + 16, layout.y + 20)
+      ctx.fillStyle = '#e8d4a0'
+      ctx.font = '9px "Press Start 2P", monospace'
+      ctx.fillText(perk.tag, x + 16, layout.y + 46)
+      ctx.fillStyle = '#b7c7e6'
+      ctx.font = '9px "Press Start 2P", monospace'
+      wrapText(ctx, perk.blurb, x + 16, layout.y + 76, layout.cardW - 32, 16)
+      if (stacks > 0) {
+        ctx.fillStyle = '#8a8aa0'
+        ctx.font = '8px "Press Start 2P", monospace'
+        ctx.fillText(`OWNED x${stacks}`, x + 16, layout.y + layout.cardH - 24)
+      }
     })
 
     ctx.textAlign = 'center'
