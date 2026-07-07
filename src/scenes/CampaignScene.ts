@@ -257,9 +257,12 @@ const ENEMY_REWARD: Record<string, { xp: number; gold: number }> = {
   boneThrower: { xp: 10, gold: 7 },
 }
 
-interface HeartPickup {
+type PickupKind = 'heart' | 'gold' | 'mp'
+
+interface Pickup {
   position: Vec2
   velocity: Vec2
+  kind: PickupKind
   value: number
   ticksLeft: number
 }
@@ -781,7 +784,7 @@ export class CampaignScene extends Scene {
   private subweapons: SubweaponRuntime[] = []
   private enemyBones: EnemyBone[] = []
   private candles: Candle[] = []
-  private heartPickups: HeartPickup[] = []
+  private pickups: Pickup[] = []
   private soulBolts: SoulBolt[] = []
   private soulCooldown = 0
   private input!: InputSource
@@ -1117,8 +1120,9 @@ export class CampaignScene extends Scene {
       bolt.spin += 0.4
       bolt.ticksLeft -= 1
     }
-    for (const pickup of this.heartPickups) {
+    for (const pickup of this.pickups) {
       pickup.velocity.y += 0.34
+      pickup.velocity.x *= 0.96
       pickup.position.x += pickup.velocity.x
       pickup.position.y += pickup.velocity.y
       if (pickup.position.y >= FLOOR_Y - 18) {
@@ -1136,8 +1140,8 @@ export class CampaignScene extends Scene {
     this.enemyBones = this.enemyBones.filter((b) => b.ticksLeft > 0 && !b.hasHit && b.position.y < FLOOR_Y + 30)
     this.soulBolts = this.soulBolts.filter((b) => b.ticksLeft > 0 && b.hitTargets.size < SOUL_HIT_LIMIT)
     this.resolveCandles()
-    this.resolveHeartPickups()
-    this.heartPickups = this.heartPickups.filter((pickup) => pickup.ticksLeft > 0)
+    this.resolvePickups()
+    this.pickups = this.pickups.filter((pickup) => pickup.ticksLeft > 0)
     this.grantEnemyRewards()
     this.updateFloatingTexts()
     if (this.levelUpTicks > 0) this.levelUpTicks -= 1
@@ -1281,7 +1285,7 @@ export class CampaignScene extends Scene {
     this.soulBolts = []
     this.soulCooldown = 0
     this.candles = buildCandles(this.layout)
-    this.heartPickups = []
+    this.pickups = []
     this.clearTicks = 0
     this.transitionTicks = fromReset ? 0 : 12
     this.hitstop = 0
@@ -1452,7 +1456,7 @@ export class CampaignScene extends Scene {
       const hitBySoul = this.soulBolts.some((bolt) => rectsOverlap(soulBoltBox(bolt), box))
       if (!hitByWhip && !hitBySubweapon && !hitBySoul) continue
       candle.broken = true
-      this.spawnHeart(candle.x, candle.y)
+      this.spawnCandleDrop(candle.x, candle.y)
       this.ctx.audio.hit()
     }
   }
@@ -1555,6 +1559,7 @@ export class CampaignScene extends Scene {
       this.spawnFloatingText(hurt.x + hurt.width / 2, hurt.y - 6, `+${reward.xp} XP`, '#b7c7e6')
       if (result.levelsGained > 0) this.onLevelUp()
       this.tryDropSoul(enemy, hurt)
+      this.spawnEnemyDrops(enemy)
     }
   }
 
@@ -1656,23 +1661,55 @@ export class CampaignScene extends Scene {
     this.floatingTexts = this.floatingTexts.filter((entry) => entry.ticksLeft > 0)
   }
 
-  private resolveHeartPickups(): void {
+  private resolvePickups(): void {
+    if (this.player.isDead) return
     const playerBox = this.player.hurtbox()
-    for (const pickup of this.heartPickups) {
-      if (!rectsOverlap(heartPickupBox(pickup), playerBox)) continue
-      this.hearts = Math.min(MAX_HEARTS, this.hearts + pickup.value)
+    for (const pickup of this.pickups) {
+      if (pickup.ticksLeft <= 0) continue
+      if (!rectsOverlap(pickupBox(pickup), playerBox)) continue
       pickup.ticksLeft = 0
+      if (pickup.kind === 'heart') {
+        this.hearts = Math.min(MAX_HEARTS, this.hearts + pickup.value)
+      } else if (pickup.kind === 'gold') {
+        this.save = grantCampaignRewards(this.save, 0, pickup.value).save
+      } else {
+        this.player.meter = clamp(this.player.meter + pickup.value, 0, 100)
+      }
       this.ctx.audio.hit()
     }
   }
 
-  private spawnHeart(x: number, y: number): void {
-    this.heartPickups.push({
+  private spawnPickup(x: number, y: number, kind: PickupKind, value: number, vx = 0): void {
+    this.pickups.push({
       position: { x, y },
-      velocity: { x: 0, y: -4.5 },
-      value: 1,
+      velocity: { x: vx, y: -4.5 },
+      kind,
+      value,
       ticksLeft: 420,
     })
+  }
+
+  /** Classic candle loot: mostly hearts, sometimes coins or a splash of MP. */
+  private spawnCandleDrop(x: number, y: number): void {
+    const roll = this.ctx.rng.next()
+    if (roll < 0.6) this.spawnPickup(x, y, 'heart', 1)
+    else if (roll < 0.85) this.spawnPickup(x, y, 'gold', 5)
+    else this.spawnPickup(x, y, 'mp', 20)
+  }
+
+  /** Defeated enemies burst into loot — a few hearts/MP, more from bosses. */
+  private spawnEnemyDrops(enemy: CastleActor): void {
+    const hurt = enemy.hurtbox()
+    const cx = hurt.x + hurt.width / 2
+    const cy = hurt.y + hurt.height * 0.4
+    if (enemy.isBoss) {
+      for (let i = 0; i < 4; i += 1) this.spawnPickup(cx, cy, 'heart', 1, (i - 1.5) * 2.4)
+      this.spawnPickup(cx, cy, 'mp', 40, -1.5)
+      this.spawnPickup(cx, cy, 'mp', 40, 1.5)
+      return
+    }
+    if (this.ctx.rng.next() < 0.5) this.spawnPickup(cx, cy, 'heart', 1, (this.ctx.rng.next() - 0.5) * 4)
+    if (this.ctx.rng.next() < 0.22) this.spawnPickup(cx, cy, 'mp', 15, (this.ctx.rng.next() - 0.5) * 4)
   }
 
   private onHit(move: AttackMove, defenderDead: boolean): void {
@@ -1867,7 +1904,7 @@ export class CampaignScene extends Scene {
     }
     for (const hazard of this.layout.hazards) drawSpikes(ctx, hazard)
     for (const candle of this.candles) drawCandle(ctx, candle)
-    for (const pickup of this.heartPickups) drawHeartPickup(ctx, pickup)
+    for (const pickup of this.pickups) drawPickup(ctx, pickup)
     const doorOpen = this.enemies.every((enemy) => enemy.isDead)
     ctx.fillStyle = doorOpen ? '#e8d4a0' : '#3c374f'
     ctx.fillRect(this.layout.doorX, this.layout.doorY - 144, 76, 144)
@@ -2977,8 +3014,8 @@ function candleBox(candle: Candle): Rect {
   return { x: candle.x - 9, y: candle.y - 28, width: 18, height: 32 }
 }
 
-function heartPickupBox(pickup: HeartPickup): Rect {
-  return { x: pickup.position.x - 9, y: pickup.position.y - 9, width: 18, height: 18 }
+function pickupBox(pickup: Pickup): Rect {
+  return { x: pickup.position.x - 11, y: pickup.position.y - 11, width: 22, height: 22 }
 }
 
 function subweaponBox(subweapon: SubweaponRuntime): Rect {
@@ -3091,13 +3128,47 @@ function drawCandle(ctx: CanvasRenderingContext2D, candle: Candle): void {
   ctx.restore()
 }
 
-function drawHeartPickup(ctx: CanvasRenderingContext2D, pickup: HeartPickup): void {
+function drawPickup(ctx: CanvasRenderingContext2D, pickup: Pickup): void {
+  const { x, y } = pickup.position
+  // Blink out over the final second so the player knows it is about to vanish.
+  const blinkOut = pickup.ticksLeft < 60 && Math.floor(pickup.ticksLeft / 5) % 2 === 0
+  if (blinkOut) return
   ctx.save()
-  ctx.fillStyle = '#b91d2d'
-  ctx.fillRect(pickup.position.x - 5, pickup.position.y - 7, 10, 12)
-  ctx.fillRect(pickup.position.x - 8, pickup.position.y - 4, 16, 7)
-  ctx.fillStyle = '#ff9f9f'
-  ctx.fillRect(pickup.position.x - 2, pickup.position.y - 5, 3, 3)
+  if (pickup.kind === 'heart') {
+    ctx.fillStyle = '#b91d2d'
+    ctx.fillRect(x - 5, y - 7, 10, 12)
+    ctx.fillRect(x - 8, y - 4, 16, 7)
+    ctx.fillStyle = '#ff9f9f'
+    ctx.fillRect(x - 2, y - 5, 3, 3)
+  } else if (pickup.kind === 'gold') {
+    // Little coin: gold disc with a highlight.
+    ctx.fillStyle = '#8a5a12'
+    ctx.beginPath()
+    ctx.arc(x, y, 8, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.fillStyle = '#f6b74a'
+    ctx.beginPath()
+    ctx.arc(x, y, 6, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.fillStyle = '#ffe6a8'
+    ctx.fillRect(x - 3, y - 4, 2, 5)
+  } else {
+    // MP orb: glowing cyan bead with an aura.
+    const aura = ctx.createRadialGradient(x, y, 0, x, y, 12)
+    aura.addColorStop(0, 'rgba(90, 200, 255, 0.7)')
+    aura.addColorStop(1, 'rgba(90, 200, 255, 0)')
+    ctx.fillStyle = aura
+    ctx.beginPath()
+    ctx.arc(x, y, 12, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.fillStyle = '#d6f2ff'
+    ctx.strokeStyle = '#3aa0e0'
+    ctx.lineWidth = 2
+    ctx.beginPath()
+    ctx.arc(x, y, 5, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.stroke()
+  }
   ctx.restore()
 }
 
