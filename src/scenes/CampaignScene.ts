@@ -4,8 +4,9 @@ import { ModeSelectScene } from './ModeSelectScene.ts'
 import { PauseScene } from './PauseScene.ts'
 import { AssetManager } from '../assets/AssetManager.ts'
 import { AUDIO_MANIFEST } from '../assets/manifest.ts'
-import { addCampaignEquipment, addCampaignPerk, addCampaignRelic, addCampaignSoul, completeCampaignBattle, equipCampaignItem, equippedDefs, getCampaignChapter, getCampaignNode, grantCampaignRewards, loadCampaignSave, markCampaignVisited, MAX_LEVEL, saveCampaignSave, unequipCampaignSlot, xpForNextLevel } from '../data/campaign.ts'
+import { addCampaignBulletSoul, addCampaignEquipment, addCampaignPerk, addCampaignRelic, addCampaignSoul, completeCampaignBattle, equipCampaignBulletSoul, equipCampaignItem, equippedDefs, getCampaignChapter, getCampaignNode, grantCampaignRewards, loadCampaignSave, markCampaignVisited, MAX_LEVEL, saveCampaignSave, unequipCampaignSlot, xpForNextLevel } from '../data/campaign.ts'
 import { draftPowerUps, powerUpStacks, type PowerUpDef } from '../data/powerups.ts'
+import { BASE_BULLET_SOUL, bulletSoulForEnemy, getBulletSoul, type BulletSoulDef } from '../data/bulletSouls.ts'
 import { CASTLE_CELLS, CASTLE_ROOM_IDS, castleDoors, castleGridBounds, castleNeighbor, isBossRoom, type MapDir } from '../data/castleMap.ts'
 import { buildEquipmentModifiers, EQUIP_SLOT_LABELS, EQUIP_SLOTS, equipmentForSlot, EQUIPMENT_POOL, getEquipment, type EquipmentDef, type EquipmentModifiers } from '../data/equipment.ts'
 import { buildRunModifiers, draftRelics, RELIC_POOL, type RelicDef, type RelicId, type RunModifiers } from '../data/relics.ts'
@@ -232,14 +233,15 @@ interface SoulBolt {
   facing: Facing
   ticksLeft: number
   spin: number
+  damage: number
+  homing: boolean
   hitTargets: Set<CastleActor>
 }
 
-const SOUL_COST = 40
 const MP_REGEN = 0.18
-const SOUL_DAMAGE = 24
 const SOUL_SPEED = 13
 const SOUL_LIFETIME = 66
+const SOUL_HOMING_LIFETIME = 100
 const SOUL_HIT_LIMIT = 3
 const SOUL_CAST_COOLDOWN = 22
 
@@ -977,6 +979,11 @@ export class CampaignScene extends Scene {
       this.castSoul()
       return
     }
+    if (e.code === 'KeyO' && !e.repeat && this.canOpenOverlay && !this.showMap) {
+      e.preventDefault()
+      this.cycleBulletSoul()
+      return
+    }
     if (e.code === 'Escape') {
       e.preventDefault()
       this.ctx.scenes.push(new PauseScene(this.ctx))
@@ -1115,6 +1122,7 @@ export class CampaignScene extends Scene {
       bone.ticksLeft -= 1
     }
     for (const bolt of this.soulBolts) {
+      if (bolt.homing) this.steerHomingBolt(bolt)
       bolt.position.x += bolt.velocity.x
       bolt.position.y += bolt.velocity.y
       bolt.spin += 0.4
@@ -1368,21 +1376,88 @@ export class CampaignScene extends Scene {
     }
   }
 
-  /** Spend MP to cast a piercing soul bolt in the facing direction. */
-  private castSoul(): void {
-    if (this.player.isDead || this.soulCooldown > 0 || this.bossIntroTicks > 0) return
-    if (this.player.meter < SOUL_COST) return
-    this.player.meter -= SOUL_COST
-    this.soulCooldown = SOUL_CAST_COOLDOWN
+  /** The currently equipped Bullet Soul definition (falls back to the base). */
+  private equippedSoulDef(): BulletSoulDef {
+    return getBulletSoul(this.save.equippedBulletSoul) ?? getBulletSoul(BASE_BULLET_SOUL)!
+  }
+
+  /** Owned castable souls in a stable order: base first, then collected. */
+  private ownedBulletSoulIds(): string[] {
+    return [BASE_BULLET_SOUL, ...this.save.bulletSouls]
+  }
+
+  private cycleBulletSoul(): void {
+    const owned = this.ownedBulletSoulIds()
+    if (owned.length <= 1) return
+    const i = owned.indexOf(this.save.equippedBulletSoul)
+    const next = owned[(i + 1) % owned.length] ?? BASE_BULLET_SOUL
+    this.save = equipCampaignBulletSoul(this.save, next)
+    this.ctx.audio.swing()
+  }
+
+  private spawnSoulBolt(vx: number, vy: number, damage: number, homing: boolean, x: number, y: number): void {
     this.soulBolts.push({
-      position: { x: this.player.position.x + this.player.facing * 40, y: this.player.position.y - 62 },
-      velocity: { x: this.player.facing * SOUL_SPEED, y: 0 },
+      position: { x, y },
+      velocity: { x: vx, y: vy },
       facing: this.player.facing,
-      ticksLeft: SOUL_LIFETIME,
+      ticksLeft: homing ? SOUL_HOMING_LIFETIME : SOUL_LIFETIME,
       spin: 0,
+      damage,
+      homing,
       hitTargets: new Set<CastleActor>(),
     })
+  }
+
+  /** Spend MP to cast the equipped Bullet Soul, whose pattern shapes the volley. */
+  private castSoul(): void {
+    if (this.player.isDead || this.soulCooldown > 0 || this.bossIntroTicks > 0) return
+    const soul = this.equippedSoulDef()
+    if (this.player.meter < soul.mpCost) return
+    this.player.meter -= soul.mpCost
+    this.soulCooldown = SOUL_CAST_COOLDOWN
+    const f = this.player.facing
+    const ox = this.player.position.x + f * 36
+    const oy = this.player.position.y - 62
+    const cx = this.player.position.x
+    const cy = this.player.position.y - 46
+    switch (soul.pattern) {
+      case 'bolt':
+        this.spawnSoulBolt(f * SOUL_SPEED, 0, 24, false, ox, oy)
+        break
+      case 'spread':
+        for (const a of [-0.34, 0, 0.34]) this.spawnSoulBolt(f * SOUL_SPEED * Math.cos(a), SOUL_SPEED * Math.sin(a), 16, false, ox, oy)
+        break
+      case 'homing':
+        this.spawnSoulBolt(f * SOUL_SPEED * 0.8, 0, 22, true, ox, oy)
+        break
+      case 'nova':
+        for (let i = 0; i < 8; i += 1) {
+          const a = (i / 8) * Math.PI * 2
+          this.spawnSoulBolt(Math.cos(a) * SOUL_SPEED, Math.sin(a) * SOUL_SPEED, 14, false, cx, cy)
+        }
+        break
+    }
     this.ctx.audio.swing()
+  }
+
+  /** Curve a homing soul bolt toward the nearest live enemy it has not hit. */
+  private steerHomingBolt(bolt: SoulBolt): void {
+    let best: CastleActor | null = null
+    let bestD = Infinity
+    for (const enemy of this.enemies) {
+      if (enemy.isDead || bolt.hitTargets.has(enemy)) continue
+      const hb = enemy.hurtbox()
+      const d = Math.hypot(hb.x + hb.width / 2 - bolt.position.x, hb.y + hb.height / 2 - bolt.position.y)
+      if (d < bestD) { bestD = d; best = enemy }
+    }
+    if (!best) return
+    const hb = best.hurtbox()
+    const dx = hb.x + hb.width / 2 - bolt.position.x
+    const dy = hb.y + hb.height / 2 - bolt.position.y
+    const d = Math.hypot(dx, dy) || 1
+    const speed = SOUL_SPEED * 0.85
+    bolt.velocity.x += (dx / d * speed - bolt.velocity.x) * 0.14
+    bolt.velocity.y += (dy / d * speed - bolt.velocity.y) * 0.14
   }
 
   private resolveSoulBolts(): void {
@@ -1392,7 +1467,7 @@ export class CampaignScene extends Scene {
       for (const enemy of this.enemies) {
         if (enemy.isDead || bolt.hitTargets.has(enemy)) continue
         if (!rectsOverlap(box, enemy.hurtbox())) continue
-        if (!enemy.applyFlatDamage(SOUL_DAMAGE, bolt.position.x, -5, this.playerDamageMult)) continue
+        if (!enemy.applyFlatDamage(bolt.damage, bolt.position.x, -5, this.playerDamageMult)) continue
         bolt.hitTargets.add(enemy)
         this.ctx.audio.hit()
         this.hitstop = Math.max(this.hitstop, 5)
@@ -1559,8 +1634,20 @@ export class CampaignScene extends Scene {
       this.spawnFloatingText(hurt.x + hurt.width / 2, hurt.y - 6, `+${reward.xp} XP`, '#b7c7e6')
       if (result.levelsGained > 0) this.onLevelUp()
       this.tryDropSoul(enemy, hurt)
+      this.tryDropBulletSoul(enemy, hurt)
       this.spawnEnemyDrops(enemy)
     }
+  }
+
+  private tryDropBulletSoul(enemy: CastleActor, hurt: Rect): void {
+    const soul = bulletSoulForEnemy(enemy.def.id)
+    if (!soul || this.save.bulletSouls.includes(soul.id)) return
+    if (this.ctx.rng.next() >= soul.dropChance) return
+    this.save = addCampaignBulletSoul(this.save, soul.id)
+    const cx = hurt.x + hurt.width / 2
+    this.spawnFloatingText(cx, hurt.y - 40, 'BULLET SOUL!', '#ff9ad6')
+    this.spawnFloatingText(cx, hurt.y - 22, soul.name.toUpperCase(), '#ff9ad6')
+    this.ctx.audio.hit()
   }
 
   private tryDropSoul(enemy: CastleActor, hurt: Rect): void {
@@ -2036,12 +2123,17 @@ export class CampaignScene extends Scene {
     ctx.strokeStyle = '#e8d4a0'
     ctx.strokeRect(40, 78, 300, 9)
     // MP bar (Aria-style magic): the special meter spent on soul casts.
+    const soulDef = this.equippedSoulDef()
     ctx.fillStyle = '#0e1a2a'
     ctx.fillRect(40, 88, 300, 7)
-    ctx.fillStyle = this.player.meter >= SOUL_COST ? '#3aa0e0' : '#2a5a7a'
+    ctx.fillStyle = this.player.meter >= soulDef.mpCost ? '#3aa0e0' : '#2a5a7a'
     ctx.fillRect(40, 88, 300 * clamp(this.player.meter / 100, 0, 1), 7)
     ctx.strokeStyle = '#5a86b0'
     ctx.strokeRect(40, 88, 300, 7)
+    // Equipped Bullet Soul label at the end of the magic bar.
+    ctx.fillStyle = '#8fd4ff'
+    ctx.font = '7px "Press Start 2P", monospace'
+    ctx.fillText(`◈${soulDef.name.toUpperCase()}`, 346, 90)
     // XP bar
     const xpRatio = this.save.level >= MAX_LEVEL ? 1 : clamp(this.save.xp / xpForNextLevel(this.save.level), 0, 1)
     ctx.fillStyle = '#161326'
@@ -2098,7 +2190,7 @@ export class CampaignScene extends Scene {
     ctx.font = '8px "Press Start 2P", monospace'
     ctx.textAlign = 'center'
     ctx.fillText('A/D MOVE   J JUMP   ; DASH   K ATTACK   W+K SUB   U SOUL', this.ctx.width / 2, this.ctx.height - 38)
-    ctx.fillText('ENTER MENU   SPACE MAP   L SWITCH   ESC PAUSE', this.ctx.width / 2, this.ctx.height - 22)
+    ctx.fillText('L SWITCH SUB   O SWAP SOUL   ENTER MENU   SPACE MAP   ESC PAUSE', this.ctx.width / 2, this.ctx.height - 22)
     ctx.restore()
   }
 

@@ -4,6 +4,7 @@ import type { StageId } from './stages.ts'
 import { RELIC_POOL, type RelicId } from './relics.ts'
 import { SOUL_POOL } from './souls.ts'
 import { POWERUP_POOL, type PowerUpId } from './powerups.ts'
+import { BASE_BULLET_SOUL, BULLET_SOUL_POOL } from './bulletSouls.ts'
 import { EQUIP_SLOTS, EQUIPMENT_POOL, getEquipment, type EquipmentDef, type EquipmentId, type EquipSlot } from './equipment.ts'
 
 const STORAGE_KEY = 'castlevania97.campaign.v1'
@@ -43,6 +44,10 @@ export interface CampaignSave {
   visitedNodeIds: readonly string[]
   relicIds: readonly RelicId[]
   souls: readonly string[]
+  /** Collected Bullet Souls (castable magic); the base soul is always owned. */
+  bulletSouls: readonly string[]
+  /** Currently equipped Bullet Soul id (defaults to the base soul). */
+  equippedBulletSoul: string
   /** Owned equipment (SOTN-style inventory). */
   equipment: readonly EquipmentId[]
   /** Currently equipped piece per slot; an absent slot is empty. */
@@ -608,6 +613,8 @@ export function initialCampaignSave(): CampaignSave {
     visitedNodeIds: firstChapter.nodeIds.slice(0, 1),
     relicIds: [],
     souls: [],
+    bulletSouls: [],
+    equippedBulletSoul: BASE_BULLET_SOUL,
     equipment: [],
     equipped: {},
     perks: {},
@@ -642,6 +649,23 @@ export function addCampaignPerk(save: CampaignSave, perkId: PowerUpId): Campaign
 export function addCampaignRelic(save: CampaignSave, relicId: RelicId): CampaignSave {
   if (save.relicIds.includes(relicId)) return save
   const next: CampaignSave = { ...save, relicIds: [...save.relicIds, relicId] }
+  saveCampaignSave(next)
+  return next
+}
+
+/** Collect a Bullet Soul, adding it to the castable set. */
+export function addCampaignBulletSoul(save: CampaignSave, id: string): CampaignSave {
+  if (id === BASE_BULLET_SOUL || save.bulletSouls.includes(id)) return save
+  const next: CampaignSave = { ...save, bulletSouls: [...save.bulletSouls, id] }
+  saveCampaignSave(next)
+  return next
+}
+
+/** Equip an owned (or the base) Bullet Soul as the active cast. */
+export function equipCampaignBulletSoul(save: CampaignSave, id: string): CampaignSave {
+  if (id !== BASE_BULLET_SOUL && !save.bulletSouls.includes(id)) return save
+  if (save.equippedBulletSoul === id) return save
+  const next: CampaignSave = { ...save, equippedBulletSoul: id }
   saveCampaignSave(next)
   return next
 }
@@ -767,6 +791,8 @@ export function completeCampaignBattle(save: CampaignSave): CampaignSave {
     visitedNodeIds: save.visitedNodeIds,
     relicIds: save.relicIds,
     souls: save.souls,
+    bulletSouls: save.bulletSouls,
+    equippedBulletSoul: save.equippedBulletSoul,
     equipment: save.equipment,
     equipped: save.equipped,
     perks: save.perks,
@@ -836,6 +862,13 @@ function sanitizeCampaignSave(value: Partial<CampaignSave>): CampaignSave {
   completed.forEach((id) => visited.add(id))
   if (currentNodeId) visited.add(currentNodeId)
 
+  const bulletSouls = filterBulletSouls(value.bulletSouls)
+  const equippedBulletSoul =
+    typeof value.equippedBulletSoul === 'string' &&
+    (value.equippedBulletSoul === BASE_BULLET_SOUL || bulletSouls.includes(value.equippedBulletSoul))
+      ? value.equippedBulletSoul
+      : BASE_BULLET_SOUL
+
   return {
     chapterId: chapterDef.id,
     currentNodeId,
@@ -844,6 +877,8 @@ function sanitizeCampaignSave(value: Partial<CampaignSave>): CampaignSave {
     visitedNodeIds: Array.from(visited),
     relicIds: filterRelics(value.relicIds),
     souls: filterSouls(value.souls),
+    bulletSouls,
+    equippedBulletSoul,
     equipment: filterEquipment(value.equipment),
     equipped: filterEquipped(value.equipped, filterEquipment(value.equipment)),
     perks: filterPerks(value.perks),
@@ -878,6 +913,12 @@ function filterPerks(value: Readonly<Record<string, number>> | undefined): Recor
     }
   }
   return result
+}
+
+function filterBulletSouls(value: readonly string[] | undefined): string[] {
+  if (!Array.isArray(value)) return []
+  const valid = new Set(BULLET_SOUL_POOL.filter((soul) => !soul.base).map((soul) => soul.id))
+  return value.filter((entry): entry is string => typeof entry === 'string' && valid.has(entry))
 }
 
 function filterSouls(value: readonly string[] | undefined): string[] {
