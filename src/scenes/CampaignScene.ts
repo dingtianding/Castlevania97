@@ -224,6 +224,25 @@ interface EnemyBone {
   hasHit: boolean
 }
 
+// Aria-of-Sorrow-style magic: the special meter doubles as MP, spent to cast a
+// piercing "soul" bolt. MP regenerates passively so magic is always coming back.
+interface SoulBolt {
+  position: Vec2
+  velocity: Vec2
+  facing: Facing
+  ticksLeft: number
+  spin: number
+  hitTargets: Set<CastleActor>
+}
+
+const SOUL_COST = 40
+const MP_REGEN = 0.18
+const SOUL_DAMAGE = 24
+const SOUL_SPEED = 13
+const SOUL_LIFETIME = 66
+const SOUL_HIT_LIMIT = 3
+const SOUL_CAST_COOLDOWN = 22
+
 const BONE_DAMAGE = 8
 const BONE_SPEED = 8
 const BONE_GRAVITY = 0.2
@@ -763,6 +782,8 @@ export class CampaignScene extends Scene {
   private enemyBones: EnemyBone[] = []
   private candles: Candle[] = []
   private heartPickups: HeartPickup[] = []
+  private soulBolts: SoulBolt[] = []
+  private soulCooldown = 0
   private input!: InputSource
   private cameraX = 0
   private clearTicks = 0
@@ -948,6 +969,11 @@ export class CampaignScene extends Scene {
         return
       }
     }
+    if (e.code === 'KeyU' && !e.repeat && this.canOpenOverlay && !this.showMap) {
+      e.preventDefault()
+      this.castSoul()
+      return
+    }
     if (e.code === 'Escape') {
       e.preventDefault()
       this.ctx.scenes.push(new PauseScene(this.ctx))
@@ -1047,6 +1073,9 @@ export class CampaignScene extends Scene {
     }
     if (intent.upHeld && intent.lightPressed && this.tryUseSubweapon()) intent.lightPressed = false
     this.player.update(intent, this.player.position.x + this.player.facing * 80, this.layout.platforms)
+    // MP passively refills so soul magic is always coming back (Aria-style).
+    this.player.meter = clamp(this.player.meter + MP_REGEN, 0, 100)
+    if (this.soulCooldown > 0) this.soulCooldown -= 1
 
     for (const enemy of this.enemies) {
       if (enemy.isDead) continue
@@ -1082,6 +1111,12 @@ export class CampaignScene extends Scene {
       bone.spin += 0.5
       bone.ticksLeft -= 1
     }
+    for (const bolt of this.soulBolts) {
+      bolt.position.x += bolt.velocity.x
+      bolt.position.y += bolt.velocity.y
+      bolt.spin += 0.4
+      bolt.ticksLeft -= 1
+    }
     for (const pickup of this.heartPickups) {
       pickup.velocity.y += 0.34
       pickup.position.x += pickup.velocity.x
@@ -1095,9 +1130,11 @@ export class CampaignScene extends Scene {
 
     this.resolveCombat()
     this.resolveEnemyBones()
+    this.resolveSoulBolts()
     this.projectiles = this.projectiles.filter((p) => p.ticksLeft > 0 && !p.hasHit)
     this.subweapons = this.subweapons.filter((p) => p.ticksLeft > 0 && !p.hasHit)
     this.enemyBones = this.enemyBones.filter((b) => b.ticksLeft > 0 && !b.hasHit && b.position.y < FLOOR_Y + 30)
+    this.soulBolts = this.soulBolts.filter((b) => b.ticksLeft > 0 && b.hitTargets.size < SOUL_HIT_LIMIT)
     this.resolveCandles()
     this.resolveHeartPickups()
     this.heartPickups = this.heartPickups.filter((pickup) => pickup.ticksLeft > 0)
@@ -1241,6 +1278,8 @@ export class CampaignScene extends Scene {
     this.projectiles = []
     this.subweapons = []
     this.enemyBones = []
+    this.soulBolts = []
+    this.soulCooldown = 0
     this.candles = buildCandles(this.layout)
     this.heartPickups = []
     this.clearTicks = 0
@@ -1325,6 +1364,40 @@ export class CampaignScene extends Scene {
     }
   }
 
+  /** Spend MP to cast a piercing soul bolt in the facing direction. */
+  private castSoul(): void {
+    if (this.player.isDead || this.soulCooldown > 0 || this.bossIntroTicks > 0) return
+    if (this.player.meter < SOUL_COST) return
+    this.player.meter -= SOUL_COST
+    this.soulCooldown = SOUL_CAST_COOLDOWN
+    this.soulBolts.push({
+      position: { x: this.player.position.x + this.player.facing * 40, y: this.player.position.y - 62 },
+      velocity: { x: this.player.facing * SOUL_SPEED, y: 0 },
+      facing: this.player.facing,
+      ticksLeft: SOUL_LIFETIME,
+      spin: 0,
+      hitTargets: new Set<CastleActor>(),
+    })
+    this.ctx.audio.swing()
+  }
+
+  private resolveSoulBolts(): void {
+    for (const bolt of this.soulBolts) {
+      if (bolt.hitTargets.size >= SOUL_HIT_LIMIT) continue
+      const box = soulBoltBox(bolt)
+      for (const enemy of this.enemies) {
+        if (enemy.isDead || bolt.hitTargets.has(enemy)) continue
+        if (!rectsOverlap(box, enemy.hurtbox())) continue
+        if (!enemy.applyFlatDamage(SOUL_DAMAGE, bolt.position.x, -5, this.playerDamageMult)) continue
+        bolt.hitTargets.add(enemy)
+        this.ctx.audio.hit()
+        this.hitstop = Math.max(this.hitstop, 5)
+        if (enemy.isDead) this.flashTicks = BIG_HIT_FLASH_TICKS
+        if (bolt.hitTargets.size >= SOUL_HIT_LIMIT) break
+      }
+    }
+  }
+
   private tryUseSubweapon(): boolean {
     if (this.player.isDead) return false
     const kind = this.currentSubweapon()
@@ -1376,7 +1449,8 @@ export class CampaignScene extends Scene {
       const box = candleBox(candle)
       const hitByWhip = attack && rectsOverlap(attack.box, box)
       const hitBySubweapon = this.subweapons.some((subweapon) => !subweapon.hasHit && rectsOverlap(subweaponBox(subweapon), box))
-      if (!hitByWhip && !hitBySubweapon) continue
+      const hitBySoul = this.soulBolts.some((bolt) => rectsOverlap(soulBoltBox(bolt), box))
+      if (!hitByWhip && !hitBySubweapon && !hitBySoul) continue
       candle.broken = true
       this.spawnHeart(candle.x, candle.y)
       this.ctx.audio.hit()
@@ -1559,6 +1633,7 @@ export class CampaignScene extends Scene {
     this.rewardedDeaths.clear()
     this.projectiles = []
     this.enemyBones = []
+    this.soulBolts = []
     this.clearTicks = 0
     this.enemyFreezeTicks = 0
     this.bossIntroTicks = this.node.isBoss ? BOSS_INTRO_TICKS : 0
@@ -1808,6 +1883,7 @@ export class CampaignScene extends Scene {
     for (const enemy of this.enemies) enemy.render(this.ctx.renderer, this.cameraX)
     for (const projectile of this.projectiles) renderProjectile(projectile, this.ctx.renderer, this.cameraX)
     for (const subweapon of this.subweapons) renderSubweapon(subweapon, this.ctx.renderer, this.cameraX)
+    for (const bolt of this.soulBolts) drawSoulBolt(bolt, this.ctx.renderer, this.cameraX)
     for (const bone of this.enemyBones) drawBone(bone, this.ctx.renderer, this.cameraX)
     this.drawEnemyHealthBars()
     this.drawFloatingTexts()
@@ -1917,19 +1993,26 @@ export class CampaignScene extends Scene {
     ctx.fillText(`HEARTS ${this.hearts.toString().padStart(2, '0')}`, 250, 66)
     // Health bar
     ctx.fillStyle = '#2a1014'
-    ctx.fillRect(40, 80, 300, 10)
+    ctx.fillRect(40, 78, 300, 9)
     ctx.fillStyle = '#b91d2d'
-    ctx.fillRect(40, 80, 300 * (this.player.health / this.player.maxHealth), 10)
+    ctx.fillRect(40, 78, 300 * (this.player.health / this.player.maxHealth), 9)
     ctx.strokeStyle = '#e8d4a0'
-    ctx.strokeRect(40, 80, 300, 10)
+    ctx.strokeRect(40, 78, 300, 9)
+    // MP bar (Aria-style magic): the special meter spent on soul casts.
+    ctx.fillStyle = '#0e1a2a'
+    ctx.fillRect(40, 88, 300, 7)
+    ctx.fillStyle = this.player.meter >= SOUL_COST ? '#3aa0e0' : '#2a5a7a'
+    ctx.fillRect(40, 88, 300 * clamp(this.player.meter / 100, 0, 1), 7)
+    ctx.strokeStyle = '#5a86b0'
+    ctx.strokeRect(40, 88, 300, 7)
     // XP bar
     const xpRatio = this.save.level >= MAX_LEVEL ? 1 : clamp(this.save.xp / xpForNextLevel(this.save.level), 0, 1)
     ctx.fillStyle = '#161326'
-    ctx.fillRect(40, 94, 300, 5)
+    ctx.fillRect(40, 96, 300, 4)
     ctx.fillStyle = '#6f7ad6'
-    ctx.fillRect(40, 94, 300 * xpRatio, 5)
+    ctx.fillRect(40, 96, 300 * xpRatio, 4)
     ctx.strokeStyle = '#3a3550'
-    ctx.strokeRect(40, 94, 300, 5)
+    ctx.strokeRect(40, 96, 300, 4)
     ctx.fillStyle = '#f6b74a'
     ctx.font = '8px "Press Start 2P", monospace'
     ctx.fillText(`GOLD ${this.save.gold}`, 250, 104)
@@ -1977,7 +2060,7 @@ export class CampaignScene extends Scene {
     ctx.fillStyle = '#5a567a'
     ctx.font = '8px "Press Start 2P", monospace'
     ctx.textAlign = 'center'
-    ctx.fillText('A/D MOVE   W UP   J JUMP   ; DASH   K ATTACK   W+K USE', this.ctx.width / 2, this.ctx.height - 38)
+    ctx.fillText('A/D MOVE   J JUMP   ; DASH   K ATTACK   W+K SUB   U SOUL', this.ctx.width / 2, this.ctx.height - 38)
     ctx.fillText('ENTER MENU   SPACE MAP   L SWITCH   ESC PAUSE', this.ctx.width / 2, this.ctx.height - 22)
     ctx.restore()
   }
@@ -2929,6 +3012,46 @@ function drawBone(bone: EnemyBone, renderer: Renderer, cameraX: number): void {
   ctx.strokeRect(-11, -5, 6, 10)
   ctx.fillRect(5, -5, 6, 10)
   ctx.strokeRect(5, -5, 6, 10)
+  ctx.restore()
+}
+
+function soulBoltBox(bolt: SoulBolt): Rect {
+  return { x: bolt.position.x - 16, y: bolt.position.y - 16, width: 32, height: 32 }
+}
+
+function drawSoulBolt(bolt: SoulBolt, renderer: Renderer, cameraX: number): void {
+  const { ctx } = renderer
+  const x = bolt.position.x - cameraX
+  const y = bolt.position.y
+  const fade = clamp(bolt.ticksLeft / 12, 0, 1)
+  ctx.save()
+  // Soft outer aura.
+  const aura = ctx.createRadialGradient(x, y, 0, x, y, 22)
+  aura.addColorStop(0, `rgba(120, 200, 255, ${0.5 * fade})`)
+  aura.addColorStop(1, 'rgba(120, 200, 255, 0)')
+  ctx.fillStyle = aura
+  ctx.beginPath()
+  ctx.arc(x, y, 22, 0, Math.PI * 2)
+  ctx.fill()
+  // Spinning four-point core.
+  ctx.translate(x, y)
+  ctx.rotate(bolt.spin)
+  ctx.globalAlpha = fade
+  ctx.fillStyle = '#eaf6ff'
+  ctx.strokeStyle = '#3aa0e0'
+  ctx.lineWidth = 2
+  ctx.beginPath()
+  for (let i = 0; i < 8; i += 1) {
+    const r = i % 2 === 0 ? 11 : 5
+    const a = (i / 8) * Math.PI * 2
+    const px = Math.cos(a) * r
+    const py = Math.sin(a) * r
+    if (i === 0) ctx.moveTo(px, py)
+    else ctx.lineTo(px, py)
+  }
+  ctx.closePath()
+  ctx.fill()
+  ctx.stroke()
   ctx.restore()
 }
 
