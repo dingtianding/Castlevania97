@@ -45,9 +45,9 @@ const WALL_MARGIN = 48
 const HURT_TICKS = 20
 const INVULNERABLE_TICKS = 72
 const DEBUG_HITBOXES = new URLSearchParams(location.search).has('hitbox')
-// GBA-style downscale of the game world. Disable with ?nopixel for the crisp
-// high-res look; PIXELATE_FACTOR ~3 lands near the GBA's 240x160 chunkiness.
-const GBA_PIXELATE = !new URLSearchParams(location.search).has('nopixel')
+// Optional GBA-style downscale of the game world — OFF by default so the source
+// art stays crisp. Opt in with ?pixel; PIXELATE_FACTOR tunes the chunkiness.
+const GBA_PIXELATE = new URLSearchParams(location.search).has('pixel')
 const PIXELATE_FACTOR = 3
 const CONTACT_HIT_COOLDOWN = 24
 const BIG_HIT_FLASH_TICKS = 10
