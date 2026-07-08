@@ -37,6 +37,8 @@ const EDGE_ZONE = 14
 // Vertical stairwell passage: centered, activated from the floor with up/down.
 const VERT_PASSAGE_X = ROOM_WIDTH / 2
 const VERT_RANGE = 120
+// Reaching this height near the central shaft exits through the top doorway.
+const TOP_EXIT_Y = 158
 // Save/merchant/relic placement is defined once in castleMapData (so the map
 // icons and the gameplay objects can't drift). Here we index them by x-position.
 const SAVE_POINTS: Record<string, number> = Object.fromEntries(CASTLE_SAVE_ROOMS.map((r) => [r.id, r.x]))
@@ -1392,6 +1394,7 @@ export class CampaignScene extends Scene {
     this.node = getCampaignNode(nodeId)
     this.chapter = getCampaignChapter(this.node.chapterId)
     this.layout = buildLayout(this.node.stage)
+    addShaftPlatforms(this.layout, castleDoors(this.node.id))
     this.runMods = buildRunModifiers(this.save.relicIds.map((id) => RELIC_POOL.find((relic) => relic.id === id)).filter((relic): relic is RelicDef => Boolean(relic)))
     this.soulMods = buildSoulModifiers(this.save.souls)
     this.equipMods = buildEquipmentModifiers(equippedDefs(this.save))
@@ -1881,15 +1884,16 @@ export class CampaignScene extends Scene {
       const east = castleNeighbor(this.node.id, 'e')
       if (east && this.canPassDoor('e')) { this.enterRoom(east, 'west'); return }
     }
-    // Vertical: stand at the central stairwell on the ground and press up/down.
-    if (this.player.grounded && Math.abs(x - VERT_PASSAGE_X) <= VERT_RANGE) {
-      if (intent.upHeld) {
-        const north = castleNeighbor(this.node.id, 'n')
-        if (north && this.canPassDoor('n')) { this.enterRoom(north, 'bottom'); return }
-      } else if (intent.downHeld) {
-        const south = castleNeighbor(this.node.id, 's')
-        if (south && this.canPassDoor('s')) this.enterRoom(south, 'top')
-      }
+    // Vertical: climb the platforms to the top doorway to go up (no key press);
+    // descend at the floor stairwell to go down.
+    const doors = castleDoors(this.node.id)
+    if (doors.n && this.player.position.y <= TOP_EXIT_Y && Math.abs(x - VERT_PASSAGE_X) <= VERT_RANGE) {
+      const north = castleNeighbor(this.node.id, 'n')
+      if (north && this.canPassDoor('n')) { this.enterRoom(north, 'bottom'); return }
+    }
+    if (doors.s && this.player.grounded && intent.downHeld && Math.abs(x - VERT_PASSAGE_X) <= VERT_RANGE) {
+      const south = castleNeighbor(this.node.id, 's')
+      if (south && this.canPassDoor('s')) this.enterRoom(south, 'top')
     }
   }
 
@@ -1952,7 +1956,7 @@ export class CampaignScene extends Scene {
     let facing: Facing = this.player.facing
     if (entrySide === 'west') { x = WALL_MARGIN + 90; facing = 1 }
     else if (entrySide === 'east') { x = ROOM_WIDTH - WALL_MARGIN - 90; facing = -1 }
-    else if (entrySide === 'top') { y = 120 } // dropped in from above — falls to the floor
+    else if (entrySide === 'top') { y = 230 } // dropped in from above (below the top-exit zone) — falls to the floor
     this.player.reset(x, y, facing)
     if (entrySide === 'top') this.player.grounded = false
     this.player.health = Math.min(this.player.maxHealth, Math.max(1, carryHealth))
@@ -3511,34 +3515,41 @@ function drawAbilityOrb(ctx: CanvasRenderingContext2D, x: number, floorY: number
 }
 
 function drawVertPassage(ctx: CanvasRenderingContext2D, x: number, floorY: number, up: boolean, down: boolean, blink: number): void {
-  const w = 76
+  const w = 90
+  const pulse = 0.5 + 0.5 * Math.sin(blink * 0.1)
   ctx.save()
   if (up) {
-    const h = 150, top = floorY - h
+    // A doorway at the top of the room — climb the platforms to reach it.
+    const top = 58, h = 96
     ctx.fillStyle = '#070510'
     ctx.fillRect(x - w / 2, top, w, h)
-    const g = ctx.createLinearGradient(0, top, 0, floorY)
-    g.addColorStop(0, 'rgba(120,96,56,0.30)')
+    const g = ctx.createLinearGradient(0, top, 0, top + h)
+    g.addColorStop(0, 'rgba(120,96,56,0.34)')
     g.addColorStop(1, 'rgba(120,96,56,0)')
     ctx.fillStyle = g
     ctx.fillRect(x - w / 2, top, w, h)
     ctx.fillStyle = '#3a3352'
-    ctx.fillRect(x - w / 2 - 4, top - 10, w + 8, 10) // lintel
-    ctx.fillRect(x - w / 2 - 6, top, 6, h)
+    ctx.fillRect(x - w / 2 - 6, top, 6, h) // pillars
     ctx.fillRect(x + w / 2, top, 6, h)
+    ctx.fillRect(x - w / 2 - 6, top + h, w + 12, 8) // threshold at the base of the doorway
+    // Up-chevron hint just below the doorway.
+    ctx.strokeStyle = `rgba(232,212,160,${0.35 + 0.4 * pulse})`
+    ctx.lineWidth = 3
+    ctx.beginPath()
+    ctx.moveTo(x - 9, top + h + 20); ctx.lineTo(x, top + h + 11); ctx.lineTo(x + 9, top + h + 20)
+    ctx.stroke()
   }
   if (down) {
+    // A descending stairwell at the floor (press down to take it).
     ctx.fillStyle = '#070510'
     ctx.fillRect(x - w / 2, floorY - 6, w, 26)
     ctx.fillStyle = '#2a2238'
     for (let i = 0; i < 4; i++) ctx.fillRect(x - w / 2 + i * 8, floorY + i * 5 - 4, w - i * 16, 4)
+    ctx.fillStyle = `rgba(232,212,160,${0.5 + 0.5 * pulse})`
+    ctx.font = '9px "Press Start 2P", monospace'
+    ctx.textAlign = 'center'
+    ctx.fillText('S: DOWN', x, floorY - 22)
   }
-  const pulse = 0.5 + 0.5 * Math.sin(blink * 0.1)
-  ctx.fillStyle = `rgba(232,212,160,${0.5 + 0.5 * pulse})`
-  ctx.font = '9px "Press Start 2P", monospace'
-  ctx.textAlign = 'center'
-  const label = up && down ? 'W UP  S DOWN' : up ? 'W: UP' : 'S: DOWN'
-  ctx.fillText(label, x, up ? floorY - 166 : floorY - 22)
   ctx.restore()
 }
 
@@ -3664,6 +3675,20 @@ function drawPickup(ctx: CanvasRenderingContext2D, pickup: Pickup): void {
 
 function spike(x: number, width: number): Hazard {
   return { x, y: FLOOR_Y - 20, width, height: 20 }
+}
+
+/** Rooms with an up-door get a centred ladder of one-way platforms leading up to
+ *  the top doorway — jump straight up them to exit through the top. (Dropping in
+ *  from above spawns below the top-exit zone, so it can't bounce back up.) */
+function addShaftPlatforms(layout: RoomLayout, doors: Record<MapDir, boolean>): void {
+  if (!doors.n) return
+  const px = VERT_PASSAGE_X
+  layout.platforms.push(
+    { x: px - 80, y: 406, width: 160, height: 12 },
+    { x: px - 80, y: 320, width: 160, height: 12 },
+    { x: px - 80, y: 234, width: 160, height: 12 },
+    { x: px - 80, y: 150, width: 160, height: 12 }, // top ledge at the exit doorway
+  )
 }
 
 function buildLayout(stage: string): RoomLayout {
