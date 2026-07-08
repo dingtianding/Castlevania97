@@ -55,6 +55,10 @@ const ABILITIES: Record<string, { name: string; blurb: string }> = {
 const ABILITY_PICKUPS: Record<string, { x: number; ability: string }> = Object.fromEntries(
   CASTLE_ITEM_ROOMS.map((r) => [r.id, { x: r.x, ability: r.ability }]),
 )
+// Rooms that hold the Castle Map item, keyed to its x-position. Collecting it
+// reveals every room's outline on the map.
+const MAP_ITEM_ROOMS: Record<string, number> = { 'cor-alcove': 840 }
+const MAP_ITEM_RANGE = 48
 // Doors sealed until an ability is owned: nodeId -> direction -> required ability.
 // (None while double jump is a starting relic; the system stays for later abilities.)
 const SEALED_DOORS: Record<string, Partial<Record<MapDir, string>>> = {}
@@ -847,6 +851,7 @@ export class CampaignScene extends Scene {
   private sealMessageText = ''
   private abilityGetTicks = 0
   private abilityGetName = ''
+  private abilityGetSub = ''
   private hearts = STARTING_HEARTS
   private selectedSubweaponIndex = 0
   private enemyFreezeTicks = 0
@@ -1262,6 +1267,7 @@ export class CampaignScene extends Scene {
     this.tryUseSavePoint(intent)
     this.tryUseMerchant(intent)
     this.tryPickupAbility()
+    this.tryPickupMapItem()
     if (this.sealMessageTicks > 0) this.sealMessageTicks -= 1
     if (this.abilityGetTicks > 0) this.abilityGetTicks -= 1
 
@@ -1325,6 +1331,10 @@ export class CampaignScene extends Scene {
   /** Mirror the campaign save's room progress into the map module (the campaign
    *  save is the single source of truth; the map is a view of it). */
   private syncMapState(): void {
+    // The Castle Map item reveals every room's outline.
+    if (this.save.hasCastleMap) {
+      for (const id of Object.keys(CASTLE_MAP_DATA.rooms)) this.mapService.state.setState(id, 'revealed')
+    }
     for (const id of this.save.visitedNodeIds) this.mapService.state.setState(id, 'visited')
     for (const item of CASTLE_ITEM_ROOMS) {
       if (this.save.abilities.includes(item.ability)) this.mapService.state.collectItem(item.id)
@@ -1912,8 +1922,23 @@ export class CampaignScene extends Scene {
     this.applyAbilities()
     this.abilityGetTicks = 200
     this.abilityGetName = ABILITIES[pk.ability]?.name ?? pk.ability
+    this.abilityGetSub = 'DOUBLE JUMP UNLOCKED — SEALED DOORS WILL OPEN'
     this.ctx.audio.hit()
     this.spawnFloatingText(this.player.position.x, this.player.position.y - 118, 'ABILITY GET', '#f6b74a')
+  }
+
+  private tryPickupMapItem(): void {
+    const mx = MAP_ITEM_ROOMS[this.node.id]
+    if (mx === undefined || this.save.hasCastleMap || this.player.isDead) return
+    if (Math.abs(this.player.position.x - mx) > MAP_ITEM_RANGE) return
+    this.save = { ...this.save, hasCastleMap: true }
+    saveCampaignSave(this.save)
+    for (const id of Object.keys(CASTLE_MAP_DATA.rooms)) this.mapService.state.setState(id, 'revealed')
+    this.abilityGetTicks = 200
+    this.abilityGetName = 'CASTLE MAP'
+    this.abilityGetSub = 'THE WHOLE CASTLE FILLS IN ON YOUR MAP'
+    this.ctx.audio.hit()
+    this.spawnFloatingText(this.player.position.x, this.player.position.y - 118, 'MAP GET', '#7ad67a')
   }
 
   /** Load `nodeId` and drop the player at the entry side, facing inward. Health
@@ -2203,6 +2228,8 @@ export class CampaignScene extends Scene {
     // Ability relic, if this room has an uncollected one.
     const orb = ABILITY_PICKUPS[this.node.id]
     if (orb && !this.save.abilities.includes(orb.ability)) drawAbilityOrb(ctx, orb.x, this.layout.doorY, this.blink)
+    const mapItem = MAP_ITEM_ROOMS[this.node.id]
+    if (mapItem !== undefined && !this.save.hasCastleMap) drawMapItemPickup(ctx, mapItem, this.layout.doorY, this.blink)
     // Save point, if this room has one.
     const sx = SAVE_POINTS[this.node.id]
     if (sx !== undefined) drawSavePoint(ctx, sx, this.layout.doorY, this.blink)
@@ -2497,7 +2524,7 @@ export class CampaignScene extends Scene {
     ctx.fillText(this.abilityGetName.toUpperCase(), this.ctx.width / 2, cy + 4)
     ctx.fillStyle = '#b7a6d6'
     ctx.font = '8px "Press Start 2P", monospace'
-    ctx.fillText('DOUBLE JUMP UNLOCKED — SEALED DOORS WILL OPEN', this.ctx.width / 2, cy + 28)
+    ctx.fillText(this.abilityGetSub, this.ctx.width / 2, cy + 28)
     ctx.restore()
   }
 
@@ -3435,6 +3462,27 @@ function drawExit(ctx: CanvasRenderingContext2D, edgeX: number, floorY: number, 
     ctx.fillStyle = '#e0a0ff'
     ctx.beginPath(); ctx.arc(x + w / 2, top + h / 2, 8, 0, Math.PI * 2); ctx.fill()
   }
+  ctx.restore()
+}
+
+function drawMapItemPickup(ctx: CanvasRenderingContext2D, x: number, floorY: number, blink: number): void {
+  const pulse = 0.5 + 0.5 * Math.sin(blink * 0.1)
+  const cy = floorY - 66 - pulse * 5
+  ctx.save()
+  const g = ctx.createRadialGradient(x, cy, 0, x, cy, 34)
+  g.addColorStop(0, `rgba(122, 214, 122, ${0.35 + 0.25 * pulse})`)
+  g.addColorStop(1, 'rgba(122, 214, 122, 0)')
+  ctx.fillStyle = g
+  ctx.beginPath(); ctx.arc(x, cy, 34, 0, Math.PI * 2); ctx.fill()
+  // A rolled parchment map.
+  ctx.fillStyle = '#e6dcb8'
+  ctx.fillRect(x - 12, cy - 9, 24, 18)
+  ctx.fillStyle = '#c9bd90'
+  ctx.fillRect(x - 14, cy - 11, 4, 22) // left roll
+  ctx.fillRect(x + 10, cy - 11, 4, 22) // right roll
+  ctx.strokeStyle = '#7a8a5a'
+  ctx.lineWidth = 1
+  ctx.beginPath(); ctx.moveTo(x - 8, cy - 3); ctx.lineTo(x + 6, cy - 3); ctx.moveTo(x - 6, cy + 2); ctx.lineTo(x + 4, cy + 2); ctx.stroke()
   ctx.restore()
 }
 

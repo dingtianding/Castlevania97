@@ -56,6 +56,8 @@ export interface CampaignSave {
   perks: Readonly<Record<string, number>>
   /** Metroidvania traversal abilities collected (e.g. 'double-jump'). */
   abilities: readonly string[]
+  /** Found the Castle Map item — reveals every room's outline on the map. */
+  hasCastleMap: boolean
   level: number
   xp: number
   gold: number
@@ -621,6 +623,7 @@ export function initialCampaignSave(): CampaignSave {
     equipped: {},
     perks: {},
     abilities: [],
+    hasCastleMap: false,
     level: 1,
     xp: 0,
     gold: 0,
@@ -808,6 +811,7 @@ export function completeCampaignBattle(save: CampaignSave): CampaignSave {
     equipped: save.equipped,
     perks: save.perks,
     abilities: save.abilities,
+    hasCastleMap: save.hasCastleMap,
     level: save.level,
     xp: save.xp,
     gold: save.gold,
@@ -895,6 +899,7 @@ function sanitizeCampaignSave(value: Partial<CampaignSave>): CampaignSave {
     equipped: filterEquipped(value.equipped, filterEquipment(value.equipment)),
     perks: filterPerks(value.perks),
     abilities: Array.isArray(value.abilities) ? value.abilities.filter((a): a is string => typeof a === 'string') : [],
+    hasCastleMap: Boolean(value.hasCastleMap),
     level: clampNumber(value.level, 1, MAX_LEVEL, 1),
     xp: clampNumber(value.xp, 0, Number.MAX_SAFE_INTEGER, 0),
     gold: clampNumber(value.gold, 0, Number.MAX_SAFE_INTEGER, 0),
