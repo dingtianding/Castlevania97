@@ -39,6 +39,12 @@ const VERT_RANGE = 120
 // point heals the player and writes the save.
 const SAVE_POINTS: Record<string, number> = { 'cor-entrance': 520 }
 const SAVE_RANGE = 72
+// Rooms with a wandering merchant, keyed to its x-position. Approach + up opens
+// the shop. Kept clear of the central stairwell so the up-press doesn't clash.
+const MERCHANT_ROOMS: Record<string, number> = { 'cor-entrance': 1180 }
+const MERCHANT_RANGE = 80
+// Beating this room's boss completes the campaign.
+const FINAL_BOSS_NODE = 'fbd-chaos'
 const ROOM_HEIGHT = 576
 const FLOOR_Y = 492
 const GRAVITY = 0.78
@@ -814,6 +820,7 @@ export class CampaignScene extends Scene {
   private bossIntroTicks = 0
   private savedFlashTicks = 0
   private roomCooldown = 0
+  private victoryTicks = 0
   private hearts = STARTING_HEARTS
   private selectedSubweaponIndex = 0
   private enemyFreezeTicks = 0
@@ -1176,9 +1183,21 @@ export class CampaignScene extends Scene {
       return
     }
 
+    // Beating the final boss completes the campaign (after the death plays out).
+    if (this.node.id === FINAL_BOSS_NODE && this.enemies.length > 0 && this.enemies.every((e) => e.isDead)) {
+      this.victoryTicks += 1
+      if (this.victoryTicks > 100) {
+        this.save = { ...this.save, finished: true }
+        saveCampaignSave(this.save)
+        this.ending = true
+        return
+      }
+    }
+
     // Metroidvania traversal: walk off a room's edge into the adjacent room.
     this.tryRoomTransition(intent)
     this.tryUseSavePoint(intent)
+    this.tryUseMerchant(intent)
 
     this.cameraX = clamp(this.player.position.x - this.ctx.width / 2, 0, ROOM_WIDTH - this.ctx.width)
   }
@@ -1309,6 +1328,7 @@ export class CampaignScene extends Scene {
     this.perkChoosing = false
     this.perkOptions = []
     this.pendingLevelUps = 0
+    this.victoryTicks = 0
     this.rewardedDeaths.clear()
     this.floatingTexts = []
     this.attackingLastTick.clear()
@@ -1781,6 +1801,17 @@ export class CampaignScene extends Scene {
     this.ctx.audio.hit()
   }
 
+  private tryUseMerchant(intent: IntentState): void {
+    const mx = MERCHANT_ROOMS[this.node.id]
+    if (mx === undefined || this.player.isDead || !this.player.grounded) return
+    if (!intent.upHeld || this.roomCooldown > 0) return
+    if (Math.abs(this.player.position.x - mx) > MERCHANT_RANGE) return
+    this.shopping = true
+    this.shopIndex = 0
+    this.pendingNodeId = null
+    this.ctx.audio.swing()
+  }
+
   private perkStacks(id: string): number {
     return powerUpStacks(this.save.perks, id)
   }
@@ -1897,8 +1928,7 @@ export class CampaignScene extends Scene {
     const nodeId = this.pendingNodeId
     this.shopping = false
     this.pendingNodeId = null
-    if (nodeId) this.reloadNode(nodeId)
-    else this.ending = true
+    if (nodeId) this.reloadNode(nodeId) // legacy between-area path; merchant rooms just close
   }
 
   private shopItems(): { id: string; name: string; desc: string; price: number; available: boolean }[] {
@@ -2025,6 +2055,9 @@ export class CampaignScene extends Scene {
     // Save point, if this room has one.
     const sx = SAVE_POINTS[this.node.id]
     if (sx !== undefined) drawSavePoint(ctx, sx, this.layout.doorY, this.blink)
+    // Wandering merchant, if this room has one.
+    const mx = MERCHANT_ROOMS[this.node.id]
+    if (mx !== undefined) drawMerchant(ctx, mx, this.layout.doorY, this.blink)
     ctx.restore()
 
     this.player.render(this.ctx.renderer, this.cameraX)
@@ -3274,6 +3307,24 @@ function drawVertPassage(ctx: CanvasRenderingContext2D, x: number, floorY: numbe
   ctx.textAlign = 'center'
   const label = up && down ? 'W UP  S DOWN' : up ? 'W: UP' : 'S: DOWN'
   ctx.fillText(label, x, up ? floorY - 166 : floorY - 22)
+  ctx.restore()
+}
+
+function drawMerchant(ctx: CanvasRenderingContext2D, x: number, floorY: number, blink: number): void {
+  ctx.save()
+  // A hooded merchant behind a small stall.
+  ctx.fillStyle = '#3a2a1a'; ctx.fillRect(x - 34, floorY - 34, 68, 34)          // stall body
+  ctx.fillStyle = '#5a4326'; ctx.fillRect(x - 40, floorY - 40, 80, 8)           // counter
+  ctx.fillStyle = '#f6b74a'; ctx.fillRect(x - 30, floorY - 30, 8, 8); ctx.fillRect(x + 6, floorY - 26, 6, 6) // wares (coins/gems)
+  ctx.fillStyle = '#7ad6ff'; ctx.fillRect(x - 12, floorY - 28, 6, 6)
+  // hooded figure behind the counter
+  ctx.fillStyle = '#2a2238'; ctx.fillRect(x - 12, floorY - 74, 24, 40)          // cloak
+  ctx.fillStyle = '#1a1420'; ctx.beginPath(); ctx.arc(x, floorY - 74, 12, Math.PI, 0); ctx.fill() // hood
+  ctx.fillStyle = '#b7913f'; ctx.beginPath(); ctx.arc(x, floorY - 68, 5, 0, Math.PI * 2); ctx.fill() // face glow
+  const pulse = 0.5 + 0.5 * Math.sin(blink * 0.09)
+  ctx.fillStyle = `rgba(246,183,74,${0.5 + 0.5 * pulse})`
+  ctx.font = '9px "Press Start 2P", monospace'; ctx.textAlign = 'center'
+  ctx.fillText('W: SHOP', x, floorY - 92)
   ctx.restore()
 }
 
