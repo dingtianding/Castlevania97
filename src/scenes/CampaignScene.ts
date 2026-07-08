@@ -34,11 +34,13 @@ import { computeHitbox, isActiveAt, totalFrames, type AttackMove } from '../comb
 const ROOM_WIDTH = 1680
 // How close to a room edge counts as "walking through the doorway".
 const EDGE_ZONE = 14
-// Vertical stairwell passage: centered, activated from the floor with up/down.
+// Vertical passage is centered on the room. You climb (stairs + ledges) up to
+// the doorway and cross beyond the top edge to leave; you descend at the floor.
 const VERT_PASSAGE_X = ROOM_WIDTH / 2
 const VERT_RANGE = 120
-// Reaching this height near the central shaft exits through the top doorway.
-const TOP_EXIT_Y = 158
+// Climbing past this height near the central shaft carries you up through the
+// top doorway (i.e. beyond the room's top edge) — no key press.
+const TOP_EXIT_Y = 120
 // Save/merchant/relic placement is defined once in castleMapData (so the map
 // icons and the gameplay objects can't drift). Here we index them by x-position.
 const SAVE_POINTS: Record<string, number> = Object.fromEntries(CASTLE_SAVE_ROOMS.map((r) => [r.id, r.x]))
@@ -76,6 +78,8 @@ const DASH_COOLDOWN_TICKS = 28
 const JUMP_VELOCITY = -15.5
 const FAST_FALL_SPEED = 12
 const WALL_MARGIN = 48
+// Vertical reach for snapping onto a staircase surface while walking it.
+const STAIR_GRAB = 22
 const HURT_TICKS = 20
 const INVULNERABLE_TICKS = 72
 const DEBUG_HITBOXES = new URLSearchParams(location.search).has('hitbox')
@@ -193,8 +197,25 @@ interface Hazard {
   height: number
 }
 
+/** A walkable diagonal staircase (Castlevania-style). Collision uses a smooth
+ *  ramp along its span; you walk up/down it without jumping. */
+interface Stair {
+  /** x of the lower end (bottom step). */
+  x: number
+  /** surface y of the lower end (bottom step). */
+  y: number
+  /** 1 ascends toward +x, -1 ascends toward -x. */
+  dir: 1 | -1
+  steps: number
+  /** horizontal run per step. */
+  run: number
+  /** vertical rise per step. */
+  rise: number
+}
+
 interface RoomLayout {
   platforms: Platform[]
+  stairs: Stair[]
   hazards: Hazard[]
   doorX: number
   doorY: number
@@ -336,6 +357,8 @@ class CastleActor {
   private jumpCount = 0
   maxJumps = 2
   lastDamageTaken = 0
+  /** Walkable staircases in the current room (empty for enemies). */
+  stairs: Stair[] = []
   private dashTicks = 0
   private dashCooldown = 0
 
@@ -647,6 +670,18 @@ class CastleActor {
       if (this.prevPosition.y <= platform.y && this.position.y >= platform.y && this.velocity.y >= 0) {
         landed = true
         landingY = Math.min(landingY, platform.y)
+      }
+    }
+    // Staircases: walk up/down the ramp without jumping. Grab the surface when
+    // moving downward/level and within reach of it (or crossing it while falling).
+    for (const stair of this.stairs) {
+      const sy = stairSurfaceY(stair, this.position.x)
+      if (sy === null) continue
+      const nearSurface = this.position.y >= sy - STAIR_GRAB && this.position.y <= sy + STAIR_GRAB
+      const crossed = this.prevPosition.y <= sy + 1 && this.position.y >= sy
+      if (this.velocity.y >= 0 && (nearSurface || crossed)) {
+        landed = true
+        landingY = Math.min(landingY, sy)
       }
     }
 
@@ -1394,7 +1429,7 @@ export class CampaignScene extends Scene {
     this.node = getCampaignNode(nodeId)
     this.chapter = getCampaignChapter(this.node.chapterId)
     this.layout = buildLayout(this.node.stage)
-    addShaftPlatforms(this.layout, castleDoors(this.node.id))
+    addVerticalClimb(this.layout, castleDoors(this.node.id))
     this.runMods = buildRunModifiers(this.save.relicIds.map((id) => RELIC_POOL.find((relic) => relic.id === id)).filter((relic): relic is RelicDef => Boolean(relic)))
     this.soulMods = buildSoulModifiers(this.save.souls)
     this.equipMods = buildEquipmentModifiers(equippedDefs(this.save))
@@ -1402,6 +1437,7 @@ export class CampaignScene extends Scene {
     this.playerDamageTakenMult = this.computeDamageTakenMult()
     const moveSpeed = this.computeMoveSpeedMult()
     this.player = new CastleActor(CAMPAIGN_HERO, this.ctx.assets, this.layout.checkpointX, this.layout.checkpointY, 1, moveSpeed)
+    this.player.stairs = this.layout.stairs
     this.player.setMaxHealth(this.computeMaxHealth())
     this.player.reset(this.layout.checkpointX, this.layout.checkpointY, 1)
     this.player.meterGainMultiplier = this.computeMeterGainMult()
@@ -1956,9 +1992,10 @@ export class CampaignScene extends Scene {
     let facing: Facing = this.player.facing
     if (entrySide === 'west') { x = WALL_MARGIN + 90; facing = 1 }
     else if (entrySide === 'east') { x = ROOM_WIDTH - WALL_MARGIN - 90; facing = -1 }
-    else if (entrySide === 'top') { y = 230 } // dropped in from above (below the top-exit zone) — falls to the floor
+    // Coming down through the passage: arrive on the top doorway ledge and descend.
+    else if (entrySide === 'top') { y = 150 }
+    // Coming up through the passage: arrive at the floor of the room above.
     this.player.reset(x, y, facing)
-    if (entrySide === 'top') this.player.grounded = false
     this.player.health = Math.min(this.player.maxHealth, Math.max(1, carryHealth))
     this.player.meter = clamp(carryMeter, 0, 100)
     this.cameraX = clamp(x - this.ctx.width / 2, 0, ROOM_WIDTH - this.ctx.width)
@@ -2221,6 +2258,7 @@ export class CampaignScene extends Scene {
       ctx.fillStyle = crumbling ? '#a5675a' : platform.crumble ? '#7a6a4a' : '#5a567a'
       ctx.fillRect(px, platform.y - 4, platform.width, 4)
     }
+    for (const stair of this.layout.stairs) drawStair(ctx, stair)
     for (const hazard of this.layout.hazards) drawSpikes(ctx, hazard)
     for (const candle of this.candles) drawCandle(ctx, candle)
     for (const pickup of this.pickups) drawPickup(ctx, pickup)
@@ -3514,6 +3552,20 @@ function drawAbilityOrb(ctx: CanvasRenderingContext2D, x: number, floorY: number
   ctx.restore()
 }
 
+/** Draw a diagonal staircase as stepped stone columns down to the floor. */
+function drawStair(ctx: CanvasRenderingContext2D, stair: Stair): void {
+  ctx.save()
+  for (let i = 0; i < stair.steps; i++) {
+    const topY = stair.y - stair.rise * (i + 1)
+    const sx = stair.dir === 1 ? stair.x + i * stair.run : stair.x - (i + 1) * stair.run
+    ctx.fillStyle = '#2a2238'
+    ctx.fillRect(sx, topY, stair.run, stair.y - topY) // column down to the base
+    ctx.fillStyle = '#5a567a'
+    ctx.fillRect(sx, topY, stair.run, 4) // lit tread edge
+  }
+  ctx.restore()
+}
+
 function drawVertPassage(ctx: CanvasRenderingContext2D, x: number, floorY: number, up: boolean, down: boolean, blink: number): void {
   const w = 90
   const pulse = 0.5 + 0.5 * Math.sin(blink * 0.1)
@@ -3677,22 +3729,38 @@ function spike(x: number, width: number): Hazard {
   return { x, y: FLOOR_Y - 20, width, height: 20 }
 }
 
-/** Rooms with an up-door get a centred ladder of one-way platforms leading up to
- *  the top doorway — jump straight up them to exit through the top. (Dropping in
- *  from above spawns below the top-exit zone, so it can't bounce back up.) */
-function addShaftPlatforms(layout: RoomLayout, doors: Record<MapDir, boolean>): void {
+/** Surface y of a staircase at world-x `px`, or null if `px` is off the stair.
+ *  The surface is a smooth ramp between the low and high ends. */
+function stairSurfaceY(stair: Stair, px: number): number | null {
+  const span = stair.steps * stair.run
+  const lowX = stair.dir === 1 ? stair.x : stair.x - span
+  const highX = stair.dir === 1 ? stair.x + span : stair.x
+  if (px < lowX || px > highX) return null
+  const along = stair.dir === 1 ? px - stair.x : stair.x - px // 0..span
+  const t = Math.max(0, Math.min(1, along / span))
+  return stair.y - stair.rise * stair.steps * t
+}
+
+/** Rooms with an up-door get a climb to the top doorway: a walkable diagonal
+ *  staircase up one side, plus staggered jump-ledges up the other, meeting at a
+ *  ledge under the doorway. Climb past the top edge (either route) to exit up. */
+function addVerticalClimb(layout: RoomLayout, doors: Record<MapDir, boolean>): void {
   if (!doors.n) return
   const px = VERT_PASSAGE_X
+  // Staircase: from the floor left-of-centre up to the doorway ledge.
+  layout.stairs.push({ x: px - 300, y: FLOOR_Y, dir: 1, steps: 10, run: 30, rise: 34 })
   layout.platforms.push(
-    { x: px - 80, y: 406, width: 160, height: 12 },
-    { x: px - 80, y: 320, width: 160, height: 12 },
-    { x: px - 80, y: 234, width: 160, height: 12 },
-    { x: px - 80, y: 150, width: 160, height: 12 }, // top ledge at the exit doorway
+    // Staggered jump-ledges up the right side (an alternate route).
+    { x: px + 96, y: 404, width: 150, height: 12 },
+    { x: px + 20, y: 318, width: 140, height: 12 },
+    { x: px + 120, y: 232, width: 150, height: 12 },
+    // Ledge directly under the top doorway (top of both routes).
+    { x: px - 74, y: 150, width: 148, height: 12 },
   )
 }
 
 function buildLayout(stage: string): RoomLayout {
-  const base = { doorX: ROOM_WIDTH - 128, doorY: FLOOR_Y, checkpointX: 120, checkpointY: FLOOR_Y }
+  const base = { doorX: ROOM_WIDTH - 128, doorY: FLOOR_Y, checkpointX: 120, checkpointY: FLOOR_Y, stairs: [] as Stair[] }
   switch (stage) {
     case 'outer_wall':
       return {
