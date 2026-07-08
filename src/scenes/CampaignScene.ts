@@ -1676,7 +1676,7 @@ export class CampaignScene extends Scene {
       this.save = result.save
       const hurt = enemy.hurtbox()
       this.spawnFloatingText(hurt.x + hurt.width / 2, hurt.y - 6, `+${reward.xp} XP`, '#b7c7e6')
-      if (result.levelsGained > 0) this.onLevelUp()
+      if (result.levelsGained > 0) this.onLevelUp(result.levelsGained)
       this.tryDropSoul(enemy, hurt)
       this.tryDropBulletSoul(enemy, hurt)
       this.spawnEnemyDrops(enemy)
@@ -1726,16 +1726,26 @@ export class CampaignScene extends Scene {
     this.player.meterGainMultiplier = this.computeMeterGainMult()
   }
 
-  private onLevelUp(): void {
+  private onLevelUp(levelsGained: number): void {
+    // Every level auto-boosts stats (max HP + attack scale with level in the
+    // compute* methods) and restores health.
     this.levelUpTicks = 150
     this.playerDamageMult = this.computeDamageMult()
-    this.player.setMaxHealth(this.computeMaxHealth()) // level-ups fully restore health
+    this.player.setMaxHealth(this.computeMaxHealth())
     this.spawnFloatingText(this.player.position.x, this.player.position.y - 118, `LEVEL ${this.save.level}`, '#f6b74a')
+    this.spawnFloatingText(this.player.position.x, this.player.position.y - 100, 'STATS UP', '#b7c7e6')
     this.ctx.audio.hit()
-    // Each level earns a power-up pick. Levels can stack in a single tick, so
-    // queue them and present one choice at a time.
-    this.pendingLevelUps += 1
-    if (!this.perkChoosing) this.openPerkChoice()
+    // A power-up pick is earned only on every 5th level. Count how many level-5
+    // milestones the gain crossed and queue a choice for each.
+    const top = this.save.level
+    let milestones = 0
+    for (let lvl = top - levelsGained + 1; lvl <= top; lvl += 1) {
+      if (lvl % 5 === 0) milestones += 1
+    }
+    if (milestones > 0) {
+      this.pendingLevelUps += milestones
+      if (!this.perkChoosing) this.openPerkChoice()
+    }
   }
 
   private openPerkChoice(): void {
