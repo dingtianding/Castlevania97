@@ -4,7 +4,7 @@ import { ModeSelectScene } from './ModeSelectScene.ts'
 import { PauseScene } from './PauseScene.ts'
 import { AssetManager } from '../assets/AssetManager.ts'
 import { AUDIO_MANIFEST } from '../assets/manifest.ts'
-import { addCampaignBulletSoul, addCampaignEquipment, addCampaignPerk, addCampaignRelic, addCampaignSoul, equipCampaignBulletSoul, equipCampaignItem, equippedDefs, getCampaignChapter, getCampaignNode, grantCampaignRewards, loadCampaignSave, markCampaignVisited, MAX_LEVEL, saveCampaignSave, unequipCampaignSlot, xpForNextLevel } from '../data/campaign.ts'
+import { addCampaignAbility, addCampaignBulletSoul, addCampaignEquipment, addCampaignPerk, addCampaignRelic, addCampaignSoul, equipCampaignBulletSoul, equipCampaignItem, equippedDefs, getCampaignChapter, getCampaignNode, grantCampaignRewards, loadCampaignSave, markCampaignVisited, MAX_LEVEL, saveCampaignSave, unequipCampaignSlot, xpForNextLevel } from '../data/campaign.ts'
 import { draftPowerUps, powerUpStacks, type PowerUpDef } from '../data/powerups.ts'
 import { BASE_BULLET_SOUL, bulletSoulForEnemy, getBulletSoul, type BulletSoulDef } from '../data/bulletSouls.ts'
 import { CASTLE_CELLS, CASTLE_ROOM_IDS, castleDoors, castleGridBounds, castleNeighbor, isBossRoom, type MapDir } from '../data/castleMap.ts'
@@ -45,6 +45,18 @@ const MERCHANT_ROOMS: Record<string, number> = { 'cor-entrance': 1180 }
 const MERCHANT_RANGE = 80
 // Beating this room's boss completes the campaign.
 const FINAL_BOSS_NODE = 'fbd-chaos'
+// Metroidvania traversal abilities.
+const ABILITIES: Record<string, { name: string; blurb: string }> = {
+  'double-jump': { name: 'Leap Stone', blurb: 'Jump a second time in mid-air, and pass doors sealed against the earthbound.' },
+}
+// Rooms that hold an ability relic, keyed to its x-position and the ability id.
+const ABILITY_PICKUPS: Record<string, { x: number; ability: string }> = {
+  'cor-alcove': { x: 840, ability: 'double-jump' },
+}
+// Doors sealed until an ability is owned: nodeId -> direction -> required ability.
+const SEALED_DOORS: Record<string, Partial<Record<MapDir, string>>> = {
+  'cor-grand': { e: 'double-jump' },
+}
 const ROOM_HEIGHT = 576
 const FLOOR_Y = 492
 const GRAVITY = 0.78
@@ -315,6 +327,7 @@ class CastleActor {
   private hurtTick = 0
   private invulnerableTicks = 0
   private jumpCount = 0
+  maxJumps = 2
   private dashTicks = 0
   private dashCooldown = 0
 
@@ -478,7 +491,7 @@ class CastleActor {
   }
 
   tryJump(): void {
-    if (!this.grounded && this.jumpCount >= 2) return
+    if (!this.grounded && this.jumpCount >= this.maxJumps) return
     this.velocity.y = JUMP_VELOCITY
     this.grounded = false
     this.jumpCount += 1
@@ -821,6 +834,10 @@ export class CampaignScene extends Scene {
   private savedFlashTicks = 0
   private roomCooldown = 0
   private victoryTicks = 0
+  private sealMessageTicks = 0
+  private sealMessageText = ''
+  private abilityGetTicks = 0
+  private abilityGetName = ''
   private hearts = STARTING_HEARTS
   private selectedSubweaponIndex = 0
   private enemyFreezeTicks = 0
@@ -1198,6 +1215,9 @@ export class CampaignScene extends Scene {
     this.tryRoomTransition(intent)
     this.tryUseSavePoint(intent)
     this.tryUseMerchant(intent)
+    this.tryPickupAbility()
+    if (this.sealMessageTicks > 0) this.sealMessageTicks -= 1
+    if (this.abilityGetTicks > 0) this.abilityGetTicks -= 1
 
     this.cameraX = clamp(this.player.position.x - this.ctx.width / 2, 0, ROOM_WIDTH - this.ctx.width)
   }
@@ -1233,6 +1253,8 @@ export class CampaignScene extends Scene {
     }
     if (this.levelUpTicks > 0 && !this.ending && !this.drafting && !this.perkChoosing) this.drawLevelUp()
     if (this.bossIntroTicks > 0) this.drawBossIntro()
+    if (this.sealMessageTicks > 0) this.drawSealMessage()
+    if (this.abilityGetTicks > 0) this.drawAbilityGet()
     this.drawFlash()
   }
 
@@ -1307,6 +1329,7 @@ export class CampaignScene extends Scene {
     this.player.reset(this.layout.checkpointX, this.layout.checkpointY, 1)
     this.player.meterGainMultiplier = this.computeMeterGainMult()
     this.player.meter = this.runMods.startMeterBonus + this.equipMods.startMeterBonus
+    this.applyAbilities()
     this.enemies = buildEnemies(this.node, this.ctx.assets, this.layout)
     this.projectiles = []
     this.subweapons = []
@@ -1750,21 +1773,53 @@ export class CampaignScene extends Scene {
     // Horizontal: walk into a side edge that has a door.
     if (intent.moveX < 0 && x <= WALL_MARGIN + EDGE_ZONE) {
       const west = castleNeighbor(this.node.id, 'w')
-      if (west) { this.enterRoom(west, 'east'); return }
+      if (west && this.canPassDoor('w')) { this.enterRoom(west, 'east'); return }
     } else if (intent.moveX > 0 && x >= ROOM_WIDTH - WALL_MARGIN - EDGE_ZONE) {
       const east = castleNeighbor(this.node.id, 'e')
-      if (east) { this.enterRoom(east, 'west'); return }
+      if (east && this.canPassDoor('e')) { this.enterRoom(east, 'west'); return }
     }
     // Vertical: stand at the central stairwell on the ground and press up/down.
     if (this.player.grounded && Math.abs(x - VERT_PASSAGE_X) <= VERT_RANGE) {
       if (intent.upHeld) {
         const north = castleNeighbor(this.node.id, 'n')
-        if (north) { this.enterRoom(north, 'bottom'); return }
+        if (north && this.canPassDoor('n')) { this.enterRoom(north, 'bottom'); return }
       } else if (intent.downHeld) {
         const south = castleNeighbor(this.node.id, 's')
-        if (south) this.enterRoom(south, 'top')
+        if (south && this.canPassDoor('s')) this.enterRoom(south, 'top')
       }
     }
+  }
+
+  /** A sealed door blocks until you own its ability; flashes a hint otherwise. */
+  private canPassDoor(dir: MapDir): boolean {
+    const req = SEALED_DOORS[this.node.id]?.[dir]
+    if (!req || this.save.abilities.includes(req)) return true
+    if (this.sealMessageTicks <= 0) this.ctx.audio.swing()
+    this.sealMessageTicks = 40
+    this.sealMessageText = `SEALED — NEEDS ${(ABILITIES[req]?.name ?? req).toUpperCase()}`
+    return false
+  }
+
+  private isDoorSealed(dir: MapDir): boolean {
+    const req = SEALED_DOORS[this.node.id]?.[dir]
+    return Boolean(req) && !this.save.abilities.includes(req!)
+  }
+
+  /** Reflect owned abilities on the live player (double jump, ...). */
+  private applyAbilities(): void {
+    this.player.maxJumps = this.save.abilities.includes('double-jump') ? 2 : 1
+  }
+
+  private tryPickupAbility(): void {
+    const pk = ABILITY_PICKUPS[this.node.id]
+    if (!pk || this.save.abilities.includes(pk.ability) || this.player.isDead) return
+    if (Math.abs(this.player.position.x - pk.x) > 48) return
+    this.save = addCampaignAbility(this.save, pk.ability)
+    this.applyAbilities()
+    this.abilityGetTicks = 200
+    this.abilityGetName = ABILITIES[pk.ability]?.name ?? pk.ability
+    this.ctx.audio.hit()
+    this.spawnFloatingText(this.player.position.x, this.player.position.y - 118, 'ABILITY GET', '#f6b74a')
   }
 
   /** Load `nodeId` and drop the player at the entry side, facing inward. Health
@@ -2049,9 +2104,12 @@ export class CampaignScene extends Scene {
     for (const pickup of this.pickups) drawPickup(ctx, pickup)
     // Exit passages on whichever edges have a door in the castle graph.
     const doors = castleDoors(this.node.id)
-    if (doors.w) drawExit(ctx, 0, this.layout.doorY, 'w')
-    if (doors.e) drawExit(ctx, ROOM_WIDTH, this.layout.doorY, 'e')
+    if (doors.w) drawExit(ctx, 0, this.layout.doorY, 'w', this.isDoorSealed('w'))
+    if (doors.e) drawExit(ctx, ROOM_WIDTH, this.layout.doorY, 'e', this.isDoorSealed('e'))
     if (doors.n || doors.s) drawVertPassage(ctx, VERT_PASSAGE_X, this.layout.doorY, doors.n, doors.s, this.blink)
+    // Ability relic, if this room has an uncollected one.
+    const orb = ABILITY_PICKUPS[this.node.id]
+    if (orb && !this.save.abilities.includes(orb.ability)) drawAbilityOrb(ctx, orb.x, this.layout.doorY, this.blink)
     // Save point, if this room has one.
     const sx = SAVE_POINTS[this.node.id]
     if (sx !== undefined) drawSavePoint(ctx, sx, this.layout.doorY, this.blink)
@@ -2303,6 +2361,50 @@ export class CampaignScene extends Scene {
     ctx.fillStyle = '#b7a6d6'
     ctx.font = '9px "Press Start 2P", monospace'
     ctx.fillText(boss.def.meta.archetype, this.ctx.width / 2, cy + 30)
+    ctx.restore()
+  }
+
+  private drawSealMessage(): void {
+    const { ctx } = this.ctx.renderer
+    const alpha = Math.min(1, this.sealMessageTicks / 12)
+    ctx.save()
+    ctx.globalAlpha = alpha
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillStyle = 'rgba(8, 6, 14, 0.7)'
+    ctx.fillRect(this.ctx.width / 2 - 230, this.ctx.height - 118, 460, 30)
+    ctx.strokeStyle = '#c86adc'
+    ctx.lineWidth = 2
+    ctx.strokeRect(this.ctx.width / 2 - 230, this.ctx.height - 118, 460, 30)
+    ctx.fillStyle = '#e0a0ff'
+    ctx.font = '9px "Press Start 2P", monospace'
+    ctx.fillText(this.sealMessageText, this.ctx.width / 2, this.ctx.height - 102)
+    ctx.restore()
+  }
+
+  private drawAbilityGet(): void {
+    const { ctx } = this.ctx.renderer
+    const t = this.abilityGetTicks
+    const alpha = Math.min(1, t / 24, (200 - t) / 20)
+    const cy = this.ctx.height / 2 - 40
+    ctx.save()
+    ctx.globalAlpha = Math.max(0, alpha)
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillStyle = 'rgba(6, 4, 10, 0.8)'
+    ctx.fillRect(0, cy - 44, this.ctx.width, 88)
+    ctx.fillStyle = '#f6b74a'
+    ctx.fillRect(0, cy - 44, this.ctx.width, 3)
+    ctx.fillRect(0, cy + 41, this.ctx.width, 3)
+    ctx.fillStyle = '#8fd4ff'
+    ctx.font = '9px "Press Start 2P", monospace'
+    ctx.fillText('— ABILITY GAINED —', this.ctx.width / 2, cy - 22)
+    ctx.fillStyle = '#f4e6c0'
+    ctx.font = '20px "Press Start 2P", monospace'
+    ctx.fillText(this.abilityGetName.toUpperCase(), this.ctx.width / 2, cy + 4)
+    ctx.fillStyle = '#b7a6d6'
+    ctx.font = '8px "Press Start 2P", monospace'
+    ctx.fillText('DOUBLE JUMP UNLOCKED — SEALED DOORS WILL OPEN', this.ctx.width / 2, cy + 28)
     ctx.restore()
   }
 
@@ -3256,7 +3358,7 @@ function drawSoulBolt(bolt: SoulBolt, renderer: Renderer, cameraX: number): void
   ctx.restore()
 }
 
-function drawExit(ctx: CanvasRenderingContext2D, edgeX: number, floorY: number, side: 'w' | 'e'): void {
+function drawExit(ctx: CanvasRenderingContext2D, edgeX: number, floorY: number, side: 'w' | 'e', sealed = false): void {
   const w = 90, h = 172
   const x = side === 'w' ? edgeX : edgeX - w
   const top = floorY - h
@@ -3264,9 +3366,10 @@ function drawExit(ctx: CanvasRenderingContext2D, edgeX: number, floorY: number, 
   // Dark passage into the next room, with a faint warm light spilling from it.
   ctx.fillStyle = '#070510'
   ctx.fillRect(x, top, w, h)
+  const glow = sealed ? 'rgba(150,60,180,0.30)' : 'rgba(120,96,56,0.32)'
   const grad = ctx.createLinearGradient(side === 'w' ? x : x + w, 0, side === 'w' ? x + w : x, 0)
-  grad.addColorStop(0, 'rgba(120,96,56,0.32)')
-  grad.addColorStop(1, 'rgba(120,96,56,0)')
+  grad.addColorStop(0, glow)
+  grad.addColorStop(1, 'rgba(0,0,0,0)')
   ctx.fillStyle = grad
   ctx.fillRect(x, top, w, h)
   // Stone frame: lintel + an inner pillar so it reads as a doorway.
@@ -3275,6 +3378,41 @@ function drawExit(ctx: CanvasRenderingContext2D, edgeX: number, floorY: number, 
   const pw = 12
   const px = side === 'w' ? x + w - pw : x
   ctx.fillRect(px, top - 4, pw, h + 4)
+  // A sealed door gets glowing magic bars across it.
+  if (sealed) {
+    ctx.strokeStyle = '#c86adc'
+    ctx.lineWidth = 4
+    for (let i = 1; i <= 4; i++) {
+      const gy = top + (h * i) / 5
+      ctx.beginPath(); ctx.moveTo(x + 4, gy); ctx.lineTo(x + w - 4, gy); ctx.stroke()
+    }
+    ctx.fillStyle = '#e0a0ff'
+    ctx.beginPath(); ctx.arc(x + w / 2, top + h / 2, 8, 0, Math.PI * 2); ctx.fill()
+  }
+  ctx.restore()
+}
+
+function drawAbilityOrb(ctx: CanvasRenderingContext2D, x: number, floorY: number, blink: number): void {
+  const pulse = 0.5 + 0.5 * Math.sin(blink * 0.1)
+  const cy = floorY - 70 - pulse * 6 // gentle float
+  ctx.save()
+  const g = ctx.createRadialGradient(x, cy, 0, x, cy, 40)
+  g.addColorStop(0, `rgba(246,183,74,${0.4 + 0.3 * pulse})`)
+  g.addColorStop(1, 'rgba(246,183,74,0)')
+  ctx.fillStyle = g
+  ctx.beginPath(); ctx.arc(x, cy, 40, 0, Math.PI * 2); ctx.fill()
+  // Spinning relic star.
+  ctx.translate(x, cy)
+  ctx.rotate(blink * 0.05)
+  ctx.fillStyle = '#fff2cc'; ctx.strokeStyle = '#f6b74a'; ctx.lineWidth = 2
+  ctx.beginPath()
+  for (let i = 0; i < 8; i++) {
+    const r = i % 2 === 0 ? 13 : 6
+    const a = (i / 8) * Math.PI * 2
+    if (i === 0) ctx.moveTo(Math.cos(a) * r, Math.sin(a) * r)
+    else ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r)
+  }
+  ctx.closePath(); ctx.fill(); ctx.stroke()
   ctx.restore()
 }
 

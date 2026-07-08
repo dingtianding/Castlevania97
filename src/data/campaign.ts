@@ -54,6 +54,8 @@ export interface CampaignSave {
   equipped: Partial<Record<EquipSlot, EquipmentId>>
   /** Level-up power-ups, stackable: perkId -> times chosen (see powerups.ts). */
   perks: Readonly<Record<string, number>>
+  /** Metroidvania traversal abilities collected (e.g. 'double-jump'). */
+  abilities: readonly string[]
   level: number
   xp: number
   gold: number
@@ -618,6 +620,7 @@ export function initialCampaignSave(): CampaignSave {
     equipment: [],
     equipped: {},
     perks: {},
+    abilities: [],
     level: 1,
     xp: 0,
     gold: 0,
@@ -637,6 +640,14 @@ export function markCampaignVisited(save: CampaignSave, nodeId: string): Campaig
 }
 
 /** Take a level-up power-up, stacking it on top of any prior copies. */
+/** Collect a traversal ability (double-jump, etc.). */
+export function addCampaignAbility(save: CampaignSave, id: string): CampaignSave {
+  if (save.abilities.includes(id)) return save
+  const next: CampaignSave = { ...save, abilities: [...save.abilities, id] }
+  saveCampaignSave(next)
+  return next
+}
+
 export function addCampaignPerk(save: CampaignSave, perkId: PowerUpId): CampaignSave {
   const next: CampaignSave = {
     ...save,
@@ -796,6 +807,7 @@ export function completeCampaignBattle(save: CampaignSave): CampaignSave {
     equipment: save.equipment,
     equipped: save.equipped,
     perks: save.perks,
+    abilities: save.abilities,
     level: save.level,
     xp: save.xp,
     gold: save.gold,
@@ -882,6 +894,7 @@ function sanitizeCampaignSave(value: Partial<CampaignSave>): CampaignSave {
     equipment: filterEquipment(value.equipment),
     equipped: filterEquipped(value.equipped, filterEquipment(value.equipment)),
     perks: filterPerks(value.perks),
+    abilities: Array.isArray(value.abilities) ? value.abilities.filter((a): a is string => typeof a === 'string') : [],
     level: clampNumber(value.level, 1, MAX_LEVEL, 1),
     xp: clampNumber(value.xp, 0, Number.MAX_SAFE_INTEGER, 0),
     gold: clampNumber(value.gold, 0, Number.MAX_SAFE_INTEGER, 0),
