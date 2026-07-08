@@ -35,9 +35,13 @@ const EDGE_ZONE = 14
 // Vertical stairwell passage: centered, activated from the floor with up/down.
 const VERT_PASSAGE_X = ROOM_WIDTH / 2
 const VERT_RANGE = 120
-// Rooms that hold a save point, keyed to its x-position in the room. A save
-// point heals the player and writes the save.
-const SAVE_POINTS: Record<string, number> = { 'cor-entrance': 520 }
+// Save rooms: safe (no enemies spawn) rooms with a save crystal, keyed to its
+// x-position. The save point heals the player and writes the save.
+const SAVE_POINTS: Record<string, number> = {
+  'cor-entrance': 520,
+  'std-reading': 840,
+  'top-antechamber': 840,
+}
 const SAVE_RANGE = 72
 // Rooms with a wandering merchant, keyed to its x-position. Approach + up opens
 // the shop. Kept clear of the central stairwell so the up-press doesn't clash.
@@ -45,18 +49,20 @@ const MERCHANT_ROOMS: Record<string, number> = { 'cor-entrance': 1180 }
 const MERCHANT_RANGE = 80
 // Beating this room's boss completes the campaign.
 const FINAL_BOSS_NODE = 'fbd-chaos'
+// Navigable pause menu entries (GBA-style).
+const MENU_ITEMS = ['STATUS', 'EQUIP', 'MAP', 'RESUME'] as const
 // Metroidvania traversal abilities.
 const ABILITIES: Record<string, { name: string; blurb: string }> = {
   'double-jump': { name: 'Leap Stone', blurb: 'Jump a second time in mid-air, and pass doors sealed against the earthbound.' },
 }
 // Rooms that hold an ability relic, keyed to its x-position and the ability id.
+// Double jump is granted right at the start.
 const ABILITY_PICKUPS: Record<string, { x: number; ability: string }> = {
-  'cor-alcove': { x: 840, ability: 'double-jump' },
+  'cor-entrance': { x: 320, ability: 'double-jump' },
 }
 // Doors sealed until an ability is owned: nodeId -> direction -> required ability.
-const SEALED_DOORS: Record<string, Partial<Record<MapDir, string>>> = {
-  'cor-grand': { e: 'double-jump' },
-}
+// (None while double jump is a starting relic; the system stays for later abilities.)
+const SEALED_DOORS: Record<string, Partial<Record<MapDir, string>>> = {}
 const ROOM_HEIGHT = 576
 const FLOOR_Y = 492
 const GRAVITY = 0.78
@@ -328,6 +334,7 @@ class CastleActor {
   private invulnerableTicks = 0
   private jumpCount = 0
   maxJumps = 2
+  lastDamageTaken = 0
   private dashTicks = 0
   private dashCooldown = 0
 
@@ -349,6 +356,11 @@ class CastleActor {
 
   get isDead(): boolean {
     return this.state === 'death' || this.health <= 0
+  }
+
+  /** True once the death animation and fade have fully played out. */
+  get isGone(): boolean {
+    return this.state === 'death' && this.deathTicks >= DEATH_HOLD_TICKS + DEATH_FADE_TICKS
   }
 
   get currentMove(): AttackMove | null {
@@ -443,7 +455,8 @@ class CastleActor {
 
   applyHit(move: AttackMove, fromX: number, damageMultiplier = 1): boolean {
     if (!this.canBeHit) return false
-    this.health = Math.max(0, this.health - Math.max(1, Math.round(move.damage * damageMultiplier)))
+    this.lastDamageTaken = Math.max(1, Math.round(move.damage * damageMultiplier))
+    this.health = Math.max(0, this.health - this.lastDamageTaken)
     this.velocity.x = this.position.x >= fromX ? 6 : -6
     this.velocity.y = move.knockbackY
     this.grounded = false
@@ -462,7 +475,8 @@ class CastleActor {
 
   applyFlatDamage(damage: number, fromX: number, knockbackY: number, damageMultiplier = 1): boolean {
     if (!this.canBeHit) return false
-    this.health = Math.max(0, this.health - Math.max(1, Math.round(damage * damageMultiplier)))
+    this.lastDamageTaken = Math.max(1, Math.round(damage * damageMultiplier))
+    this.health = Math.max(0, this.health - this.lastDamageTaken)
     this.velocity.x = this.position.x >= fromX ? 5 : -5
     this.velocity.y = knockbackY
     this.grounded = false
@@ -861,6 +875,9 @@ export class CampaignScene extends Scene {
   private showStatus = false
   private showEquipment = false
   private showMap = false
+  private showMenu = false
+  private menuIndex = 0
+  private menuReturn = false
   private mapCursorId = ''
   private equipSlotIndex = 0
   private pendingNodeId: string | null = null
@@ -951,6 +968,7 @@ export class CampaignScene extends Scene {
       if (isMenuCancel(e.code) || e.code === 'Escape' || e.code === 'KeyI' || e.code === 'Tab') {
         e.preventDefault()
         this.showEquipment = false
+        if (this.menuReturn) this.showMenu = true
       }
       return
     }
@@ -966,6 +984,7 @@ export class CampaignScene extends Scene {
       if (e.code === 'KeyI' || e.code === 'Tab' || e.code === 'Escape' || isMenuCancel(e.code)) {
         e.preventDefault()
         this.showStatus = false
+        if (this.menuReturn) this.showMenu = true
       }
       return
     }
@@ -979,6 +998,32 @@ export class CampaignScene extends Scene {
       if (e.code === 'Space' || e.code === 'Escape' || isMenuCancel(e.code) || isMenuConfirm(e.code)) {
         e.preventDefault()
         this.showMap = false
+        if (this.menuReturn) this.showMenu = true
+      }
+      return
+    }
+    if (this.showMenu) {
+      if (e.code === 'KeyW' || e.code === 'ArrowUp') {
+        e.preventDefault()
+        this.menuIndex = (this.menuIndex - 1 + MENU_ITEMS.length) % MENU_ITEMS.length
+        this.ctx.audio.swing()
+        return
+      }
+      if (e.code === 'KeyS' || e.code === 'ArrowDown') {
+        e.preventDefault()
+        this.menuIndex = (this.menuIndex + 1) % MENU_ITEMS.length
+        this.ctx.audio.swing()
+        return
+      }
+      if (isMenuConfirm(e.code)) {
+        e.preventDefault()
+        this.selectMenu()
+        return
+      }
+      if (isMenuCancel(e.code) || e.code === 'Escape' || e.code === 'Enter') {
+        e.preventDefault()
+        this.showMenu = false
+        this.menuReturn = false
       }
       return
     }
@@ -986,12 +1031,19 @@ export class CampaignScene extends Scene {
     if (this.canOpenOverlay) {
       if (e.code === 'Space') {
         e.preventDefault()
+        this.menuReturn = false
         this.openMap()
         return
       }
-      if (e.code === 'Enter' || e.code === 'KeyI' || e.code === 'Tab') {
+      if (e.code === 'Enter') {
         e.preventDefault()
-        this.showStatus = true
+        this.openMenu()
+        return
+      }
+      if (e.code === 'KeyI' || e.code === 'Tab') {
+        e.preventDefault()
+        this.menuReturn = false
+        this.showStatus = true // quick shortcut straight to status
         return
       }
     }
@@ -1091,7 +1143,7 @@ export class CampaignScene extends Scene {
     this.blink += 1
     if (this.flashTicks > 0) this.flashTicks -= 1
     if (this.contactHitCooldown > 0) this.contactHitCooldown -= 1
-    if (this.ending || this.drafting || this.perkChoosing || this.shopping || this.showStatus || this.showEquipment || this.showMap) return
+    if (this.ending || this.drafting || this.perkChoosing || this.shopping || this.showStatus || this.showEquipment || this.showMap || this.showMenu) return
     if (this.defeatTicks > 0) {
       this.defeatTicks += 1
       if (this.defeatTicks > DEFEAT_RETRY_TICKS) this.reloadNode(this.node.id, true)
@@ -1189,6 +1241,7 @@ export class CampaignScene extends Scene {
     this.resolvePickups()
     this.pickups = this.pickups.filter((pickup) => pickup.ticksLeft > 0)
     this.grantEnemyRewards()
+    this.enemies = this.enemies.filter((enemy) => !enemy.isGone) // despawn defeated enemies
     this.updateFloatingTexts()
     if (this.levelUpTicks > 0) this.levelUpTicks -= 1
 
@@ -1243,6 +1296,7 @@ export class CampaignScene extends Scene {
     else if (this.perkChoosing) this.drawPerkChoice()
     else if (this.drafting) this.drawDraft()
     else if (this.shopping) this.drawShop()
+    else if (this.showMenu) this.drawMenu()
     else if (this.showMap) this.drawMap()
     else if (this.showEquipment) this.drawEquipment()
     else if (this.showStatus) this.drawStatus()
@@ -1265,7 +1319,7 @@ export class CampaignScene extends Scene {
 
   /** True when the room is in normal play, i.e. no blocking overlay is up. */
   private get canOpenOverlay(): boolean {
-    return !this.ending && !this.drafting && !this.shopping && !this.showStatus && !this.showEquipment && this.defeatTicks === 0
+    return !this.ending && !this.drafting && !this.shopping && !this.showStatus && !this.showEquipment && !this.showMenu && this.defeatTicks === 0
   }
 
   private isRoomRevealed(nodeId: string): boolean {
@@ -1276,6 +1330,23 @@ export class CampaignScene extends Scene {
     this.showMap = true
     this.mapCursorId = this.node.id
     this.ctx.audio.swing()
+  }
+
+  private openMenu(): void {
+    this.showMenu = true
+    this.menuIndex = 0
+    this.ctx.audio.swing()
+  }
+
+  private selectMenu(): void {
+    const item = MENU_ITEMS[this.menuIndex]
+    this.ctx.audio.hit()
+    this.showMenu = false
+    if (item === 'RESUME') { this.menuReturn = false; return }
+    this.menuReturn = true
+    if (item === 'STATUS') this.showStatus = true
+    else if (item === 'EQUIP') { this.showEquipment = true; this.equipSlotIndex = 0 }
+    else if (item === 'MAP') this.openMap()
   }
 
   private moveMapCursor(dir: MapDir): void {
@@ -1356,6 +1427,8 @@ export class CampaignScene extends Scene {
     this.floatingTexts = []
     this.attackingLastTick.clear()
     this.showMap = false
+    this.showMenu = false
+    this.menuReturn = false
     this.ending = false
     this.save = { ...this.save, currentNodeId: nodeId, finished: false }
     this.save = markCampaignVisited(this.save, nodeId)
@@ -1369,18 +1442,21 @@ export class CampaignScene extends Scene {
       if (playerAtk && rectsOverlap(playerAtk.box, enemy.hurtbox())) {
         if (enemy.applyHit(playerAtk.spec, this.player.position.x, this.playerDamageMult)) {
           this.player.markAttackConnected()
+          this.spawnDamageNumber(enemy, '#ffe08a')
           this.onHit(playerAtk.spec, enemy.isDead)
         }
       }
       if (enemyAtk && rectsOverlap(enemyAtk.box, this.player.hurtbox())) {
         if (this.player.applyHit(enemyAtk.spec, enemy.position.x, this.playerDamageTakenMult)) {
           enemy.markAttackConnected()
+          this.spawnDamageNumber(this.player, '#ff7a6a')
           this.onHit(enemyAtk.spec, this.player.isDead)
         }
       }
       if (this.contactHitCooldown <= 0 && rectsOverlap(this.player.hurtbox(), enemy.hurtbox())) {
         if (this.player.applyHit(enemy.def.moves.light, enemy.position.x, this.playerDamageTakenMult)) {
           this.contactHitCooldown = CONTACT_HIT_COOLDOWN
+          this.spawnDamageNumber(this.player, '#ff7a6a')
           this.onHit(enemy.def.moves.light, this.player.isDead)
         }
       }
@@ -1390,17 +1466,21 @@ export class CampaignScene extends Scene {
       if (!rectsOverlap(projectileBox(projectile), this.player.hurtbox())) continue
       if (!this.player.applyHit(projectile.spawn.move, projectile.spawn.x, this.playerDamageTakenMult)) continue
       projectile.hasHit = true
+      this.spawnDamageNumber(this.player, '#ff7a6a')
       this.onHit(projectile.spawn.move, this.player.isDead)
     }
     for (const subweapon of this.subweapons) {
       const box = subweaponBox(subweapon)
-      if (subweapon.kind === 'holyWater' && subweapon.phase === 'flame') {
+      // Holy water flame and the cross both pierce — they hit every enemy in
+      // range once (tracked in hitTargets) and keep going.
+      if ((subweapon.kind === 'holyWater' && subweapon.phase === 'flame') || subweapon.kind === 'cross') {
+        const dmg = SUBWEAPON_DAMAGE[subweapon.kind]
         for (const enemy of this.enemies) {
-          if (enemy.isDead) continue
-          if (subweapon.hitTargets?.has(enemy)) continue
+          if (enemy.isDead || subweapon.hitTargets?.has(enemy)) continue
           if (!rectsOverlap(box, enemy.hurtbox())) continue
-          if (!enemy.applyFlatDamage(SUBWEAPON_DAMAGE.holyWater, subweapon.position.x, -4, this.playerDamageMult)) continue
+          if (!enemy.applyFlatDamage(dmg, subweapon.position.x, -5, this.playerDamageMult)) continue
           subweapon.hitTargets?.add(enemy)
+          this.spawnDamageNumber(enemy, '#ffe08a')
           this.ctx.audio.hit()
           this.hitstop = Math.max(this.hitstop, 4)
           if (enemy.isDead) this.flashTicks = BIG_HIT_FLASH_TICKS
@@ -1412,12 +1492,18 @@ export class CampaignScene extends Scene {
         if (enemy.isDead || !rectsOverlap(box, enemy.hurtbox())) continue
         if (!enemy.applyFlatDamage(SUBWEAPON_DAMAGE[subweapon.kind], subweapon.position.x, -6, this.playerDamageMult)) continue
         subweapon.hasHit = true
+        this.spawnDamageNumber(enemy, '#ffe08a')
         this.ctx.audio.hit()
         this.hitstop = Math.max(this.hitstop, 6)
         if (enemy.isDead) this.flashTicks = BIG_HIT_FLASH_TICKS
         break
       }
     }
+  }
+
+  private spawnDamageNumber(actor: CastleActor, color: string): void {
+    const hb = actor.hurtbox()
+    this.spawnFloatingText(hb.x + hb.width / 2 + (this.ctx.rng.next() - 0.5) * 18, hb.y + 10, String(actor.lastDamageTaken), color)
   }
 
   /** The currently equipped Bullet Soul definition (falls back to the base). */
@@ -1513,6 +1599,7 @@ export class CampaignScene extends Scene {
         if (!rectsOverlap(box, enemy.hurtbox())) continue
         if (!enemy.applyFlatDamage(bolt.damage, bolt.position.x, -5, this.playerDamageMult)) continue
         bolt.hitTargets.add(enemy)
+        this.spawnDamageNumber(enemy, '#ffe08a')
         this.ctx.audio.hit()
         this.hitstop = Math.max(this.hitstop, 5)
         if (enemy.isDead) this.flashTicks = BIG_HIT_FLASH_TICKS
@@ -1551,6 +1638,8 @@ export class CampaignScene extends Scene {
     if (kind === 'holyWater') {
       spawn.phase = 'outbound'
       spawn.hitTargets = new Set<CastleActor>()
+    } else if (kind === 'cross') {
+      spawn.hitTargets = new Set<CastleActor>() // the cross pierces every enemy it crosses
     }
     this.subweapons.push(spawn)
     this.ctx.audio.swing()
@@ -1923,10 +2012,9 @@ export class CampaignScene extends Scene {
 
   /** Classic candle loot: mostly hearts, sometimes coins or a splash of MP. */
   private spawnCandleDrop(x: number, y: number): void {
-    const roll = this.ctx.rng.next()
-    if (roll < 0.6) this.spawnPickup(x, y, 'heart', 1)
-    else if (roll < 0.85) this.spawnPickup(x, y, 'gold', 5)
-    else this.spawnPickup(x, y, 'mp', 20)
+    // Candles drop a heart or a coin when struck (classic Castlevania).
+    if (this.ctx.rng.next() < 0.6) this.spawnPickup(x, y, 'heart', 1)
+    else this.spawnPickup(x, y, 'gold', 5)
   }
 
   /** Defeated enemies burst into loot — a few hearts/MP, more from bosses. */
@@ -2792,6 +2880,44 @@ export class CampaignScene extends Scene {
     ctx.restore()
   }
 
+  private drawMenu(): void {
+    const { ctx } = this.ctx.renderer
+    const { width, height } = this.ctx
+    ctx.save()
+    ctx.fillStyle = 'rgba(6, 5, 12, 0.82)'
+    ctx.fillRect(0, 0, width, height)
+    const pw = 320, ph = 268
+    const px = width / 2 - pw / 2, py = height / 2 - ph / 2
+    ctx.fillStyle = 'rgba(16, 24, 43, 0.96)'
+    ctx.fillRect(px, py, pw, ph)
+    ctx.strokeStyle = '#e8d4a0'
+    ctx.lineWidth = 2
+    ctx.strokeRect(px, py, pw, ph)
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillStyle = '#e8d4a0'
+    ctx.font = '16px "Press Start 2P", monospace'
+    ctx.fillText('MENU', width / 2, py + 32)
+    ctx.fillStyle = '#8a8aa0'
+    ctx.font = '8px "Press Start 2P", monospace'
+    ctx.fillText(`JULIUS   LV ${this.save.level}   ${this.save.gold}G`, width / 2, py + 58)
+    ctx.font = '13px "Press Start 2P", monospace'
+    MENU_ITEMS.forEach((item, i) => {
+      const iy = py + 104 + i * 38
+      const sel = i === this.menuIndex
+      if (sel) {
+        ctx.fillStyle = 'rgba(246, 183, 74, 0.16)'
+        ctx.fillRect(px + 24, iy - 15, pw - 48, 30)
+      }
+      ctx.fillStyle = sel ? '#f6b74a' : '#b7c7e6'
+      ctx.fillText((sel ? '▶ ' : '   ') + item, width / 2, iy)
+    })
+    ctx.fillStyle = '#5a567a'
+    ctx.font = '8px "Press Start 2P", monospace'
+    ctx.fillText('W/S MOVE   J SELECT   ESC CLOSE', width / 2, py + ph - 20)
+    ctx.restore()
+  }
+
   private drawStatus(): void {
     const { ctx } = this.ctx.renderer
     const { width, height } = this.ctx
@@ -2972,6 +3098,7 @@ function relicSummary(relic: RelicDef): string {
 }
 
 function buildEnemies(node: ReturnType<typeof getCampaignNode>, assets: AssetManager, layout: RoomLayout): CastleActor[] {
+  if (SAVE_POINTS[node.id] !== undefined) return [] // save rooms are safe
   if (node.isBoss) {
     const boss = new CastleActor(node.enemy, assets, layout.doorX - 180, layout.checkpointY, -1, 0.78)
     boss.setMaxHealth(campaignBossHealth(node.id))
