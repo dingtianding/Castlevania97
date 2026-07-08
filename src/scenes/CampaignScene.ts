@@ -4,12 +4,12 @@ import { ModeSelectScene } from './ModeSelectScene.ts'
 import { PauseScene } from './PauseScene.ts'
 import { AssetManager } from '../assets/AssetManager.ts'
 import { AUDIO_MANIFEST } from '../assets/manifest.ts'
-import { addCampaignBulletSoul, addCampaignEquipment, addCampaignPerk, addCampaignRelic, addCampaignSoul, completeCampaignBattle, equipCampaignBulletSoul, equipCampaignItem, equippedDefs, getCampaignChapter, getCampaignNode, grantCampaignRewards, loadCampaignSave, markCampaignVisited, MAX_LEVEL, saveCampaignSave, unequipCampaignSlot, xpForNextLevel } from '../data/campaign.ts'
+import { addCampaignBulletSoul, addCampaignEquipment, addCampaignPerk, addCampaignRelic, addCampaignSoul, equipCampaignBulletSoul, equipCampaignItem, equippedDefs, getCampaignChapter, getCampaignNode, grantCampaignRewards, loadCampaignSave, markCampaignVisited, MAX_LEVEL, saveCampaignSave, unequipCampaignSlot, xpForNextLevel } from '../data/campaign.ts'
 import { draftPowerUps, powerUpStacks, type PowerUpDef } from '../data/powerups.ts'
 import { BASE_BULLET_SOUL, bulletSoulForEnemy, getBulletSoul, type BulletSoulDef } from '../data/bulletSouls.ts'
 import { CASTLE_CELLS, CASTLE_ROOM_IDS, castleDoors, castleGridBounds, castleNeighbor, isBossRoom, type MapDir } from '../data/castleMap.ts'
 import { buildEquipmentModifiers, EQUIP_SLOT_LABELS, EQUIP_SLOTS, equipmentForSlot, EQUIPMENT_POOL, getEquipment, type EquipmentDef, type EquipmentModifiers } from '../data/equipment.ts'
-import { buildRunModifiers, draftRelics, RELIC_POOL, type RelicDef, type RelicId, type RunModifiers } from '../data/relics.ts'
+import { buildRunModifiers, RELIC_POOL, type RelicDef, type RelicId, type RunModifiers } from '../data/relics.ts'
 import { buildSoulModifiers, getSoul, soulForEnemy, SOUL_POOL, type SoulDef, type SoulModifiers } from '../data/souls.ts'
 import { juliusBelmont as CAMPAIGN_HERO } from '../data/characters/castlevaniaCampaign.ts'
 import { getStage } from '../data/stages.ts'
@@ -30,6 +30,12 @@ import { Animator, drawSprite, makeSheet, type SpriteSheet } from '../render/Spr
 import { computeHitbox, isActiveAt, totalFrames, type AttackMove } from '../combat/AttackMove.ts'
 
 const ROOM_WIDTH = 1680
+// How close to a room edge counts as "walking through the doorway".
+const EDGE_ZONE = 14
+// Rooms that hold a save point, keyed to its x-position in the room. A save
+// point heals the player and writes the save.
+const SAVE_POINTS: Record<string, number> = { 'cor-entrance': 520 }
+const SAVE_RANGE = 72
 const ROOM_HEIGHT = 576
 const FLOOR_Y = 492
 const GRAVITY = 0.78
@@ -795,7 +801,6 @@ export class CampaignScene extends Scene {
   private soulCooldown = 0
   private input!: InputSource
   private cameraX = 0
-  private clearTicks = 0
   private blink = 0
   private ending = false
   private transitionTicks = 0
@@ -804,6 +809,7 @@ export class CampaignScene extends Scene {
   private contactHitCooldown = 0
   private defeatTicks = 0
   private bossIntroTicks = 0
+  private savedFlashTicks = 0
   private hearts = STARTING_HEARTS
   private selectedSubweaponIndex = 0
   private enemyFreezeTicks = 0
@@ -1166,19 +1172,9 @@ export class CampaignScene extends Scene {
       return
     }
 
-    // Rooms no longer auto-advance. Once cleared, the player chooses: walk to the
-    // exit on the right to move on, or back to the entrance on the left to make
-    // the enemies respawn and grind for XP (classic Castlevania reentry).
-    if (!this.player.isDead && this.enemies.length > 0 && this.enemies.every((enemy) => enemy.isDead)) {
-      this.clearTicks += 1
-      if (this.player.position.x >= this.layout.doorX - 24) {
-        this.advanceRoom()
-      } else if (this.clearTicks > 20 && this.player.position.x <= WALL_MARGIN + 12) {
-        this.respawnEnemies()
-      }
-    } else {
-      this.clearTicks = 0
-    }
+    // Metroidvania traversal: walk off a room's edge into the adjacent room.
+    this.tryRoomTransition(intent)
+    this.tryUseSavePoint(intent)
 
     this.cameraX = clamp(this.player.position.x - this.ctx.width / 2, 0, ROOM_WIDTH - this.ctx.width)
   }
@@ -1208,7 +1204,6 @@ export class CampaignScene extends Scene {
     else if (this.showEquipment) this.drawEquipment()
     else if (this.showStatus) this.drawStatus()
     else if (this.defeatTicks > 0) this.drawDefeat()
-    else if (this.isRoomClear) this.drawRoomClear()
     else {
       this.drawBossBar()
       if (Math.floor(this.blink / 30) % 2 === 0) this.drawPrompt()
@@ -1221,10 +1216,6 @@ export class CampaignScene extends Scene {
   private get bossActor(): CastleActor | null {
     if (!this.node.isBoss) return null
     return this.enemies.find((enemy) => enemy.isBoss) ?? null
-  }
-
-  private get isRoomClear(): boolean {
-    return !this.player.isDead && this.enemies.length > 0 && this.enemies.every((enemy) => enemy.isDead)
   }
 
   /** True when the room is in normal play, i.e. no blocking overlay is up. */
@@ -1301,7 +1292,6 @@ export class CampaignScene extends Scene {
     this.soulCooldown = 0
     this.candles = buildCandles(this.layout)
     this.pickups = []
-    this.clearTicks = 0
     this.transitionTicks = fromReset ? 0 : 12
     this.hitstop = 0
     this.flashTicks = 0
@@ -1727,16 +1717,45 @@ export class CampaignScene extends Scene {
 
   /** Rebuild the current room's enemies so the player can re-fight them for XP —
    *  triggered by walking back to the entrance of a cleared room. */
-  private respawnEnemies(): void {
-    this.enemies = buildEnemies(this.node, this.ctx.assets, this.layout)
-    this.rewardedDeaths.clear()
-    this.projectiles = []
-    this.enemyBones = []
-    this.soulBolts = []
-    this.clearTicks = 0
-    this.enemyFreezeTicks = 0
-    this.bossIntroTicks = this.node.isBoss ? BOSS_INTRO_TICKS : 0
+  /** Walk off a left/right edge that has a door → enter the adjacent room. */
+  private tryRoomTransition(intent: IntentState): void {
+    if (this.player.isDead || this.transitionTicks > 0 || this.bossIntroTicks > 0) return
+    const x = this.player.position.x
+    if (intent.moveX < 0 && x <= WALL_MARGIN + EDGE_ZONE) {
+      const west = castleNeighbor(this.node.id, 'w')
+      if (west) this.enterRoom(west, 'east')
+    } else if (intent.moveX > 0 && x >= ROOM_WIDTH - WALL_MARGIN - EDGE_ZONE) {
+      const east = castleNeighbor(this.node.id, 'e')
+      if (east) this.enterRoom(east, 'west')
+    }
+  }
+
+  /** Load `nodeId` and drop the player at the given entry side, facing inward.
+   *  Health and MP carry across the threshold — no free heal by room-hopping. */
+  private enterRoom(nodeId: string, entrySide: 'west' | 'east'): void {
+    const carryHealth = this.player.health
+    const carryMeter = this.player.meter
+    this.reloadNode(nodeId)
+    const facing: Facing = entrySide === 'west' ? 1 : -1
+    const x = entrySide === 'west' ? WALL_MARGIN + 90 : ROOM_WIDTH - WALL_MARGIN - 90
+    this.player.reset(x, this.layout.checkpointY, facing)
+    this.player.health = Math.min(this.player.maxHealth, Math.max(1, carryHealth))
+    this.player.meter = clamp(carryMeter, 0, 100)
+    this.cameraX = clamp(x - this.ctx.width / 2, 0, ROOM_WIDTH - this.ctx.width)
     this.ctx.audio.swing()
+  }
+
+  private tryUseSavePoint(intent: IntentState): void {
+    if (this.savedFlashTicks > 0) this.savedFlashTicks -= 1
+    const sx = SAVE_POINTS[this.node.id]
+    if (sx === undefined || this.player.isDead) return
+    if (!intent.upHeld || this.savedFlashTicks > 0) return
+    if (Math.abs(this.player.position.x - sx) > SAVE_RANGE) return
+    this.player.health = this.player.maxHealth
+    saveCampaignSave(this.save)
+    this.savedFlashTicks = 90
+    this.spawnFloatingText(this.player.position.x, this.player.position.y - 118, 'GAME SAVED', '#8fd4ff')
+    this.ctx.audio.hit()
   }
 
   private perkStacks(id: string): number {
@@ -1823,30 +1842,6 @@ export class CampaignScene extends Scene {
     }
   }
 
-  private advanceRoom(): void {
-    const next = completeCampaignBattle(this.save)
-    this.save = next
-    if (next.finished) {
-      this.ending = true
-      return
-    }
-    if (!next.currentNodeId) {
-      this.ending = true
-      return
-    }
-    // Offer a relic between rooms while any remain undrafted; the run modifiers
-    // it grants persist to every future room via the campaign save.
-    const options = draftRelics(this.ctx.rng, this.save.relicIds, 3)
-    if (options.length > 0) {
-      this.drafting = true
-      this.draftOptions = options
-      this.draftIndex = 0
-      this.pendingNodeId = next.currentNodeId
-      this.ctx.audio.swing()
-      return
-    }
-    this.proceedToNode(next.currentNodeId)
-  }
 
   private pickDraft(): void {
     const relic = this.draftOptions[this.draftIndex]
@@ -1999,15 +1994,13 @@ export class CampaignScene extends Scene {
     for (const hazard of this.layout.hazards) drawSpikes(ctx, hazard)
     for (const candle of this.candles) drawCandle(ctx, candle)
     for (const pickup of this.pickups) drawPickup(ctx, pickup)
-    const doorOpen = this.enemies.every((enemy) => enemy.isDead)
-    ctx.fillStyle = doorOpen ? '#e8d4a0' : '#3c374f'
-    ctx.fillRect(this.layout.doorX, this.layout.doorY - 144, 76, 144)
-    ctx.strokeStyle = '#0b0912'
-    ctx.lineWidth = 4
-    ctx.strokeRect(this.layout.doorX, this.layout.doorY - 144, 76, 144)
-    ctx.fillStyle = '#b91d2d'
-    ctx.fillRect(this.layout.doorX + 15, this.layout.doorY - 126, 10, 10)
-    ctx.fillRect(this.layout.doorX + 51, this.layout.doorY - 126, 10, 10)
+    // Exit passages on whichever edges have a door in the castle graph.
+    const doors = castleDoors(this.node.id)
+    if (doors.w) drawExit(ctx, 0, this.layout.doorY, 'w')
+    if (doors.e) drawExit(ctx, ROOM_WIDTH, this.layout.doorY, 'e')
+    // Save point, if this room has one.
+    const sx = SAVE_POINTS[this.node.id]
+    if (sx !== undefined) drawSavePoint(ctx, sx, this.layout.doorY, this.blink)
     ctx.restore()
 
     this.player.render(this.ctx.renderer, this.cameraX)
@@ -2198,25 +2191,6 @@ export class CampaignScene extends Scene {
     ctx.textAlign = 'center'
     ctx.fillText('A/D MOVE   J JUMP   ; DASH   K ATTACK   W+K SUB   U SOUL', this.ctx.width / 2, this.ctx.height - 38)
     ctx.fillText('L SWITCH SUB   O SWAP SOUL   ENTER MENU   SPACE MAP   ESC PAUSE', this.ctx.width / 2, this.ctx.height - 22)
-    ctx.restore()
-  }
-
-  private drawRoomClear(): void {
-    const { ctx } = this.ctx.renderer
-    ctx.save()
-    ctx.textAlign = 'center'
-    ctx.textBaseline = 'middle'
-    ctx.fillStyle = 'rgba(8, 6, 14, 0.68)'
-    ctx.fillRect(this.ctx.width / 2 - 240, this.ctx.height - 76, 480, 44)
-    ctx.strokeStyle = '#e8d4a0'
-    ctx.lineWidth = 2
-    ctx.strokeRect(this.ctx.width / 2 - 240, this.ctx.height - 76, 480, 44)
-    ctx.fillStyle = '#e8d4a0'
-    ctx.font = '11px "Press Start 2P", monospace'
-    ctx.fillText('ROOM CLEAR', this.ctx.width / 2, this.ctx.height - 60)
-    ctx.fillStyle = '#8a8aa0'
-    ctx.font = '8px "Press Start 2P", monospace'
-    ctx.fillText('WALK RIGHT: NEXT ROOM      WALK LEFT: RESPAWN & GRIND', this.ctx.width / 2, this.ctx.height - 42)
     ctx.restore()
   }
 
@@ -3222,6 +3196,50 @@ function drawSoulBolt(bolt: SoulBolt, renderer: Renderer, cameraX: number): void
   ctx.closePath()
   ctx.fill()
   ctx.stroke()
+  ctx.restore()
+}
+
+function drawExit(ctx: CanvasRenderingContext2D, edgeX: number, floorY: number, side: 'w' | 'e'): void {
+  const w = 90, h = 172
+  const x = side === 'w' ? edgeX : edgeX - w
+  const top = floorY - h
+  ctx.save()
+  // Dark passage into the next room, with a faint warm light spilling from it.
+  ctx.fillStyle = '#070510'
+  ctx.fillRect(x, top, w, h)
+  const grad = ctx.createLinearGradient(side === 'w' ? x : x + w, 0, side === 'w' ? x + w : x, 0)
+  grad.addColorStop(0, 'rgba(120,96,56,0.32)')
+  grad.addColorStop(1, 'rgba(120,96,56,0)')
+  ctx.fillStyle = grad
+  ctx.fillRect(x, top, w, h)
+  // Stone frame: lintel + an inner pillar so it reads as a doorway.
+  ctx.fillStyle = '#3a3352'
+  ctx.fillRect(x - 4, top - 12, w + 8, 12)
+  const pw = 12
+  const px = side === 'w' ? x + w - pw : x
+  ctx.fillRect(px, top - 4, pw, h + 4)
+  ctx.restore()
+}
+
+function drawSavePoint(ctx: CanvasRenderingContext2D, x: number, floorY: number, blink: number): void {
+  const pulse = 0.5 + 0.5 * Math.sin(blink * 0.08)
+  const cy = floorY - 62
+  ctx.save()
+  const g = ctx.createRadialGradient(x, cy, 0, x, cy, 64)
+  g.addColorStop(0, `rgba(90,180,255,${0.26 + 0.18 * pulse})`)
+  g.addColorStop(1, 'rgba(90,180,255,0)')
+  ctx.fillStyle = g
+  ctx.beginPath(); ctx.arc(x, cy, 64, 0, Math.PI * 2); ctx.fill()
+  // pedestal + floating crystal
+  ctx.fillStyle = '#2a2238'; ctx.fillRect(x - 16, floorY - 16, 32, 16)
+  ctx.fillStyle = '#5a567a'; ctx.fillRect(x - 18, floorY - 18, 36, 4)
+  ctx.fillStyle = '#8fd4ff'; ctx.strokeStyle = '#eaf6ff'; ctx.lineWidth = 2
+  ctx.beginPath()
+  ctx.moveTo(x, cy - 18); ctx.lineTo(x + 12, cy); ctx.lineTo(x, cy + 18); ctx.lineTo(x - 12, cy); ctx.closePath()
+  ctx.fill(); ctx.stroke()
+  ctx.fillStyle = `rgba(143,212,255,${0.5 + 0.5 * pulse})`
+  ctx.font = '10px "Press Start 2P", monospace'; ctx.textAlign = 'center'
+  ctx.fillText('W: SAVE', x, cy - 34)
   ctx.restore()
 }
 
