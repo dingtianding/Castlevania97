@@ -28,6 +28,9 @@ export interface MapDrawOptions {
   pulse?: number
   /** Draw short connectors between linked rooms. */
   showConnections?: boolean
+  /** Fit all visible rooms into the view (pause map) instead of centring on the
+   *  current room at a fixed cell size (minimap). */
+  fit?: boolean
 }
 
 const COLORS = {
@@ -63,18 +66,41 @@ export class MapRenderer {
     ctx.fillStyle = COLORS.panel
     ctx.fillRect(view.x, view.y, view.width, view.height)
 
-    const offset = this.computeOffset(service, view)
+    const { cellSize, offset } = opts.fit ? this.fitView(service, view) : { cellSize: view.cellSize, offset: this.computeOffset(service, view, view.cellSize) }
     const rooms = Object.values(service.data.rooms)
 
     if (opts.showConnections) {
-      for (const room of rooms) this.drawConnections(ctx, service, room, offset, view.cellSize)
+      for (const room of rooms) this.drawConnections(ctx, service, room, offset, cellSize)
     }
-    for (const room of rooms) this.drawRoom(ctx, service, room, offset, view.cellSize, opts.pulse ?? 0)
+    for (const room of rooms) this.drawRoom(ctx, service, room, offset, cellSize, opts.pulse ?? 0)
     ctx.restore()
   }
 
+  /** Scale + position so every visible room fits inside the view. */
+  private fitView(service: MapService, view: MapView): { cellSize: number; offset: { x: number; y: number } } {
+    const visible = Object.values(service.data.rooms).filter((r) => this.isVisible(service, r))
+    if (visible.length === 0) return { cellSize: view.cellSize, offset: { x: view.x, y: view.y } }
+    const minX = Math.min(...visible.map((r) => r.mapX))
+    const maxX = Math.max(...visible.map((r) => r.mapX + r.width))
+    const minY = Math.min(...visible.map((r) => r.mapY))
+    const maxY = Math.max(...visible.map((r) => r.mapY + r.height))
+    const cols = Math.max(1, maxX - minX)
+    const rows = Math.max(1, maxY - minY)
+    const pad = 24
+    const cellSize = Math.max(8, Math.min((view.width - pad * 2) / cols, (view.height - pad * 2) / rows, 64))
+    const gridW = cols * cellSize
+    const gridH = rows * cellSize
+    return {
+      cellSize,
+      offset: {
+        x: view.x + (view.width - gridW) / 2 - minX * cellSize,
+        y: view.y + (view.height - gridH) / 2 - minY * cellSize,
+      },
+    }
+  }
+
   /** Centre the current room (or the known-room bounds) inside the view. */
-  private computeOffset(service: MapService, view: MapView): { x: number; y: number } {
+  private computeOffset(service: MapService, view: MapView, cellSize: number): { x: number; y: number } {
     const cur = service.currentRoom()
     let centerCellX: number
     let centerCellY: number
@@ -92,8 +118,8 @@ export class MapRenderer {
       centerCellY = (minY + maxY) / 2
     }
     return {
-      x: view.x + view.width / 2 - centerCellX * view.cellSize,
-      y: view.y + view.height / 2 - centerCellY * view.cellSize,
+      x: view.x + view.width / 2 - centerCellX * cellSize,
+      y: view.y + view.height / 2 - centerCellY * cellSize,
     }
   }
 

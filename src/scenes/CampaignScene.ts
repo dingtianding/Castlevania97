@@ -7,7 +7,9 @@ import { AUDIO_MANIFEST } from '../assets/manifest.ts'
 import { addCampaignAbility, addCampaignBulletSoul, addCampaignEquipment, addCampaignPerk, addCampaignRelic, addCampaignSoul, equipCampaignBulletSoul, equipCampaignItem, equippedDefs, getCampaignChapter, getCampaignNode, grantCampaignRewards, loadCampaignSave, markCampaignVisited, MAX_LEVEL, saveCampaignSave, unequipCampaignSlot, xpForNextLevel } from '../data/campaign.ts'
 import { draftPowerUps, powerUpStacks, type PowerUpDef } from '../data/powerups.ts'
 import { BASE_BULLET_SOUL, bulletSoulForEnemy, getBulletSoul, type BulletSoulDef } from '../data/bulletSouls.ts'
-import { CASTLE_CELLS, CASTLE_ROOM_IDS, castleDoors, castleGridBounds, castleNeighbor, isBossRoom, type MapDir } from '../data/castleMap.ts'
+import { CASTLE_ITEM_ROOMS, CASTLE_MAP_DATA, CASTLE_MERCHANT_ROOMS, CASTLE_SAVE_ROOMS } from '../data/castleMapData.ts'
+import { MapService, MapRenderer, MinimapRenderer } from '../map/index.ts'
+import { castleDoors, castleNeighbor, type MapDir } from '../data/castleMap.ts'
 import { buildEquipmentModifiers, EQUIP_SLOT_LABELS, EQUIP_SLOTS, equipmentForSlot, EQUIPMENT_POOL, getEquipment, type EquipmentDef, type EquipmentModifiers } from '../data/equipment.ts'
 import { buildRunModifiers, RELIC_POOL, type RelicDef, type RelicId, type RunModifiers } from '../data/relics.ts'
 import { buildSoulModifiers, getSoul, soulForEnemy, SOUL_POOL, type SoulDef, type SoulModifiers } from '../data/souls.ts'
@@ -35,17 +37,11 @@ const EDGE_ZONE = 14
 // Vertical stairwell passage: centered, activated from the floor with up/down.
 const VERT_PASSAGE_X = ROOM_WIDTH / 2
 const VERT_RANGE = 120
-// Save rooms: safe (no enemies spawn) rooms with a save crystal, keyed to its
-// x-position. The save point heals the player and writes the save.
-const SAVE_POINTS: Record<string, number> = {
-  'cor-entrance': 520,
-  'std-reading': 840,
-  'top-antechamber': 840,
-}
+// Save/merchant/relic placement is defined once in castleMapData (so the map
+// icons and the gameplay objects can't drift). Here we index them by x-position.
+const SAVE_POINTS: Record<string, number> = Object.fromEntries(CASTLE_SAVE_ROOMS.map((r) => [r.id, r.x]))
 const SAVE_RANGE = 72
-// Rooms with a wandering merchant, keyed to its x-position. Approach + up opens
-// the shop. Kept clear of the central stairwell so the up-press doesn't clash.
-const MERCHANT_ROOMS: Record<string, number> = { 'cor-entrance': 1180 }
+const MERCHANT_ROOMS: Record<string, number> = Object.fromEntries(CASTLE_MERCHANT_ROOMS.map((r) => [r.id, r.x]))
 const MERCHANT_RANGE = 80
 // Beating this room's boss completes the campaign.
 const FINAL_BOSS_NODE = 'fbd-chaos'
@@ -56,10 +52,9 @@ const ABILITIES: Record<string, { name: string; blurb: string }> = {
   'double-jump': { name: 'Leap Stone', blurb: 'Jump a second time in mid-air, and pass doors sealed against the earthbound.' },
 }
 // Rooms that hold an ability relic, keyed to its x-position and the ability id.
-// Double jump is granted right at the start.
-const ABILITY_PICKUPS: Record<string, { x: number; ability: string }> = {
-  'cor-entrance': { x: 320, ability: 'double-jump' },
-}
+const ABILITY_PICKUPS: Record<string, { x: number; ability: string }> = Object.fromEntries(
+  CASTLE_ITEM_ROOMS.map((r) => [r.id, { x: r.x, ability: r.ability }]),
+)
 // Doors sealed until an ability is owned: nodeId -> direction -> required ability.
 // (None while double jump is a starting relic; the system stays for later abilities.)
 const SEALED_DOORS: Record<string, Partial<Record<MapDir, string>>> = {}
@@ -878,11 +873,15 @@ export class CampaignScene extends Scene {
   private showMenu = false
   private menuIndex = 0
   private menuReturn = false
-  private mapCursorId = ''
   private equipSlotIndex = 0
   private pendingNodeId: string | null = null
   private readonly attackingLastTick = new Set<CastleActor>()
   private touchControls: TouchControls | null = null
+  // Reusable map module: the castle map + a live minimap, driven off the same
+  // save data. currentRoom/visited are synced in reloadNode.
+  private readonly mapService = new MapService(CASTLE_MAP_DATA)
+  private readonly mapRenderer = new MapRenderer()
+  private readonly minimap = new MinimapRenderer()
   private readonly onKeyDown = (e: KeyboardEvent): void => {
     if (this.ctx.scenes.current !== this) return
     if (this.drafting) {
@@ -989,12 +988,6 @@ export class CampaignScene extends Scene {
       return
     }
     if (this.showMap) {
-      const dir = mapDirForKey(e.code)
-      if (dir) {
-        e.preventDefault()
-        this.moveMapCursor(dir)
-        return
-      }
       if (e.code === 'Space' || e.code === 'Escape' || isMenuCancel(e.code) || isMenuConfirm(e.code)) {
         e.preventDefault()
         this.showMap = false
@@ -1303,6 +1296,7 @@ export class CampaignScene extends Scene {
     else if (this.defeatTicks > 0) this.drawDefeat()
     else {
       this.drawBossBar()
+      this.drawMinimap()
       if (Math.floor(this.blink / 30) % 2 === 0) this.drawPrompt()
     }
     if (this.levelUpTicks > 0 && !this.ending && !this.drafting && !this.perkChoosing) this.drawLevelUp()
@@ -1322,14 +1316,20 @@ export class CampaignScene extends Scene {
     return !this.ending && !this.drafting && !this.shopping && !this.showStatus && !this.showEquipment && !this.showMenu && this.defeatTicks === 0
   }
 
-  private isRoomRevealed(nodeId: string): boolean {
-    return this.save.visitedNodeIds.includes(nodeId) || this.save.unlockedNodeIds.includes(nodeId)
-  }
 
   private openMap(): void {
     this.showMap = true
-    this.mapCursorId = this.node.id
     this.ctx.audio.swing()
+  }
+
+  /** Mirror the campaign save's room progress into the map module (the campaign
+   *  save is the single source of truth; the map is a view of it). */
+  private syncMapState(): void {
+    for (const id of this.save.visitedNodeIds) this.mapService.state.setState(id, 'visited')
+    for (const item of CASTLE_ITEM_ROOMS) {
+      if (this.save.abilities.includes(item.ability)) this.mapService.state.collectItem(item.id)
+    }
+    this.mapService.state.currentRoomId = this.node.id
   }
 
   private openMenu(): void {
@@ -1347,13 +1347,6 @@ export class CampaignScene extends Scene {
     if (item === 'STATUS') this.showStatus = true
     else if (item === 'EQUIP') { this.showEquipment = true; this.equipSlotIndex = 0 }
     else if (item === 'MAP') this.openMap()
-  }
-
-  private moveMapCursor(dir: MapDir): void {
-    const next = castleNeighbor(this.mapCursorId, dir)
-    if (!next || !this.isRoomRevealed(next)) return
-    this.mapCursorId = next
-    this.ctx.audio.swing()
   }
 
   private get isCastleGateNode(): boolean {
@@ -1432,6 +1425,7 @@ export class CampaignScene extends Scene {
     this.ending = false
     this.save = { ...this.save, currentNodeId: nodeId, finished: false }
     this.save = markCampaignVisited(this.save, nodeId)
+    this.syncMapState()
   }
 
   private resolveCombat(): void {
@@ -1914,6 +1908,7 @@ export class CampaignScene extends Scene {
     if (!pk || this.save.abilities.includes(pk.ability) || this.player.isDead) return
     if (Math.abs(this.player.position.x - pk.x) > 48) return
     this.save = addCampaignAbility(this.save, pk.ability)
+    this.mapService.state.collectItem(this.node.id)
     this.applyAbilities()
     this.abilityGetTicks = 200
     this.abilityGetName = ABILITIES[pk.ability]?.name ?? pk.ability
@@ -2743,24 +2738,11 @@ export class CampaignScene extends Scene {
     ctx.restore()
   }
 
-  private roomMapState(id: string): 'current' | 'completed' | 'visited' | 'known' | 'hidden' {
-    if (id === this.node.id) return 'current'
-    if (this.save.completedNodeIds.includes(id)) return 'completed'
-    if (this.save.visitedNodeIds.includes(id)) return 'visited'
-    if (this.save.unlockedNodeIds.includes(id)) return 'known'
-    return 'hidden'
-  }
-
   private drawMap(): void {
     const { ctx } = this.ctx.renderer
     const { width, height } = this.ctx
-    ctx.save()
     ctx.fillStyle = 'rgba(6, 5, 12, 0.94)'
     ctx.fillRect(0, 0, width, height)
-    ctx.strokeStyle = '#5a567a'
-    ctx.lineWidth = 2
-    ctx.strokeRect(56, 36, width - 112, height - 84)
-
     ctx.textAlign = 'center'
     ctx.textBaseline = 'top'
     ctx.fillStyle = '#e8d4a0'
@@ -2770,114 +2752,41 @@ export class CampaignScene extends Scene {
     ctx.font = '9px "Press Start 2P", monospace'
     ctx.fillText(this.chapter.title.toUpperCase(), width / 2, 84)
 
-    const bounds = castleGridBounds()
-    // Fit the whole castle into the panel, scaling cells to the grid size so the
-    // map stays readable however many rooms exist.
-    const areaTop = 108
-    const availW = width - 220
-    const availH = height - 120 - areaTop
-    const gap = 22
-    const cellW = Math.min(90, (availW - (bounds.cols - 1) * gap) / bounds.cols)
-    const cellH = Math.min(56, (availH - (bounds.rows - 1) * gap) / bounds.rows)
-    const gridW = bounds.cols * cellW + (bounds.cols - 1) * gap
-    const gridH = bounds.rows * cellH + (bounds.rows - 1) * gap
-    const originX = width / 2 - gridW / 2
-    const originY = areaTop + (availH - gridH) / 2
+    // The reusable map module renders the discovered castle, fit to the panel.
     const pulse = 0.5 + 0.5 * Math.sin(this.blink * 0.12)
+    this.mapRenderer.draw(
+      ctx,
+      this.mapService,
+      { x: 100, y: 112, width: width - 200, height: height - 240, cellSize: 48 },
+      { pulse, showConnections: true, fit: true },
+    )
 
-    const cellRect = (id: string): { x: number; y: number } => {
-      const cell = CASTLE_CELLS[id]!
-      return {
-        x: originX + (cell.col - bounds.minCol) * (cellW + gap),
-        y: originY + (cell.row - bounds.minRow) * (cellH + gap),
-      }
-    }
-
-    // Corridors first, so room cells sit on top of the connecting stubs.
-    ctx.fillStyle = '#3a3658'
-    for (const id of CASTLE_ROOM_IDS) {
-      if (this.roomMapState(id) === 'hidden') continue
-      const { x, y } = cellRect(id)
-      const doors = castleDoors(id)
-      const neighborShown = (dir: MapDir): boolean => {
-        const n = castleNeighbor(id, dir)
-        return Boolean(n && this.roomMapState(n) !== 'hidden')
-      }
-      const cx = x + cellW / 2
-      const cy = y + cellH / 2
-      if (doors.e && neighborShown('e')) ctx.fillRect(x + cellW, cy - 4, gap, 8)
-      if (doors.w && neighborShown('w')) ctx.fillRect(x - gap, cy - 4, gap, 8)
-      if (doors.s && neighborShown('s')) ctx.fillRect(cx - 4, y + cellH, 8, gap)
-      if (doors.n && neighborShown('n')) ctx.fillRect(cx - 4, y - gap, 8, gap)
-    }
-
-    for (const id of CASTLE_ROOM_IDS) {
-      const state = this.roomMapState(id)
-      if (state === 'hidden') continue
-      const { x, y } = cellRect(id)
-      let fill = '#141428'
-      let border = '#4a4668'
-      if (state === 'current') {
-        fill = `rgba(232, 212, 160, ${0.5 + 0.4 * pulse})`
-        border = '#fff2cc'
-      } else if (state === 'completed') {
-        fill = '#243a5a'
-        border = '#6a86b8'
-      } else if (state === 'visited') {
-        fill = '#2a2340'
-        border = '#7a6ab0'
-      } else {
-        // known but never entered — a dim, dashed outline (fog just lifting).
-        fill = 'rgba(20, 20, 40, 0.4)'
-        border = '#4a4668'
-      }
-      ctx.fillStyle = fill
-      ctx.fillRect(x, y, cellW, cellH)
-      ctx.lineWidth = 2
-      ctx.strokeStyle = border
-      ctx.strokeRect(x, y, cellW, cellH)
-      // Boss rooms carry a red pip so their danger reads at a glance.
-      if (isBossRoom(id)) {
-        ctx.fillStyle = state === 'known' ? '#5a2226' : '#e0393a'
-        ctx.beginPath()
-        ctx.arc(x + cellW / 2, y + cellH / 2, 7, 0, Math.PI * 2)
-        ctx.fill()
-      }
-    }
-
-    // Cursor ring on the inspected room.
-    if (this.mapCursorId && this.roomMapState(this.mapCursorId) !== 'hidden') {
-      const { x, y } = cellRect(this.mapCursorId)
-      ctx.lineWidth = 2
-      ctx.strokeStyle = `rgba(246, 183, 74, ${0.55 + 0.45 * pulse})`
-      ctx.strokeRect(x - 5, y - 5, cellW + 10, cellH + 10)
-    }
-
-    // Inspected-room caption.
-    const cursorState = this.mapCursorId ? this.roomMapState(this.mapCursorId) : 'hidden'
+    // Current-room caption.
     ctx.textAlign = 'center'
-    if (cursorState !== 'hidden') {
-      const node = getCampaignNode(this.mapCursorId)
-      const label =
-        cursorState === 'current' ? 'YOU ARE HERE' :
-        cursorState === 'completed' ? 'CLEARED' :
-        cursorState === 'visited' ? 'EXPLORED' : 'NOT YET REACHED'
-      ctx.fillStyle = '#e8d4a0'
-      ctx.font = '11px "Press Start 2P", monospace'
-      ctx.fillText(node.title.toUpperCase(), width / 2, height - 108)
-      ctx.fillStyle = cursorState === 'current' ? '#f6b74a' : '#7a8ab0'
-      ctx.font = '8px "Press Start 2P", monospace'
-      ctx.fillText(label + (isBossRoom(this.mapCursorId) ? '   • BOSS' : ''), width / 2, height - 90)
-      ctx.fillStyle = '#8a8aa0'
-      ctx.textAlign = 'left'
-      wrapText(ctx, node.blurb, width / 2 - 240, height - 74, 480, 13, 2)
-      ctx.textAlign = 'center'
-    }
+    ctx.textBaseline = 'alphabetic'
+    ctx.fillStyle = '#e8d4a0'
+    ctx.font = '11px "Press Start 2P", monospace'
+    ctx.fillText(this.node.title.toUpperCase(), width / 2, height - 92)
+    ctx.fillStyle = this.node.isBoss ? '#e0393a' : '#7a8ab0'
+    ctx.font = '8px "Press Start 2P", monospace'
+    ctx.fillText('YOU ARE HERE' + (this.node.isBoss ? '   • BOSS' : ''), width / 2, height - 74)
 
     ctx.fillStyle = '#5a567a'
     ctx.font = '8px "Press Start 2P", monospace'
-    ctx.fillText('ARROWS / WASD  MOVE      SPACE / K  CLOSE', width / 2, height - 40)
-    ctx.restore()
+    ctx.fillText('SPACE / K  CLOSE', width / 2, height - 40)
+  }
+
+  /** Small live map in the top-right corner during gameplay. */
+  private drawMinimap(): void {
+    const pulse = 0.5 + 0.5 * Math.sin(this.blink * 0.12)
+    this.minimap.draw(this.ctx.renderer.ctx, this.mapService, {
+      x: this.ctx.width - 182,
+      y: 20,
+      width: 160,
+      height: 108,
+      cellSize: 22,
+      pulse,
+    })
   }
 
   private drawMenu(): void {
@@ -3820,25 +3729,6 @@ function spread(start: number, end: number, count: number): number[] {
   return Array.from({ length: count }, (_unused, i) => Math.round(start + i * step))
 }
 
-/** Map an arrow/WASD key to a castle-map direction, or null for other keys. */
-function mapDirForKey(code: string): MapDir | null {
-  switch (code) {
-    case 'ArrowUp':
-    case 'KeyW':
-      return 'n'
-    case 'ArrowDown':
-    case 'KeyS':
-      return 's'
-    case 'ArrowLeft':
-    case 'KeyA':
-      return 'w'
-    case 'ArrowRight':
-    case 'KeyD':
-      return 'e'
-    default:
-      return null
-  }
-}
 
 function wrapText(
   ctx: CanvasRenderingContext2D,
