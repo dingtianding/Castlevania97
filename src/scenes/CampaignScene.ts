@@ -32,6 +32,9 @@ import { computeHitbox, isActiveAt, totalFrames, type AttackMove } from '../comb
 const ROOM_WIDTH = 1680
 // How close to a room edge counts as "walking through the doorway".
 const EDGE_ZONE = 14
+// Vertical stairwell passage: centered, activated from the floor with up/down.
+const VERT_PASSAGE_X = ROOM_WIDTH / 2
+const VERT_RANGE = 120
 // Rooms that hold a save point, keyed to its x-position in the room. A save
 // point heals the player and writes the save.
 const SAVE_POINTS: Record<string, number> = { 'cor-entrance': 520 }
@@ -810,6 +813,7 @@ export class CampaignScene extends Scene {
   private defeatTicks = 0
   private bossIntroTicks = 0
   private savedFlashTicks = 0
+  private roomCooldown = 0
   private hearts = STARTING_HEARTS
   private selectedSubweaponIndex = 0
   private enemyFreezeTicks = 0
@@ -1717,31 +1721,50 @@ export class CampaignScene extends Scene {
 
   /** Rebuild the current room's enemies so the player can re-fight them for XP —
    *  triggered by walking back to the entrance of a cleared room. */
-  /** Walk off a left/right edge that has a door → enter the adjacent room. */
+  /** Walk off an edge (L/R) or take the central stairwell (up/down) into the
+   *  adjacent room, following the castle door graph. */
   private tryRoomTransition(intent: IntentState): void {
-    if (this.player.isDead || this.transitionTicks > 0 || this.bossIntroTicks > 0) return
+    if (this.roomCooldown > 0) this.roomCooldown -= 1
+    if (this.player.isDead || this.transitionTicks > 0 || this.bossIntroTicks > 0 || this.roomCooldown > 0) return
     const x = this.player.position.x
+    // Horizontal: walk into a side edge that has a door.
     if (intent.moveX < 0 && x <= WALL_MARGIN + EDGE_ZONE) {
       const west = castleNeighbor(this.node.id, 'w')
-      if (west) this.enterRoom(west, 'east')
+      if (west) { this.enterRoom(west, 'east'); return }
     } else if (intent.moveX > 0 && x >= ROOM_WIDTH - WALL_MARGIN - EDGE_ZONE) {
       const east = castleNeighbor(this.node.id, 'e')
-      if (east) this.enterRoom(east, 'west')
+      if (east) { this.enterRoom(east, 'west'); return }
+    }
+    // Vertical: stand at the central stairwell on the ground and press up/down.
+    if (this.player.grounded && Math.abs(x - VERT_PASSAGE_X) <= VERT_RANGE) {
+      if (intent.upHeld) {
+        const north = castleNeighbor(this.node.id, 'n')
+        if (north) { this.enterRoom(north, 'bottom'); return }
+      } else if (intent.downHeld) {
+        const south = castleNeighbor(this.node.id, 's')
+        if (south) this.enterRoom(south, 'top')
+      }
     }
   }
 
-  /** Load `nodeId` and drop the player at the given entry side, facing inward.
-   *  Health and MP carry across the threshold — no free heal by room-hopping. */
-  private enterRoom(nodeId: string, entrySide: 'west' | 'east'): void {
+  /** Load `nodeId` and drop the player at the entry side, facing inward. Health
+   *  and MP carry across the threshold — no free heal by room-hopping. */
+  private enterRoom(nodeId: string, entrySide: 'west' | 'east' | 'top' | 'bottom'): void {
     const carryHealth = this.player.health
     const carryMeter = this.player.meter
     this.reloadNode(nodeId)
-    const facing: Facing = entrySide === 'west' ? 1 : -1
-    const x = entrySide === 'west' ? WALL_MARGIN + 90 : ROOM_WIDTH - WALL_MARGIN - 90
-    this.player.reset(x, this.layout.checkpointY, facing)
+    let x = VERT_PASSAGE_X
+    let y = this.layout.checkpointY
+    let facing: Facing = this.player.facing
+    if (entrySide === 'west') { x = WALL_MARGIN + 90; facing = 1 }
+    else if (entrySide === 'east') { x = ROOM_WIDTH - WALL_MARGIN - 90; facing = -1 }
+    else if (entrySide === 'top') { y = 120 } // dropped in from above — falls to the floor
+    this.player.reset(x, y, facing)
+    if (entrySide === 'top') this.player.grounded = false
     this.player.health = Math.min(this.player.maxHealth, Math.max(1, carryHealth))
     this.player.meter = clamp(carryMeter, 0, 100)
     this.cameraX = clamp(x - this.ctx.width / 2, 0, ROOM_WIDTH - this.ctx.width)
+    this.roomCooldown = 22
     this.ctx.audio.swing()
   }
 
@@ -1998,6 +2021,7 @@ export class CampaignScene extends Scene {
     const doors = castleDoors(this.node.id)
     if (doors.w) drawExit(ctx, 0, this.layout.doorY, 'w')
     if (doors.e) drawExit(ctx, ROOM_WIDTH, this.layout.doorY, 'e')
+    if (doors.n || doors.s) drawVertPassage(ctx, VERT_PASSAGE_X, this.layout.doorY, doors.n, doors.s, this.blink)
     // Save point, if this room has one.
     const sx = SAVE_POINTS[this.node.id]
     if (sx !== undefined) drawSavePoint(ctx, sx, this.layout.doorY, this.blink)
@@ -3218,6 +3242,38 @@ function drawExit(ctx: CanvasRenderingContext2D, edgeX: number, floorY: number, 
   const pw = 12
   const px = side === 'w' ? x + w - pw : x
   ctx.fillRect(px, top - 4, pw, h + 4)
+  ctx.restore()
+}
+
+function drawVertPassage(ctx: CanvasRenderingContext2D, x: number, floorY: number, up: boolean, down: boolean, blink: number): void {
+  const w = 76
+  ctx.save()
+  if (up) {
+    const h = 150, top = floorY - h
+    ctx.fillStyle = '#070510'
+    ctx.fillRect(x - w / 2, top, w, h)
+    const g = ctx.createLinearGradient(0, top, 0, floorY)
+    g.addColorStop(0, 'rgba(120,96,56,0.30)')
+    g.addColorStop(1, 'rgba(120,96,56,0)')
+    ctx.fillStyle = g
+    ctx.fillRect(x - w / 2, top, w, h)
+    ctx.fillStyle = '#3a3352'
+    ctx.fillRect(x - w / 2 - 4, top - 10, w + 8, 10) // lintel
+    ctx.fillRect(x - w / 2 - 6, top, 6, h)
+    ctx.fillRect(x + w / 2, top, 6, h)
+  }
+  if (down) {
+    ctx.fillStyle = '#070510'
+    ctx.fillRect(x - w / 2, floorY - 6, w, 26)
+    ctx.fillStyle = '#2a2238'
+    for (let i = 0; i < 4; i++) ctx.fillRect(x - w / 2 + i * 8, floorY + i * 5 - 4, w - i * 16, 4)
+  }
+  const pulse = 0.5 + 0.5 * Math.sin(blink * 0.1)
+  ctx.fillStyle = `rgba(232,212,160,${0.5 + 0.5 * pulse})`
+  ctx.font = '9px "Press Start 2P", monospace'
+  ctx.textAlign = 'center'
+  const label = up && down ? 'W UP  S DOWN' : up ? 'W: UP' : 'S: DOWN'
+  ctx.fillText(label, x, up ? floorY - 166 : floorY - 22)
   ctx.restore()
 }
 
