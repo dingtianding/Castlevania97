@@ -23,10 +23,15 @@ export const CASTLE_MERCHANT_ROOMS = [{ id: 'cor-entrance', x: 1180 }] as const
 export const CASTLE_ITEM_ROOMS = [
   { id: 'cor-entrance', x: 320, ability: 'double-jump' },
   { id: 'std-archive', x: 320, ability: 'silver-key' },
+  { id: 'clk-ascent', x: 320, ability: 'high-jump' },
 ] as const
 
-/** Rooms holding a permanent Life Max Up pickup, keyed to its x-position. */
-export const CASTLE_LIFEUP_ROOMS = [{ id: 'chp-loft', x: 840 }] as const
+/** Rooms holding a permanent Life Max Up. `high` ones sit on a raised ledge only
+ *  the high-jump relic can reach (a height gate rather than a keyed door). */
+export const CASTLE_LIFEUP_ROOMS = [
+  { id: 'chp-loft', x: 840, high: false },
+  { id: 'grd-skybridge', x: 840, high: true },
+] as const
 
 const DIR_OF: Record<MapDir, Direction> = { n: 'up', s: 'down', e: 'right', w: 'left' }
 

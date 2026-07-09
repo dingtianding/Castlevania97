@@ -32,6 +32,8 @@ import { Animator, drawSprite, makeSheet, type SpriteSheet } from '../render/Spr
 import { computeHitbox, isActiveAt, totalFrames, type AttackMove } from '../combat/AttackMove.ts'
 
 const ROOM_WIDTH = 1680
+const ROOM_HEIGHT = 576
+const FLOOR_Y = 492
 // How close to a room edge counts as "walking through the doorway".
 const EDGE_ZONE = 14
 // Vertical passage is centered on the room. You climb (stairs + ledges) up to
@@ -55,6 +57,7 @@ const MENU_ITEMS = ['STATUS', 'EQUIP', 'MAP', 'RESUME'] as const
 const ABILITIES: Record<string, { name: string; blurb: string; getSub: string }> = {
   'double-jump': { name: 'Leap Stone', blurb: 'Jump a second time in mid-air.', getSub: 'DOUBLE JUMP UNLOCKED' },
   'silver-key': { name: 'Silver Key', blurb: 'Opens the silver-barred door in the Chapel.', getSub: 'A SILVER-BARRED DOOR WILL NOW OPEN' },
+  'high-jump': { name: 'Griffon Wing', blurb: 'Spring to great heights — hold up and jump.', getSub: 'HIGH JUMP — HOLD UP + JUMP' },
 }
 // Rooms that hold an ability relic, keyed to its x-position and the ability id.
 const ABILITY_PICKUPS: Record<string, { x: number; ability: string }> = Object.fromEntries(
@@ -64,16 +67,18 @@ const ABILITY_PICKUPS: Record<string, { x: number; ability: string }> = Object.f
 // reveals every room's outline on the map.
 const MAP_ITEM_ROOMS: Record<string, number> = { 'cor-alcove': 840 }
 const MAP_ITEM_RANGE = 48
-// Rooms holding a permanent Life Max Up, keyed to its x-position.
-const LIFE_UP_ROOMS: Record<string, number> = Object.fromEntries(CASTLE_LIFEUP_ROOMS.map((r) => [r.id, r.x]))
+// A permanent Life Max Up's position in its room. `high` ones perch on a raised
+// ledge only the high-jump relic reaches — grabbing it needs matching height.
+const HIGH_LEDGE_Y = 150
+const LIFE_UP_ROOMS: Record<string, { x: number; y: number; high: boolean }> = Object.fromEntries(
+  CASTLE_LIFEUP_ROOMS.map((r) => [r.id, { x: r.x, y: r.high ? HIGH_LEDGE_Y : FLOOR_Y, high: r.high }]),
+)
 const LIFE_UP_RANGE = 48
 // Doors sealed until an ability/key is owned: nodeId -> direction -> required id.
 // The Chapel's bell-loft branch is barred until you find the Silver Key.
 const SEALED_DOORS: Record<string, Partial<Record<MapDir, string>>> = {
   'chp-nave': { e: 'silver-key' },
 }
-const ROOM_HEIGHT = 576
-const FLOOR_Y = 492
 const GRAVITY = 0.78
 const WALK_SPEED = 3.4
 const AIR_SPEED = 3.0
@@ -82,6 +87,8 @@ const DASH_SPEED = 12
 const DASH_TICKS = 10
 const DASH_COOLDOWN_TICKS = 28
 const JUMP_VELOCITY = -15.5
+// Griffon Wing high-jump strength, relative to a normal jump.
+const HIGH_JUMP_MULT = 1.7
 const FAST_FALL_SPEED = 12
 const WALL_MARGIN = 48
 // Vertical reach for snapping onto a staircase surface while walking it.
@@ -363,6 +370,8 @@ class CastleActor {
   private jumpCount = 0
   maxJumps = 2
   lastDamageTaken = 0
+  /** Whether the high-jump relic (Griffon Wing) is owned. */
+  hasHighJump = false
   /** Walkable staircases in the current room (empty for enemies). */
   stairs: Stair[] = []
   private dashTicks = 0
@@ -545,6 +554,18 @@ class CastleActor {
     this.animator.play(this.sheets.jump, 8, true)
   }
 
+  /** Griffon Wing high jump: a much stronger leap off the ground. Still counts
+   *  as the first jump, so a double jump remains available at the apex. */
+  private highJump(): void {
+    this.velocity.y = JUMP_VELOCITY * HIGH_JUMP_MULT
+    this.grounded = false
+    this.jumpCount = 1
+    this.state = 'jump'
+    this.attackMove = null
+    this.attackConnected = false
+    this.animator.play(this.sheets.jump, 8, true)
+  }
+
   tryDash(direction: Facing): void {
     if (this.state === 'death' || this.state === 'hurt' || this.dashCooldown > 0) return
     this.facing = direction
@@ -596,7 +617,10 @@ class CastleActor {
     else if (intent.moveX < 0) this.facing = -1
     else this.facing = opponentX >= this.position.x ? 1 : -1
 
-    if (intent.jumpPressed) this.tryJump()
+    if (intent.jumpPressed) {
+      if (this.grounded && intent.upHeld && this.hasHighJump) this.highJump()
+      else this.tryJump()
+    }
     if (!this.grounded && intent.downHeld && this.velocity.y > 0 && this.velocity.y < FAST_FALL_SPEED) {
       this.velocity.y = FAST_FALL_SPEED
     }
@@ -1437,6 +1461,16 @@ export class CampaignScene extends Scene {
     this.chapter = getCampaignChapter(this.node.chapterId)
     this.layout = buildLayout(this.node.stage)
     addVerticalClimb(this.layout, castleDoors(this.node.id))
+    // A high-jump-gated Life Max Up perches on a ledge above double-jump range.
+    // The room becomes a clean column (floor + ledge) so it can't be cheesed by
+    // double-jumping off a decorative platform.
+    const lifeUp = LIFE_UP_ROOMS[this.node.id]
+    if (lifeUp?.high) {
+      this.layout.platforms = [
+        { x: 0, y: FLOOR_Y, width: ROOM_WIDTH, height: 22 },
+        { x: lifeUp.x - 70, y: HIGH_LEDGE_Y, width: 140, height: 12 },
+      ]
+    }
     this.runMods = buildRunModifiers(this.save.relicIds.map((id) => RELIC_POOL.find((relic) => relic.id === id)).filter((relic): relic is RelicDef => Boolean(relic)))
     this.soulMods = buildSoulModifiers(this.save.souls)
     this.equipMods = buildEquipmentModifiers(equippedDefs(this.save))
@@ -1958,6 +1992,7 @@ export class CampaignScene extends Scene {
   /** Reflect owned abilities on the live player (double jump, ...). */
   private applyAbilities(): void {
     this.player.maxJumps = this.save.abilities.includes('double-jump') ? 2 : 1
+    this.player.hasHighJump = this.save.abilities.includes('high-jump')
   }
 
   private tryPickupAbility(): void {
@@ -1974,11 +2009,13 @@ export class CampaignScene extends Scene {
     this.spawnFloatingText(this.player.position.x, this.player.position.y - 118, 'ABILITY GET', '#f6b74a')
   }
 
-  /** A permanent Life Max Up hidden in a locked room — raises max HP for good. */
+  /** A permanent Life Max Up hidden in the castle — raises max HP for good.
+   *  `high` ones need matching height (the high-jump relic) to actually reach. */
   private tryPickupLifeUp(): void {
-    const lx = LIFE_UP_ROOMS[this.node.id]
-    if (lx === undefined || this.save.collectedItemIds.includes(this.node.id) || this.player.isDead) return
-    if (Math.abs(this.player.position.x - lx) > LIFE_UP_RANGE) return
+    const lu = LIFE_UP_ROOMS[this.node.id]
+    if (lu === undefined || this.save.collectedItemIds.includes(this.node.id) || this.player.isDead) return
+    if (Math.abs(this.player.position.x - lu.x) > LIFE_UP_RANGE) return
+    if (Math.abs(this.player.position.y - lu.y) > 44) return
     this.save = addCollectedItem(this.save, this.node.id)
     this.save = { ...this.save, hpUpgrades: Math.min(99, this.save.hpUpgrades + 1) }
     saveCampaignSave(this.save)
@@ -2298,7 +2335,9 @@ export class CampaignScene extends Scene {
     const mapItem = MAP_ITEM_ROOMS[this.node.id]
     if (mapItem !== undefined && !this.save.hasCastleMap) drawMapItemPickup(ctx, mapItem, this.layout.doorY, this.blink)
     const lifeUp = LIFE_UP_ROOMS[this.node.id]
-    if (lifeUp !== undefined && !this.save.collectedItemIds.includes(this.node.id)) drawLifeUpPickup(ctx, lifeUp, this.layout.doorY, this.blink)
+    if (lifeUp !== undefined && !this.save.collectedItemIds.includes(this.node.id)) {
+      drawLifeUpPickup(ctx, lifeUp.x, lifeUp.high ? lifeUp.y - 30 : this.layout.doorY - 66, this.blink)
+    }
     // Save point, if this room has one.
     const sx = SAVE_POINTS[this.node.id]
     if (sx !== undefined) drawSavePoint(ctx, sx, this.layout.doorY, this.blink)
@@ -3555,9 +3594,9 @@ function drawMapItemPickup(ctx: CanvasRenderingContext2D, x: number, floorY: num
   ctx.restore()
 }
 
-function drawLifeUpPickup(ctx: CanvasRenderingContext2D, x: number, floorY: number, blink: number): void {
+function drawLifeUpPickup(ctx: CanvasRenderingContext2D, x: number, centerY: number, blink: number): void {
   const pulse = 0.5 + 0.5 * Math.sin(blink * 0.12)
-  const cy = floorY - 66 - pulse * 5
+  const cy = centerY - pulse * 5
   ctx.save()
   const g = ctx.createRadialGradient(x, cy, 0, x, cy, 34)
   g.addColorStop(0, `rgba(255, 122, 154, ${0.4 + 0.3 * pulse})`)
