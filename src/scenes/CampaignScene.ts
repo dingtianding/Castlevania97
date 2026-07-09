@@ -4,10 +4,10 @@ import { ModeSelectScene } from './ModeSelectScene.ts'
 import { PauseScene } from './PauseScene.ts'
 import { AssetManager } from '../assets/AssetManager.ts'
 import { AUDIO_MANIFEST } from '../assets/manifest.ts'
-import { addCampaignAbility, addCampaignBulletSoul, addCampaignEquipment, addCampaignPerk, addCampaignRelic, addCampaignSoul, equipCampaignBulletSoul, equipCampaignItem, equippedDefs, getCampaignChapter, getCampaignNode, grantCampaignRewards, loadCampaignSave, markCampaignVisited, MAX_LEVEL, saveCampaignSave, unequipCampaignSlot, xpForNextLevel } from '../data/campaign.ts'
+import { addCampaignAbility, addCampaignBulletSoul, addCampaignEquipment, addCampaignPerk, addCampaignRelic, addCampaignSoul, addCollectedItem, equipCampaignBulletSoul, equipCampaignItem, equippedDefs, getCampaignChapter, getCampaignNode, grantCampaignRewards, loadCampaignSave, markCampaignVisited, MAX_LEVEL, saveCampaignSave, unequipCampaignSlot, xpForNextLevel } from '../data/campaign.ts'
 import { draftPowerUps, powerUpStacks, type PowerUpDef } from '../data/powerups.ts'
 import { BASE_BULLET_SOUL, bulletSoulForEnemy, getBulletSoul, type BulletSoulDef } from '../data/bulletSouls.ts'
-import { CASTLE_ITEM_ROOMS, CASTLE_MAP_DATA, CASTLE_MERCHANT_ROOMS, CASTLE_SAVE_ROOMS } from '../data/castleMapData.ts'
+import { CASTLE_ITEM_ROOMS, CASTLE_LIFEUP_ROOMS, CASTLE_MAP_DATA, CASTLE_MERCHANT_ROOMS, CASTLE_SAVE_ROOMS } from '../data/castleMapData.ts'
 import { MapService, MapRenderer, MinimapRenderer } from '../map/index.ts'
 import { castleDoors, castleNeighbor, type MapDir } from '../data/castleMap.ts'
 import { buildEquipmentModifiers, EQUIP_SLOT_LABELS, EQUIP_SLOTS, equipmentForSlot, EQUIPMENT_POOL, getEquipment, type EquipmentDef, type EquipmentModifiers } from '../data/equipment.ts'
@@ -52,8 +52,9 @@ const FINAL_BOSS_NODE = 'fbd-chaos'
 // Navigable pause menu entries (GBA-style).
 const MENU_ITEMS = ['STATUS', 'EQUIP', 'MAP', 'RESUME'] as const
 // Metroidvania traversal abilities.
-const ABILITIES: Record<string, { name: string; blurb: string }> = {
-  'double-jump': { name: 'Leap Stone', blurb: 'Jump a second time in mid-air, and pass doors sealed against the earthbound.' },
+const ABILITIES: Record<string, { name: string; blurb: string; getSub: string }> = {
+  'double-jump': { name: 'Leap Stone', blurb: 'Jump a second time in mid-air.', getSub: 'DOUBLE JUMP UNLOCKED' },
+  'silver-key': { name: 'Silver Key', blurb: 'Opens the silver-barred door in the Chapel.', getSub: 'A SILVER-BARRED DOOR WILL NOW OPEN' },
 }
 // Rooms that hold an ability relic, keyed to its x-position and the ability id.
 const ABILITY_PICKUPS: Record<string, { x: number; ability: string }> = Object.fromEntries(
@@ -63,9 +64,14 @@ const ABILITY_PICKUPS: Record<string, { x: number; ability: string }> = Object.f
 // reveals every room's outline on the map.
 const MAP_ITEM_ROOMS: Record<string, number> = { 'cor-alcove': 840 }
 const MAP_ITEM_RANGE = 48
-// Doors sealed until an ability is owned: nodeId -> direction -> required ability.
-// (None while double jump is a starting relic; the system stays for later abilities.)
-const SEALED_DOORS: Record<string, Partial<Record<MapDir, string>>> = {}
+// Rooms holding a permanent Life Max Up, keyed to its x-position.
+const LIFE_UP_ROOMS: Record<string, number> = Object.fromEntries(CASTLE_LIFEUP_ROOMS.map((r) => [r.id, r.x]))
+const LIFE_UP_RANGE = 48
+// Doors sealed until an ability/key is owned: nodeId -> direction -> required id.
+// The Chapel's bell-loft branch is barred until you find the Silver Key.
+const SEALED_DOORS: Record<string, Partial<Record<MapDir, string>>> = {
+  'chp-nave': { e: 'silver-key' },
+}
 const ROOM_HEIGHT = 576
 const FLOOR_Y = 492
 const GRAVITY = 0.78
@@ -1305,6 +1311,7 @@ export class CampaignScene extends Scene {
     this.tryUseMerchant(intent)
     this.tryPickupAbility()
     this.tryPickupMapItem()
+    this.tryPickupLifeUp()
     if (this.sealMessageTicks > 0) this.sealMessageTicks -= 1
     if (this.abilityGetTicks > 0) this.abilityGetTicks -= 1
 
@@ -1962,9 +1969,27 @@ export class CampaignScene extends Scene {
     this.applyAbilities()
     this.abilityGetTicks = 200
     this.abilityGetName = ABILITIES[pk.ability]?.name ?? pk.ability
-    this.abilityGetSub = 'DOUBLE JUMP UNLOCKED — SEALED DOORS WILL OPEN'
+    this.abilityGetSub = ABILITIES[pk.ability]?.getSub ?? ''
     this.ctx.audio.hit()
     this.spawnFloatingText(this.player.position.x, this.player.position.y - 118, 'ABILITY GET', '#f6b74a')
+  }
+
+  /** A permanent Life Max Up hidden in a locked room — raises max HP for good. */
+  private tryPickupLifeUp(): void {
+    const lx = LIFE_UP_ROOMS[this.node.id]
+    if (lx === undefined || this.save.collectedItemIds.includes(this.node.id) || this.player.isDead) return
+    if (Math.abs(this.player.position.x - lx) > LIFE_UP_RANGE) return
+    this.save = addCollectedItem(this.save, this.node.id)
+    this.save = { ...this.save, hpUpgrades: Math.min(99, this.save.hpUpgrades + 1) }
+    saveCampaignSave(this.save)
+    this.mapService.state.collectItem(this.node.id)
+    this.refreshLivePlayerStats()
+    this.player.health = this.player.maxHealth
+    this.abilityGetTicks = 200
+    this.abilityGetName = 'LIFE MAX UP'
+    this.abilityGetSub = 'MAXIMUM HP PERMANENTLY INCREASED'
+    this.ctx.audio.hit()
+    this.spawnFloatingText(this.player.position.x, this.player.position.y - 118, 'LIFE UP', '#ff7a9a')
   }
 
   private tryPickupMapItem(): void {
@@ -2272,6 +2297,8 @@ export class CampaignScene extends Scene {
     if (orb && !this.save.abilities.includes(orb.ability)) drawAbilityOrb(ctx, orb.x, this.layout.doorY, this.blink)
     const mapItem = MAP_ITEM_ROOMS[this.node.id]
     if (mapItem !== undefined && !this.save.hasCastleMap) drawMapItemPickup(ctx, mapItem, this.layout.doorY, this.blink)
+    const lifeUp = LIFE_UP_ROOMS[this.node.id]
+    if (lifeUp !== undefined && !this.save.collectedItemIds.includes(this.node.id)) drawLifeUpPickup(ctx, lifeUp, this.layout.doorY, this.blink)
     // Save point, if this room has one.
     const sx = SAVE_POINTS[this.node.id]
     if (sx !== undefined) drawSavePoint(ctx, sx, this.layout.doorY, this.blink)
@@ -3525,6 +3552,25 @@ function drawMapItemPickup(ctx: CanvasRenderingContext2D, x: number, floorY: num
   ctx.strokeStyle = '#7a8a5a'
   ctx.lineWidth = 1
   ctx.beginPath(); ctx.moveTo(x - 8, cy - 3); ctx.lineTo(x + 6, cy - 3); ctx.moveTo(x - 6, cy + 2); ctx.lineTo(x + 4, cy + 2); ctx.stroke()
+  ctx.restore()
+}
+
+function drawLifeUpPickup(ctx: CanvasRenderingContext2D, x: number, floorY: number, blink: number): void {
+  const pulse = 0.5 + 0.5 * Math.sin(blink * 0.12)
+  const cy = floorY - 66 - pulse * 5
+  ctx.save()
+  const g = ctx.createRadialGradient(x, cy, 0, x, cy, 34)
+  g.addColorStop(0, `rgba(255, 122, 154, ${0.4 + 0.3 * pulse})`)
+  g.addColorStop(1, 'rgba(255, 122, 154, 0)')
+  ctx.fillStyle = g
+  ctx.beginPath(); ctx.arc(x, cy, 34, 0, Math.PI * 2); ctx.fill()
+  // A pixel heart.
+  ctx.fillStyle = '#ff5a7a'
+  ctx.fillRect(x - 10, cy - 8, 8, 8); ctx.fillRect(x + 2, cy - 8, 8, 8)
+  ctx.fillRect(x - 12, cy - 4, 24, 8)
+  ctx.fillRect(x - 8, cy + 4, 16, 5); ctx.fillRect(x - 4, cy + 9, 8, 4)
+  ctx.fillStyle = 'rgba(255,255,255,0.7)'
+  ctx.fillRect(x - 8, cy - 6, 3, 3) // glint
   ctx.restore()
 }
 

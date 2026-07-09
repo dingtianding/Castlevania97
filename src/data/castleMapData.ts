@@ -20,13 +20,19 @@ export const CASTLE_SAVE_ROOMS = [
 export const CASTLE_MERCHANT_ROOMS = [{ id: 'cor-entrance', x: 1180 }] as const
 
 /** Rooms holding an ability relic: x-position + the ability it grants. */
-export const CASTLE_ITEM_ROOMS = [{ id: 'cor-entrance', x: 320, ability: 'double-jump' }] as const
+export const CASTLE_ITEM_ROOMS = [
+  { id: 'cor-entrance', x: 320, ability: 'double-jump' },
+  { id: 'std-archive', x: 320, ability: 'silver-key' },
+] as const
+
+/** Rooms holding a permanent Life Max Up pickup, keyed to its x-position. */
+export const CASTLE_LIFEUP_ROOMS = [{ id: 'chp-loft', x: 840 }] as const
 
 const DIR_OF: Record<MapDir, Direction> = { n: 'up', s: 'down', e: 'right', w: 'left' }
 
 const saveIds = new Set<string>(CASTLE_SAVE_ROOMS.map((r) => r.id))
 const shopIds = new Set<string>(CASTLE_MERCHANT_ROOMS.map((r) => r.id))
-const itemIds = new Set<string>(CASTLE_ITEM_ROOMS.map((r) => r.id))
+const itemIds = new Set<string>([...CASTLE_ITEM_ROOMS.map((r) => r.id), ...CASTLE_LIFEUP_ROOMS.map((r) => r.id)])
 
 function buildRoom(node: (typeof CAMPAIGN_NODES)[number]): Room | null {
   const cell = CASTLE_CELLS[node.id]

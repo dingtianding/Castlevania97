@@ -58,6 +58,8 @@ export interface CampaignSave {
   abilities: readonly string[]
   /** Found the Castle Map item — reveals every room's outline on the map. */
   hasCastleMap: boolean
+  /** One-off world pickups already taken, by node id (e.g. Life Max Up rooms). */
+  collectedItemIds: readonly string[]
   level: number
   xp: number
   gold: number
@@ -624,6 +626,7 @@ export function initialCampaignSave(): CampaignSave {
     perks: {},
     abilities: [],
     hasCastleMap: false,
+    collectedItemIds: [],
     level: 1,
     xp: 0,
     gold: 0,
@@ -647,6 +650,14 @@ export function markCampaignVisited(save: CampaignSave, nodeId: string): Campaig
 export function addCampaignAbility(save: CampaignSave, id: string): CampaignSave {
   if (save.abilities.includes(id)) return save
   const next: CampaignSave = { ...save, abilities: [...save.abilities, id] }
+  saveCampaignSave(next)
+  return next
+}
+
+/** Mark a one-off world pickup (Life Max Up, etc.) as taken in this room. */
+export function addCollectedItem(save: CampaignSave, nodeId: string): CampaignSave {
+  if (save.collectedItemIds.includes(nodeId)) return save
+  const next: CampaignSave = { ...save, collectedItemIds: [...save.collectedItemIds, nodeId] }
   saveCampaignSave(next)
   return next
 }
@@ -812,6 +823,7 @@ export function completeCampaignBattle(save: CampaignSave): CampaignSave {
     perks: save.perks,
     abilities: save.abilities,
     hasCastleMap: save.hasCastleMap,
+    collectedItemIds: save.collectedItemIds,
     level: save.level,
     xp: save.xp,
     gold: save.gold,
@@ -900,6 +912,7 @@ function sanitizeCampaignSave(value: Partial<CampaignSave>): CampaignSave {
     perks: filterPerks(value.perks),
     abilities: Array.isArray(value.abilities) ? value.abilities.filter((a): a is string => typeof a === 'string') : [],
     hasCastleMap: Boolean(value.hasCastleMap),
+    collectedItemIds: Array.isArray(value.collectedItemIds) ? value.collectedItemIds.filter((a): a is string => typeof a === 'string') : [],
     level: clampNumber(value.level, 1, MAX_LEVEL, 1),
     xp: clampNumber(value.xp, 0, Number.MAX_SAFE_INTEGER, 0),
     gold: clampNumber(value.gold, 0, Number.MAX_SAFE_INTEGER, 0),
