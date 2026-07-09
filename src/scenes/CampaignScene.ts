@@ -138,8 +138,6 @@ const BOSS_INTRO_TICKS = 120 // cinematic name-reveal pause when a boss room sta
 // Feet stay planted because anchorY is scaled at draw time; attack reach is data
 // (absolute px) so it is intentionally left untouched.
 const ACTOR_SCALE = 0.8
-const STARTING_HEARTS = 10
-const MAX_HEARTS = 99
 const SUBWEAPON_ORDER = ['dagger', 'axe', 'cross', 'holyWater', 'stopwatch'] as const
 type SubweaponKind = (typeof SUBWEAPON_ORDER)[number]
 const SUBWEAPON_LABELS: Record<SubweaponKind, string> = {
@@ -149,13 +147,17 @@ const SUBWEAPON_LABELS: Record<SubweaponKind, string> = {
   holyWater: 'HOLY WATER',
   stopwatch: 'STOPWATCH',
 }
+// Subweapons now spend MP (the blue bar), which regenerates over time and is
+// topped up by hearts — no separate heart-ammo count.
 const SUBWEAPON_COSTS: Record<SubweaponKind, number> = {
-  dagger: 1,
-  axe: 1,
-  cross: 1,
-  holyWater: 1,
-  stopwatch: 5,
+  dagger: 6,
+  axe: 10,
+  cross: 12,
+  holyWater: 12,
+  stopwatch: 28,
 }
+// MP restored by collecting a heart (candles, drops).
+const HEART_MP = 18
 const SUBWEAPON_DAMAGE: Record<SubweaponKind, number> = {
   dagger: 5,
   axe: 9,
@@ -1015,7 +1017,6 @@ export class CampaignScene extends Scene {
   private abilityGetTicks = 0
   private abilityGetName = ''
   private abilityGetSub = ''
-  private hearts = STARTING_HEARTS
   private selectedSubweaponIndex = 0
   private enemyFreezeTicks = 0
   private runMods: RunModifiers = buildRunModifiers([])
@@ -1804,8 +1805,8 @@ export class CampaignScene extends Scene {
     if (this.player.isDead) return false
     const kind = this.currentSubweapon()
     const cost = SUBWEAPON_COSTS[kind]
-    if (this.hearts < cost) return false
-    this.hearts -= cost
+    if (this.player.meter < cost) return false
+    this.player.meter = Math.max(0, this.player.meter - cost)
     if (kind === 'stopwatch') {
       this.enemyFreezeTicks = Math.max(this.enemyFreezeTicks, 150)
       this.ctx.audio.hit()
@@ -2272,7 +2273,7 @@ export class CampaignScene extends Scene {
       if (!rectsOverlap(pickupBox(pickup), playerBox)) continue
       pickup.ticksLeft = 0
       if (pickup.kind === 'heart') {
-        this.hearts = Math.min(MAX_HEARTS, this.hearts + pickup.value)
+        this.player.meter = clamp(this.player.meter + HEART_MP * pickup.value, 0, 100)
       } else if (pickup.kind === 'gold') {
         this.save = grantCampaignRewards(this.save, 0, pickup.value).save
       } else {
@@ -2625,8 +2626,8 @@ export class CampaignScene extends Scene {
     ctx.fillText(this.node.title.toUpperCase(), 40, 66)
     ctx.fillStyle = '#b7c7e6'
     ctx.fillText(`SUB ${SUBWEAPON_LABELS[this.currentSubweapon()]}`, 250, 52)
-    ctx.fillStyle = '#e8d4a0'
-    ctx.fillText(`HEARTS ${this.hearts.toString().padStart(2, '0')}`, 250, 66)
+    ctx.fillStyle = '#8fd0ff'
+    ctx.fillText(`MP ${Math.round(this.player.meter).toString().padStart(3, '0')}`, 250, 66)
     // Health bar
     ctx.fillStyle = '#2a1014'
     ctx.fillRect(40, 78, 300, 9)
@@ -3167,7 +3168,7 @@ export class CampaignScene extends Scene {
     stat('DEFENSE', `-${Math.round((1 - this.computeDamageTakenMult()) * 100)}%`)
     stat('MOVE SPD', `${this.computeMoveSpeedMult().toFixed(2)}x`)
     stat('GOLD', String(this.save.gold), '#f6b74a')
-    stat('HEARTS', String(this.hearts))
+    stat('MP', `${Math.round(this.player.meter)} / 100`, '#8fd0ff')
 
     // Right column: relics and souls with names + effects.
     const colX = width / 2 + 8
