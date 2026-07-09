@@ -628,7 +628,7 @@ export function initialCampaignSave(): CampaignSave {
     worldFlags: {},
     level: 1,
     xp: 0,
-    gold: 0,
+    gold: 300,
     hpUpgrades: 0,
     atkUpgrades: 0,
     armorTier: 0,

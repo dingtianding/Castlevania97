@@ -4083,10 +4083,6 @@ function drawPickup(ctx: CanvasRenderingContext2D, pickup: Pickup): void {
   ctx.restore()
 }
 
-function spike(x: number, width: number): Hazard {
-  return { x, y: FLOOR_Y - 20, width, height: 20 }
-}
-
 /** Surface y of a staircase at world-x `px`, or null if `px` is off the stair.
  *  The surface is a smooth ramp between the low and high ends. */
 function stairSurfaceY(stair: Stair, px: number): number | null {
@@ -4147,16 +4143,16 @@ function buildLayout(stage: string): RoomLayout {
           { x: 760, y: 304, width: 210, height: 12, crumble: true },
           { x: 1120, y: 344, width: 180, height: 12 },
         ],
-        hazards: [spike(600, 130), spike(1000, 150)],
+        hazards: [],
       }
     case 'cathedral':
       return { ...base, backdrop: '#100b16', platforms: [{ x: 0, y: FLOOR_Y, width: ROOM_WIDTH, height: 22 }, { x: 220, y: 364, width: 220, height: 12 }, { x: 560, y: 302, width: 240, height: 12 }, { x: 990, y: 344, width: 220, height: 12 }], hazards: [] }
     case 'library':
-      return { ...base, backdrop: '#08121e', platforms: [{ x: 0, y: FLOOR_Y, width: ROOM_WIDTH, height: 22 }, { x: 180, y: 382, width: 160, height: 12 }, { x: 420, y: 320, width: 180, height: 12 }, { x: 680, y: 262, width: 220, height: 12, crumble: true }, { x: 980, y: 324, width: 220, height: 12 }, { x: 1290, y: 284, width: 180, height: 12 }], hazards: [spike(860, 120)] }
+      return { ...base, backdrop: '#08121e', platforms: [{ x: 0, y: FLOOR_Y, width: ROOM_WIDTH, height: 22 }, { x: 180, y: 382, width: 160, height: 12 }, { x: 420, y: 320, width: 180, height: 12 }, { x: 680, y: 262, width: 220, height: 12, crumble: true }, { x: 980, y: 324, width: 220, height: 12 }, { x: 1290, y: 284, width: 180, height: 12 }], hazards: [] }
     case 'clock_tower':
-      return { ...base, backdrop: '#1a120b', platforms: [{ x: 0, y: FLOOR_Y, width: ROOM_WIDTH, height: 22 }, { x: 160, y: 404, width: 170, height: 12 }, { x: 390, y: 350, width: 160, height: 12, crumble: true }, { x: 640, y: 292, width: 160, height: 12 }, { x: 890, y: 238, width: 160, height: 12, crumble: true }, { x: 1140, y: 304, width: 170, height: 12 }, { x: 1380, y: 246, width: 170, height: 12, crumble: true }], hazards: [spike(540, 120), spike(820, 120), spike(1080, 140)] }
+      return { ...base, backdrop: '#1a120b', platforms: [{ x: 0, y: FLOOR_Y, width: ROOM_WIDTH, height: 22 }, { x: 160, y: 404, width: 170, height: 12 }, { x: 390, y: 350, width: 160, height: 12, crumble: true }, { x: 640, y: 292, width: 160, height: 12 }, { x: 890, y: 238, width: 160, height: 12, crumble: true }, { x: 1140, y: 304, width: 170, height: 12 }, { x: 1380, y: 246, width: 170, height: 12, crumble: true }], hazards: [] }
     case 'catacombs':
-      return { ...base, backdrop: '#081018', platforms: [{ x: 0, y: FLOOR_Y, width: ROOM_WIDTH, height: 22 }, { x: 260, y: 378, width: 220, height: 12 }, { x: 620, y: 346, width: 220, height: 12, crumble: true }, { x: 1020, y: 378, width: 200, height: 12 }], hazards: [spike(880, 150)] }
+      return { ...base, backdrop: '#081018', platforms: [{ x: 0, y: FLOOR_Y, width: ROOM_WIDTH, height: 22 }, { x: 260, y: 378, width: 220, height: 12 }, { x: 620, y: 346, width: 220, height: 12, crumble: true }, { x: 1020, y: 378, width: 200, height: 12 }], hazards: [] }
     case 'throne_room':
       return { ...base, backdrop: '#13080c', platforms: [{ x: 0, y: FLOOR_Y, width: ROOM_WIDTH, height: 22 }, { x: 360, y: 340, width: 200, height: 12 }, { x: 980, y: 340, width: 200, height: 12 }], hazards: [] }
     default:
