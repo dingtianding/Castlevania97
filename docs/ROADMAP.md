@@ -44,13 +44,16 @@ Make the castle actually walkable instead of isolated arenas.
 
 ## Phase 2 — Progression gating  *(what makes it a Metroidvania)*  — **in progress**
 - **Traversal abilities** that lock/unlock areas: double jump ✅, **high jump ✅**
-  (Griffon Wing, height-gates the sky-bridge Life Max Up), slide/dash-through-gaps,
-  grapple. Areas stay closed until you earn the ability.
+  (Griffon Wing, height-gates the sky-bridge Life Max Up), **slide ✅** (Fleet
+  Greaves, low-tunnel-gates the cistern Life Max Up), grapple. Areas stay closed
+  until you earn the ability.
 - **Key items / colored doors** — ✅ first lock-and-key done (Silver Key → the
   Chapel's barred bell-loft branch → a Life Max Up).
 - **Backtracking payoffs:** early dead-ends open up later — ✅ demonstrated
   (find the key deeper in the Study, backtrack to the Chapel).
-- Still to do: slide/grapple abilities, colored-door tiers, more gated branches.
+- Three gate flavors now exist: keyed door, height gate, low-tunnel gate.
+- Still to do: grapple/other abilities, colored-door tiers, more gated branches,
+  warp network to ease backtracking.
 - *Effort: M. Depends on Phase 1.*
 
 ## Phase 3 — Combat identity & build depth  *(can interleave)*
