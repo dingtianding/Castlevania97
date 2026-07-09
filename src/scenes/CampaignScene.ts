@@ -58,6 +58,7 @@ const ABILITIES: Record<string, { name: string; blurb: string; getSub: string }>
   'double-jump': { name: 'Leap Stone', blurb: 'Jump a second time in mid-air.', getSub: 'DOUBLE JUMP UNLOCKED' },
   'silver-key': { name: 'Silver Key', blurb: 'Opens the silver-barred door in the Chapel.', getSub: 'A SILVER-BARRED DOOR WILL NOW OPEN' },
   'high-jump': { name: 'Griffon Wing', blurb: 'Spring to great heights — hold up and jump.', getSub: 'HIGH JUMP — HOLD UP + JUMP' },
+  'slide': { name: 'Fleet Greaves', blurb: 'Slide under low tunnels — hold down and dash.', getSub: 'SLIDE — HOLD DOWN + DASH' },
 }
 // Rooms that hold an ability relic, keyed to its x-position and the ability id.
 const ABILITY_PICKUPS: Record<string, { x: number; ability: string }> = Object.fromEntries(
@@ -74,6 +75,10 @@ const LIFE_UP_ROOMS: Record<string, { x: number; y: number; high: boolean }> = O
   CASTLE_LIFEUP_ROOMS.map((r) => [r.id, { x: r.x, y: r.high ? HIGH_LEDGE_Y : FLOOR_Y, high: r.high }]),
 )
 const LIFE_UP_RANGE = 48
+// Low tunnels per room (only a slide passes). Gates the cistern's Life Max Up.
+const SLIDE_BARRIERS: Record<string, { x: number; width: number }> = {
+  'res-cistern': { x: 1120, width: 72 },
+}
 // Doors sealed until an ability/key is owned: nodeId -> direction -> required id.
 // The Chapel's bell-loft branch is barred until you find the Silver Key.
 const SEALED_DOORS: Record<string, Partial<Record<MapDir, string>>> = {
@@ -86,6 +91,12 @@ const ATTACK_DRIFT_SPEED = 1.6
 const DASH_SPEED = 12
 const DASH_TICKS = 10
 const DASH_COOLDOWN_TICKS = 28
+// Slide (down + dash with the slide relic): a fast, low crawl under low tunnels.
+const SLIDE_SPEED = 11
+const SLIDE_TICKS = 22
+const SLIDE_COOLDOWN_TICKS = 20
+// A low tunnel's floor gap — a standing player is blocked, a sliding one fits.
+const CRAWL_GAP = 46
 const JUMP_VELOCITY = -15.5
 // Griffon Wing high-jump strength, relative to a normal jump.
 const HIGH_JUMP_MULT = 1.7
@@ -226,9 +237,17 @@ interface Stair {
   rise: number
 }
 
+/** A low overhang you can only pass by sliding (blocks a standing/jumping player
+ *  across its whole x-span; a sliding player fits through the floor gap). */
+interface Barrier {
+  x: number
+  width: number
+}
+
 interface RoomLayout {
   platforms: Platform[]
   stairs: Stair[]
+  barriers: Barrier[]
   hazards: Hazard[]
   doorX: number
   doorY: number
@@ -372,8 +391,17 @@ class CastleActor {
   lastDamageTaken = 0
   /** Whether the high-jump relic (Griffon Wing) is owned. */
   hasHighJump = false
+  /** Whether the slide relic (Fleet Greaves) is owned. */
+  hasSlide = false
+  private slideTicks = 0
+  private slideCooldown = 0
+  get isSliding(): boolean {
+    return this.slideTicks > 0
+  }
   /** Walkable staircases in the current room (empty for enemies). */
   stairs: Stair[] = []
+  /** Low tunnels that only a slide passes (empty for enemies). */
+  barriers: Barrier[] = []
   private dashTicks = 0
   private dashCooldown = 0
 
@@ -451,6 +479,7 @@ class CastleActor {
     this.prevPosition.y = this.position.y
     if (this.invulnerableTicks > 0) this.invulnerableTicks -= 1
     if (this.dashCooldown > 0) this.dashCooldown -= 1
+    if (this.slideCooldown > 0) this.slideCooldown -= 1
 
     if (this.state === 'death') {
       this.deathTicks += 1
@@ -579,6 +608,18 @@ class CastleActor {
     this.animator.play(this.sheets.run, 3, true)
   }
 
+  /** Slide: a fast low crawl that fits under low tunnels. Ground-only. */
+  trySlide(direction: Facing): void {
+    if (this.state === 'death' || this.state === 'hurt' || this.slideCooldown > 0 || !this.grounded) return
+    this.facing = direction
+    this.slideTicks = SLIDE_TICKS
+    this.slideCooldown = SLIDE_TICKS + SLIDE_COOLDOWN_TICKS
+    this.attackMove = null
+    this.attackConnected = false
+    this.state = 'dash'
+    this.animator.play(this.sheets.run, 3, true)
+  }
+
   private tryStartAttack(intent: IntentState): boolean {
     if (this.state === 'death' || this.state === 'hurt' || this.state === 'attack') return false
     const move = intent.specialPressed && this.meter >= (this.def.moves.super.meterCost ?? Number.POSITIVE_INFINITY)
@@ -606,18 +647,25 @@ class CastleActor {
 
   private updateLocomotion(intent: IntentState, opponentX: number, platforms: Platform[]): void {
     const moveSpeed = (this.grounded ? WALK_SPEED : AIR_SPEED) * this.moveSpeedMultiplier
-    const dashing = this.dashTicks > 0
-    if (this.dashTicks > 0) {
+    const sliding = this.slideTicks > 0
+    const dashing = this.dashTicks > 0 || sliding
+    if (this.slideTicks > 0) {
+      this.slideTicks -= 1
+      this.velocity.x = this.facing * SLIDE_SPEED
+    } else if (this.dashTicks > 0) {
       this.dashTicks -= 1
       this.velocity.x = this.facing * DASH_SPEED
     } else {
       this.velocity.x = intent.moveX * moveSpeed
     }
-    if (intent.moveX > 0) this.facing = 1
-    else if (intent.moveX < 0) this.facing = -1
-    else this.facing = opponentX >= this.position.x ? 1 : -1
+    // Keep facing locked through a slide so you can't reverse into the tunnel.
+    if (!sliding) {
+      if (intent.moveX > 0) this.facing = 1
+      else if (intent.moveX < 0) this.facing = -1
+      else this.facing = opponentX >= this.position.x ? 1 : -1
+    }
 
-    if (intent.jumpPressed) {
+    if (intent.jumpPressed && !sliding) {
       if (this.grounded && intent.upHeld && this.hasHighJump) this.highJump()
       else this.tryJump()
     }
@@ -689,6 +737,18 @@ class CastleActor {
     const wasGrounded = this.grounded
     this.position.x += this.velocity.x
     this.position.x = clamp(this.position.x, WALL_MARGIN, ROOM_WIDTH - WALL_MARGIN)
+    // Low tunnels block a standing/jumping player across their whole span; only a
+    // slide fits through the floor gap.
+    if (!this.isSliding) {
+      for (const bar of this.barriers) {
+        const left = bar.x
+        const right = bar.x + bar.width
+        const px = this.prevPosition.x
+        if (px <= left && this.position.x > left) { this.position.x = left; this.velocity.x = 0 }
+        else if (px >= right && this.position.x < right) { this.position.x = right; this.velocity.x = 0 }
+        else if (this.position.x > left && this.position.x < right) { this.position.x = px <= (left + right) / 2 ? left : right }
+      }
+    }
     this.velocity.y += GRAVITY
     this.position.y += this.velocity.y
 
@@ -795,6 +855,18 @@ class CastleActor {
       const extensionX = drawX + this.facing * sheet.frameWidth * scale
       drawSprite(renderer, sheet, 1, drawX, drawY, scale, this.facing)
       drawSprite(renderer, sheet, frame, extensionX, drawY, scale, this.facing)
+      return
+    }
+    if (this.isSliding) {
+      // Squash vertically around the feet so the slide reads as a low crawl.
+      const { ctx } = renderer
+      const feet = this.position.y
+      ctx.save()
+      ctx.translate(0, feet)
+      ctx.scale(1, 0.55)
+      ctx.translate(0, -feet)
+      drawSprite(renderer, sheet, frame, drawX, drawY, scale, this.facing)
+      ctx.restore()
       return
     }
     drawSprite(renderer, sheet, frame, drawX, drawY, scale, this.facing)
@@ -1230,7 +1302,9 @@ export class CampaignScene extends Scene {
 
     const intent = this.input.poll()
     if (intent.dashPressed) {
-      this.player.tryDash(intent.moveX === 0 ? this.player.facing : intent.moveX)
+      const dir = intent.moveX === 0 ? this.player.facing : (intent.moveX as Facing)
+      if (intent.downHeld && this.player.hasSlide && this.player.grounded) this.player.trySlide(dir)
+      else this.player.tryDash(dir)
     }
     if (intent.heavyPressed) {
       this.cycleSubweapon()
@@ -1471,6 +1545,8 @@ export class CampaignScene extends Scene {
         { x: lifeUp.x - 70, y: HIGH_LEDGE_Y, width: 140, height: 12 },
       ]
     }
+    const barrier = SLIDE_BARRIERS[this.node.id]
+    if (barrier) this.layout.barriers.push(barrier)
     this.runMods = buildRunModifiers(this.save.relicIds.map((id) => RELIC_POOL.find((relic) => relic.id === id)).filter((relic): relic is RelicDef => Boolean(relic)))
     this.soulMods = buildSoulModifiers(this.save.souls)
     this.equipMods = buildEquipmentModifiers(equippedDefs(this.save))
@@ -1479,6 +1555,7 @@ export class CampaignScene extends Scene {
     const moveSpeed = this.computeMoveSpeedMult()
     this.player = new CastleActor(CAMPAIGN_HERO, this.ctx.assets, this.layout.checkpointX, this.layout.checkpointY, 1, moveSpeed)
     this.player.stairs = this.layout.stairs
+    this.player.barriers = this.layout.barriers
     this.player.setMaxHealth(this.computeMaxHealth())
     this.player.reset(this.layout.checkpointX, this.layout.checkpointY, 1)
     this.player.meterGainMultiplier = this.computeMeterGainMult()
@@ -1993,6 +2070,7 @@ export class CampaignScene extends Scene {
   private applyAbilities(): void {
     this.player.maxJumps = this.save.abilities.includes('double-jump') ? 2 : 1
     this.player.hasHighJump = this.save.abilities.includes('high-jump')
+    this.player.hasSlide = this.save.abilities.includes('slide')
   }
 
   private tryPickupAbility(): void {
@@ -2321,6 +2399,7 @@ export class CampaignScene extends Scene {
       ctx.fillRect(px, platform.y - 4, platform.width, 4)
     }
     for (const stair of this.layout.stairs) drawStair(ctx, stair)
+    for (const barrier of this.layout.barriers) drawLowBarrier(ctx, barrier)
     for (const hazard of this.layout.hazards) drawSpikes(ctx, hazard)
     for (const candle of this.candles) drawCandle(ctx, candle)
     for (const pickup of this.pickups) drawPickup(ctx, pickup)
@@ -3637,6 +3716,24 @@ function drawAbilityOrb(ctx: CanvasRenderingContext2D, x: number, floorY: number
   ctx.restore()
 }
 
+/** Draw a low tunnel: a hanging block of masonry with a slide-through gap at the
+ *  floor. A standing player is blocked; only a slide fits under. */
+function drawLowBarrier(ctx: CanvasRenderingContext2D, bar: Barrier): void {
+  const topY = 150
+  const bottomY = FLOOR_Y - CRAWL_GAP
+  ctx.save()
+  ctx.fillStyle = '#241d30'
+  ctx.fillRect(bar.x, topY, bar.width, bottomY - topY)
+  // Blocky stones + a lit lower lip so the gap reads clearly.
+  ctx.fillStyle = '#39304e'
+  for (let y = topY; y < bottomY - 8; y += 26) {
+    for (let x = bar.x + 2; x < bar.x + bar.width - 2; x += 30) ctx.fillRect(x, y + 2, 26, 22)
+  }
+  ctx.fillStyle = '#6a5a86'
+  ctx.fillRect(bar.x - 3, bottomY - 8, bar.width + 6, 8)
+  ctx.restore()
+}
+
 /** Draw a diagonal staircase as stepped stone columns down to the floor. */
 function drawStair(ctx: CanvasRenderingContext2D, stair: Stair): void {
   ctx.save()
@@ -3845,7 +3942,7 @@ function addVerticalClimb(layout: RoomLayout, doors: Record<MapDir, boolean>): v
 }
 
 function buildLayout(stage: string): RoomLayout {
-  const base = { doorX: ROOM_WIDTH - 128, doorY: FLOOR_Y, checkpointX: 120, checkpointY: FLOOR_Y, stairs: [] as Stair[] }
+  const base = { doorX: ROOM_WIDTH - 128, doorY: FLOOR_Y, checkpointX: 120, checkpointY: FLOOR_Y, stairs: [] as Stair[], barriers: [] as Barrier[] }
   switch (stage) {
     case 'outer_wall':
       return {

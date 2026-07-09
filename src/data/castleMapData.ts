@@ -24,6 +24,7 @@ export const CASTLE_ITEM_ROOMS = [
   { id: 'cor-entrance', x: 320, ability: 'double-jump' },
   { id: 'std-archive', x: 320, ability: 'silver-key' },
   { id: 'clk-ascent', x: 320, ability: 'high-jump' },
+  { id: 'dnc-ballroom', x: 320, ability: 'slide' },
 ] as const
 
 /** Rooms holding a permanent Life Max Up. `high` ones sit on a raised ledge only
@@ -31,6 +32,7 @@ export const CASTLE_ITEM_ROOMS = [
 export const CASTLE_LIFEUP_ROOMS = [
   { id: 'chp-loft', x: 840, high: false },
   { id: 'grd-skybridge', x: 840, high: true },
+  { id: 'res-cistern', x: 1400, high: false },
 ] as const
 
 const DIR_OF: Record<MapDir, Direction> = { n: 'up', s: 'down', e: 'right', w: 'left' }
