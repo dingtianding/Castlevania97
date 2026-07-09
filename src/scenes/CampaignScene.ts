@@ -72,6 +72,15 @@ const MAP_ITEM_RANGE = 48
 // object — no new save field when we add more.
 const MAP_FLAG = 'map:castle'
 const lifeUpFlag = (nodeId: string): string => `item:${nodeId}`
+const chestFlag = (nodeId: string): string => `chest:${nodeId}`
+// Treasure chests: a persistent world object riding entirely on worldFlags —
+// once opened it stays open on return, with no new save field. Room -> x + gold.
+const CHEST_ROOMS: Record<string, { x: number; gold: number }> = {
+  'cor-grand': { x: 1300, gold: 120 },
+  'dnc-ballroom': { x: 1300, gold: 220 },
+  'inr-servants': { x: 1300, gold: 320 },
+}
+const CHEST_RANGE = 46
 // A permanent Life Max Up's position in its room. `high` ones perch on a raised
 // ledge only the high-jump relic reaches — grabbing it needs matching height.
 const HIGH_LEDGE_Y = 150
@@ -1414,6 +1423,7 @@ export class CampaignScene extends Scene {
     this.tryPickupAbility()
     this.tryPickupMapItem()
     this.tryPickupLifeUp()
+    this.tryOpenChest()
     if (this.sealMessageTicks > 0) this.sealMessageTicks -= 1
     if (this.abilityGetTicks > 0) this.abilityGetTicks -= 1
 
@@ -2114,6 +2124,19 @@ export class CampaignScene extends Scene {
     this.spawnFloatingText(this.player.position.x, this.player.position.y - 118, 'LIFE UP', '#ff7a9a')
   }
 
+  /** Open a treasure chest on contact. State lives entirely in worldFlags, so it
+   *  stays open when you leave and return — no bespoke save field. */
+  private tryOpenChest(): void {
+    const chest = CHEST_ROOMS[this.node.id]
+    if (chest === undefined || hasWorldFlag(this.save, chestFlag(this.node.id)) || this.player.isDead) return
+    if (Math.abs(this.player.position.x - chest.x) > CHEST_RANGE) return
+    this.save = setWorldFlag(this.save, chestFlag(this.node.id))
+    this.save = { ...this.save, gold: this.save.gold + chest.gold }
+    saveCampaignSave(this.save)
+    this.ctx.audio.hit()
+    this.spawnFloatingText(chest.x, this.layout.doorY - 96, `+${chest.gold} GOLD`, '#f6b74a')
+  }
+
   private tryPickupMapItem(): void {
     const mx = MAP_ITEM_ROOMS[this.node.id]
     if (mx === undefined || hasWorldFlag(this.save, MAP_FLAG) || this.player.isDead) return
@@ -2423,6 +2446,9 @@ export class CampaignScene extends Scene {
     if (lifeUp !== undefined && !hasWorldFlag(this.save, lifeUpFlag(this.node.id))) {
       drawLifeUpPickup(ctx, lifeUp.x, lifeUp.high ? lifeUp.y - 30 : this.layout.doorY - 66, this.blink)
     }
+    // Treasure chest — drawn open once looted (state persists via worldFlags).
+    const chest = CHEST_ROOMS[this.node.id]
+    if (chest !== undefined) drawChest(ctx, chest.x, this.layout.doorY, hasWorldFlag(this.save, chestFlag(this.node.id)), this.blink)
     // Save point, if this room has one.
     const sx = SAVE_POINTS[this.node.id]
     if (sx !== undefined) drawSavePoint(ctx, sx, this.layout.doorY, this.blink)
@@ -3719,6 +3745,43 @@ function drawAbilityOrb(ctx: CanvasRenderingContext2D, x: number, floorY: number
     else ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r)
   }
   ctx.closePath(); ctx.fill(); ctx.stroke()
+  ctx.restore()
+}
+
+/** Draw a treasure chest — closed and glinting, or open and empty once looted. */
+function drawChest(ctx: CanvasRenderingContext2D, x: number, floorY: number, opened: boolean, blink: number): void {
+  const w = 46
+  const bodyH = 28
+  const top = floorY - bodyH
+  ctx.save()
+  // Body.
+  ctx.fillStyle = '#5a3c1e'
+  ctx.fillRect(x - w / 2, top, w, bodyH)
+  ctx.fillStyle = '#3c2712'
+  ctx.fillRect(x - w / 2, top + bodyH - 5, w, 5)
+  // Iron bands + lock.
+  ctx.fillStyle = '#caa24a'
+  ctx.fillRect(x - w / 2, top + 8, w, 3)
+  if (opened) {
+    // Lid swung open, empty interior.
+    ctx.fillStyle = '#241608'
+    ctx.fillRect(x - w / 2 + 3, top - 1, w - 6, 8)
+    ctx.fillStyle = '#5a3c1e'
+    ctx.fillRect(x - w / 2 - 2, top - 16, w + 4, 8) // raised lid
+    ctx.fillStyle = '#caa24a'
+    ctx.fillRect(x - w / 2 - 2, top - 16, w + 4, 3)
+  } else {
+    // Domed lid + a soft glint.
+    ctx.fillStyle = '#6a4824'
+    ctx.fillRect(x - w / 2, top - 12, w, 12)
+    ctx.fillStyle = '#caa24a'
+    ctx.fillRect(x - w / 2, top - 12, w, 3)
+    ctx.fillStyle = '#e8c96a'
+    ctx.fillRect(x - 4, top - 2, 8, 10) // lock plate
+    const glint = 0.4 + 0.6 * Math.abs(Math.sin(blink * 0.08))
+    ctx.fillStyle = `rgba(255, 240, 190, ${glint})`
+    ctx.fillRect(x - 2, top + 1, 2, 5)
+  }
   ctx.restore()
 }
 
