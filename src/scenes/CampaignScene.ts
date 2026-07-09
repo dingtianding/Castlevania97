@@ -4,7 +4,7 @@ import { ModeSelectScene } from './ModeSelectScene.ts'
 import { PauseScene } from './PauseScene.ts'
 import { AssetManager } from '../assets/AssetManager.ts'
 import { AUDIO_MANIFEST } from '../assets/manifest.ts'
-import { addCampaignAbility, addCampaignBulletSoul, addCampaignEquipment, addCampaignPerk, addCampaignRelic, addCampaignSoul, addCollectedItem, equipCampaignBulletSoul, equipCampaignItem, equippedDefs, getCampaignChapter, getCampaignNode, grantCampaignRewards, loadCampaignSave, markCampaignVisited, MAX_LEVEL, saveCampaignSave, unequipCampaignSlot, xpForNextLevel } from '../data/campaign.ts'
+import { addCampaignAbility, addCampaignBulletSoul, addCampaignEquipment, addCampaignPerk, addCampaignRelic, addCampaignSoul, equipCampaignBulletSoul, equipCampaignItem, equippedDefs, getCampaignChapter, getCampaignNode, grantCampaignRewards, hasWorldFlag, loadCampaignSave, markCampaignVisited, MAX_LEVEL, saveCampaignSave, setWorldFlag, unequipCampaignSlot, xpForNextLevel } from '../data/campaign.ts'
 import { draftPowerUps, powerUpStacks, type PowerUpDef } from '../data/powerups.ts'
 import { BASE_BULLET_SOUL, bulletSoulForEnemy, getBulletSoul, type BulletSoulDef } from '../data/bulletSouls.ts'
 import { CASTLE_ITEM_ROOMS, CASTLE_LIFEUP_ROOMS, CASTLE_MAP_DATA, CASTLE_MERCHANT_ROOMS, CASTLE_SAVE_ROOMS } from '../data/castleMapData.ts'
@@ -68,6 +68,10 @@ const ABILITY_PICKUPS: Record<string, { x: number; ability: string }> = Object.f
 // reveals every room's outline on the map.
 const MAP_ITEM_ROOMS: Record<string, number> = { 'cor-alcove': 840 }
 const MAP_ITEM_RANGE = 48
+// Stable world-flag ids (see campaign.ts worldFlags). One key per persistent
+// object — no new save field when we add more.
+const MAP_FLAG = 'map:castle'
+const lifeUpFlag = (nodeId: string): string => `item:${nodeId}`
 // A permanent Life Max Up's position in its room. `high` ones perch on a raised
 // ledge only the high-jump relic reaches — grabbing it needs matching height.
 const HIGH_LEDGE_Y = 150
@@ -1474,12 +1478,15 @@ export class CampaignScene extends Scene {
    *  save is the single source of truth; the map is a view of it). */
   private syncMapState(): void {
     // The Castle Map item reveals every room's outline.
-    if (this.save.hasCastleMap) {
+    if (hasWorldFlag(this.save, MAP_FLAG)) {
       for (const id of Object.keys(CASTLE_MAP_DATA.rooms)) this.mapService.state.setState(id, 'revealed')
     }
     for (const id of this.save.visitedNodeIds) this.mapService.state.setState(id, 'visited')
     for (const item of CASTLE_ITEM_ROOMS) {
       if (this.save.abilities.includes(item.ability)) this.mapService.state.collectItem(item.id)
+    }
+    for (const room of CASTLE_LIFEUP_ROOMS) {
+      if (hasWorldFlag(this.save, lifeUpFlag(room.id))) this.mapService.state.collectItem(room.id)
     }
     this.mapService.state.currentRoomId = this.node.id
   }
@@ -2091,10 +2098,10 @@ export class CampaignScene extends Scene {
    *  `high` ones need matching height (the high-jump relic) to actually reach. */
   private tryPickupLifeUp(): void {
     const lu = LIFE_UP_ROOMS[this.node.id]
-    if (lu === undefined || this.save.collectedItemIds.includes(this.node.id) || this.player.isDead) return
+    if (lu === undefined || hasWorldFlag(this.save, lifeUpFlag(this.node.id)) || this.player.isDead) return
     if (Math.abs(this.player.position.x - lu.x) > LIFE_UP_RANGE) return
     if (Math.abs(this.player.position.y - lu.y) > 44) return
-    this.save = addCollectedItem(this.save, this.node.id)
+    this.save = setWorldFlag(this.save, lifeUpFlag(this.node.id))
     this.save = { ...this.save, hpUpgrades: Math.min(99, this.save.hpUpgrades + 1) }
     saveCampaignSave(this.save)
     this.mapService.state.collectItem(this.node.id)
@@ -2109,10 +2116,9 @@ export class CampaignScene extends Scene {
 
   private tryPickupMapItem(): void {
     const mx = MAP_ITEM_ROOMS[this.node.id]
-    if (mx === undefined || this.save.hasCastleMap || this.player.isDead) return
+    if (mx === undefined || hasWorldFlag(this.save, MAP_FLAG) || this.player.isDead) return
     if (Math.abs(this.player.position.x - mx) > MAP_ITEM_RANGE) return
-    this.save = { ...this.save, hasCastleMap: true }
-    saveCampaignSave(this.save)
+    this.save = setWorldFlag(this.save, MAP_FLAG)
     for (const id of Object.keys(CASTLE_MAP_DATA.rooms)) this.mapService.state.setState(id, 'revealed')
     this.abilityGetTicks = 200
     this.abilityGetName = 'CASTLE MAP'
@@ -2412,9 +2418,9 @@ export class CampaignScene extends Scene {
     const orb = ABILITY_PICKUPS[this.node.id]
     if (orb && !this.save.abilities.includes(orb.ability)) drawAbilityOrb(ctx, orb.x, this.layout.doorY, this.blink)
     const mapItem = MAP_ITEM_ROOMS[this.node.id]
-    if (mapItem !== undefined && !this.save.hasCastleMap) drawMapItemPickup(ctx, mapItem, this.layout.doorY, this.blink)
+    if (mapItem !== undefined && !hasWorldFlag(this.save, MAP_FLAG)) drawMapItemPickup(ctx, mapItem, this.layout.doorY, this.blink)
     const lifeUp = LIFE_UP_ROOMS[this.node.id]
-    if (lifeUp !== undefined && !this.save.collectedItemIds.includes(this.node.id)) {
+    if (lifeUp !== undefined && !hasWorldFlag(this.save, lifeUpFlag(this.node.id))) {
       drawLifeUpPickup(ctx, lifeUp.x, lifeUp.high ? lifeUp.y - 30 : this.layout.doorY - 66, this.blink)
     }
     // Save point, if this room has one.

@@ -56,10 +56,10 @@ export interface CampaignSave {
   perks: Readonly<Record<string, number>>
   /** Metroidvania traversal abilities collected (e.g. 'double-jump'). */
   abilities: readonly string[]
-  /** Found the Castle Map item — reveals every room's outline on the map. */
-  hasCastleMap: boolean
-  /** One-off world pickups already taken, by node id (e.g. Life Max Up rooms). */
-  collectedItemIds: readonly string[]
+  /** Persistent world state keyed by stable feature id — opened chests, taken
+   *  pickups, found-the-map, sprung switches, etc. A new persistent object adds
+   *  a key here, never a new save field. See hasWorldFlag / setWorldFlag. */
+  worldFlags: Readonly<Record<string, boolean>>
   level: number
   xp: number
   gold: number
@@ -625,8 +625,7 @@ export function initialCampaignSave(): CampaignSave {
     equipped: {},
     perks: {},
     abilities: [],
-    hasCastleMap: false,
-    collectedItemIds: [],
+    worldFlags: {},
     level: 1,
     xp: 0,
     gold: 0,
@@ -654,10 +653,17 @@ export function addCampaignAbility(save: CampaignSave, id: string): CampaignSave
   return next
 }
 
-/** Mark a one-off world pickup (Life Max Up, etc.) as taken in this room. */
-export function addCollectedItem(save: CampaignSave, nodeId: string): CampaignSave {
-  if (save.collectedItemIds.includes(nodeId)) return save
-  const next: CampaignSave = { ...save, collectedItemIds: [...save.collectedItemIds, nodeId] }
+/** Read a persistent world-state flag (defaults to false for unknown ids). */
+export function hasWorldFlag(save: CampaignSave, id: string): boolean {
+  return save.worldFlags[id] === true
+}
+
+/** Set a persistent world-state flag and persist. Keyed by a stable feature id
+ *  (e.g. 'item:chp-loft', 'map:castle', 'chest:library-03') so any new persistent
+ *  object rides the same store without a bespoke save field. */
+export function setWorldFlag(save: CampaignSave, id: string, value = true): CampaignSave {
+  if ((save.worldFlags[id] === true) === value) return save
+  const next: CampaignSave = { ...save, worldFlags: { ...save.worldFlags, [id]: value } }
   saveCampaignSave(next)
   return next
 }
@@ -822,8 +828,7 @@ export function completeCampaignBattle(save: CampaignSave): CampaignSave {
     equipped: save.equipped,
     perks: save.perks,
     abilities: save.abilities,
-    hasCastleMap: save.hasCastleMap,
-    collectedItemIds: save.collectedItemIds,
+    worldFlags: save.worldFlags,
     level: save.level,
     xp: save.xp,
     gold: save.gold,
@@ -869,6 +874,24 @@ function pickNextNode(
   return next?.id ?? null
 }
 
+/** Read the world-flag store, backfilling from the pre-store save fields
+ *  (hasCastleMap, collectedItemIds) so older saves migrate without losing
+ *  the map or any Life Max Up already taken. */
+function parseWorldFlags(value: Partial<CampaignSave>): Record<string, boolean> {
+  const raw = value as { worldFlags?: unknown; hasCastleMap?: unknown; collectedItemIds?: unknown }
+  const flags: Record<string, boolean> = {}
+  if (raw.worldFlags && typeof raw.worldFlags === 'object') {
+    for (const [key, on] of Object.entries(raw.worldFlags as Record<string, unknown>)) {
+      if (on === true) flags[key] = true
+    }
+  }
+  if (raw.hasCastleMap) flags['map:castle'] = true
+  if (Array.isArray(raw.collectedItemIds)) {
+    for (const id of raw.collectedItemIds) if (typeof id === 'string') flags[`item:${id}`] = true
+  }
+  return flags
+}
+
 function sanitizeCampaignSave(value: Partial<CampaignSave>): CampaignSave {
   const fallback = initialCampaignSave()
   const chapterId =
@@ -911,8 +934,7 @@ function sanitizeCampaignSave(value: Partial<CampaignSave>): CampaignSave {
     equipped: filterEquipped(value.equipped, filterEquipment(value.equipment)),
     perks: filterPerks(value.perks),
     abilities: Array.isArray(value.abilities) ? value.abilities.filter((a): a is string => typeof a === 'string') : [],
-    hasCastleMap: Boolean(value.hasCastleMap),
-    collectedItemIds: Array.isArray(value.collectedItemIds) ? value.collectedItemIds.filter((a): a is string => typeof a === 'string') : [],
+    worldFlags: parseWorldFlags(value),
     level: clampNumber(value.level, 1, MAX_LEVEL, 1),
     xp: clampNumber(value.xp, 0, Number.MAX_SAFE_INTEGER, 0),
     gold: clampNumber(value.gold, 0, Number.MAX_SAFE_INTEGER, 0),
