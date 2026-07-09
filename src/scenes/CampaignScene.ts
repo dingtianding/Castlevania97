@@ -10,7 +10,7 @@ import { BASE_BULLET_SOUL, bulletSoulForEnemy, getBulletSoul, type BulletSoulDef
 import { CASTLE_ITEM_ROOMS, CASTLE_LIFEUP_ROOMS, CASTLE_MAP_DATA, CASTLE_MERCHANT_ROOMS, CASTLE_SAVE_ROOMS } from '../data/castleMapData.ts'
 import { MapService, MapRenderer, MinimapRenderer } from '../map/index.ts'
 import { castleDoors, castleNeighbor, type MapDir } from '../data/castleMap.ts'
-import { buildEquipmentModifiers, EQUIP_SLOT_LABELS, EQUIP_SLOTS, equipmentForSlot, EQUIPMENT_POOL, getEquipment, type EquipmentDef, type EquipmentModifiers } from '../data/equipment.ts'
+import { buildEquipmentModifiers, EQUIP_SLOT_LABELS, EQUIP_SLOTS, equipmentForSlot, EQUIPMENT_POOL, getEquipment, type EquipmentDef, type EquipmentModifiers, type EquipSlot } from '../data/equipment.ts'
 import { buildRunModifiers, RELIC_POOL, type RelicDef, type RelicId, type RunModifiers } from '../data/relics.ts'
 import { buildSoulModifiers, getSoul, soulForEnemy, SOUL_POOL, type SoulDef, type SoulModifiers } from '../data/souls.ts'
 import { juliusBelmont as CAMPAIGN_HERO } from '../data/characters/castlevaniaCampaign.ts'
@@ -1071,6 +1071,9 @@ export class CampaignScene extends Scene {
   private menuIndex = 0
   private menuReturn = false
   private equipSlotIndex = 0
+  // Item-picker sub-screen: selecting a slot opens the list of pieces you own.
+  private equipPicking = false
+  private equipPickIndex = 0
   private pendingNodeId: string | null = null
   private readonly attackingLastTick = new Set<CastleActor>()
   private touchControls: TouchControls | null = null
@@ -1141,6 +1144,36 @@ export class CampaignScene extends Scene {
       return
     }
     if (this.showEquipment) {
+      // Picking from the owned-items list for the selected slot.
+      if (this.equipPicking) {
+        const options = this.equipOptions(EQUIP_SLOTS[this.equipSlotIndex]!)
+        if (e.code === 'KeyW' || e.code === 'ArrowUp') {
+          e.preventDefault()
+          this.equipPickIndex = (this.equipPickIndex - 1 + options.length) % options.length
+          this.ctx.audio.swing()
+          return
+        }
+        if (e.code === 'KeyS' || e.code === 'ArrowDown') {
+          e.preventDefault()
+          this.equipPickIndex = (this.equipPickIndex + 1) % options.length
+          this.ctx.audio.swing()
+          return
+        }
+        if (isMenuConfirm(e.code) || e.code === 'KeyD' || e.code === 'ArrowRight') {
+          e.preventDefault()
+          this.applyEquipOption(options[this.equipPickIndex] ?? null)
+          this.equipPicking = false
+          this.ctx.audio.hit()
+          return
+        }
+        if (isMenuCancel(e.code) || e.code === 'Escape' || e.code === 'KeyA' || e.code === 'ArrowLeft') {
+          e.preventDefault()
+          this.equipPicking = false
+          this.ctx.audio.swing()
+        }
+        return
+      }
+      // Slot list.
       if (e.code === 'KeyW' || e.code === 'ArrowUp') {
         e.preventDefault()
         this.equipSlotIndex = (this.equipSlotIndex - 1 + EQUIP_SLOTS.length) % EQUIP_SLOTS.length
@@ -1151,14 +1184,9 @@ export class CampaignScene extends Scene {
         this.equipSlotIndex = (this.equipSlotIndex + 1) % EQUIP_SLOTS.length
         return
       }
-      if (e.code === 'KeyA' || e.code === 'ArrowLeft') {
+      if (isMenuConfirm(e.code) || e.code === 'KeyD' || e.code === 'ArrowRight') {
         e.preventDefault()
-        this.cycleEquipSlot(-1)
-        return
-      }
-      if (e.code === 'KeyD' || e.code === 'ArrowRight' || isMenuConfirm(e.code)) {
-        e.preventDefault()
-        this.cycleEquipSlot(1)
+        this.openEquipPicker()
         return
       }
       if (isMenuCancel(e.code) || e.code === 'Escape' || e.code === 'KeyI' || e.code === 'Tab') {
@@ -1174,6 +1202,7 @@ export class CampaignScene extends Scene {
         this.showStatus = false
         this.showEquipment = true
         this.equipSlotIndex = 0
+        this.equipPicking = false
         this.ctx.audio.swing()
         return
       }
@@ -1555,7 +1584,7 @@ export class CampaignScene extends Scene {
     if (item === 'RESUME') { this.menuReturn = false; return }
     this.menuReturn = true
     if (item === 'STATUS') this.showStatus = true
-    else if (item === 'EQUIP') { this.showEquipment = true; this.equipSlotIndex = 0 }
+    else if (item === 'EQUIP') { this.showEquipment = true; this.equipSlotIndex = 0; this.equipPicking = false }
     else if (item === 'MAP') this.openMap()
   }
 
@@ -1638,6 +1667,7 @@ export class CampaignScene extends Scene {
     this.levelUpTicks = 0
     this.showStatus = false
     this.showEquipment = false
+    this.equipPicking = false
     this.perkChoosing = false
     this.perkOptions = []
     this.pendingLevelUps = 0
@@ -2478,24 +2508,30 @@ export class CampaignScene extends Scene {
     this.ctx.audio.hit()
   }
 
-  /** Cycle the currently selected slot through [empty, ...owned pieces] and apply
-   *  the change to the live player so stats update the moment you swap. */
-  private cycleEquipSlot(dir: number): void {
+  /** The pickable options for a slot: [unequip, ...pieces you own for that slot]. */
+  private equipOptions(slot: EquipSlot): (EquipmentDef | null)[] {
+    const owned = equipmentForSlot(slot).filter((item) => this.save.equipment.includes(item.id))
+    return [null, ...owned]
+  }
+
+  /** Open the owned-items list for the selected slot, starting on what's equipped. */
+  private openEquipPicker(): void {
     const slot = EQUIP_SLOTS[this.equipSlotIndex]
     if (!slot) return
-    const owned = equipmentForSlot(slot).filter((item) => this.save.equipment.includes(item.id))
-    if (owned.length === 0) {
-      this.ctx.audio.swing()
-      return
-    }
-    const options: (EquipmentDef | null)[] = [null, ...owned]
+    const options = this.equipOptions(slot)
     const currentId = this.save.equipped[slot]
-    const currentIndex = Math.max(0, options.findIndex((opt) => (opt?.id ?? null) === (currentId ?? null)))
-    const next = options[(currentIndex + dir + options.length) % options.length] ?? null
-    this.save = next ? equipCampaignItem(this.save, next.id) : unequipCampaignSlot(this.save, slot)
+    this.equipPickIndex = Math.max(0, options.findIndex((opt) => (opt?.id ?? null) === (currentId ?? null)))
+    this.equipPicking = true
+    this.ctx.audio.swing()
+  }
+
+  /** Equip the chosen piece (or unequip if None) and apply it to the live player. */
+  private applyEquipOption(option: EquipmentDef | null): void {
+    const slot = EQUIP_SLOTS[this.equipSlotIndex]
+    if (!slot) return
+    this.save = option ? equipCampaignItem(this.save, option.id) : unequipCampaignSlot(this.save, slot)
     this.equipMods = buildEquipmentModifiers(equippedDefs(this.save))
     this.refreshLivePlayerStats()
-    this.ctx.audio.hit()
   }
 
   private drawWorld(): void {
@@ -3276,7 +3312,7 @@ export class CampaignScene extends Scene {
     ctx.fillText('EQUIPMENT', width / 2, 84)
     ctx.fillStyle = '#8a8aa0'
     ctx.font = '8px "Press Start 2P", monospace'
-    ctx.fillText('A/D SWAP     W/S SLOT     K CLOSE', width / 2, 116)
+    ctx.fillText('W/S SLOT     J SELECT     K CLOSE', width / 2, 116)
 
     EQUIP_SLOTS.forEach((slot, i) => {
       const rect = this.equipRowRect(i)
@@ -3321,6 +3357,71 @@ export class CampaignScene extends Scene {
       width / 2,
       height - 54,
     )
+    ctx.restore()
+    if (this.equipPicking) this.drawEquipPicker()
+  }
+
+  /** The owned-items list for the selected slot — pick which piece to equip. */
+  private drawEquipPicker(): void {
+    const { ctx } = this.ctx.renderer
+    const { width, height } = this.ctx
+    const slot = EQUIP_SLOTS[this.equipSlotIndex]
+    if (!slot) return
+    const options = this.equipOptions(slot)
+    const equippedId = this.save.equipped[slot] ?? null
+    const rowH = 42
+    const pw = Math.min(600, width - 100)
+    const ph = 60 + options.length * rowH + 12
+    const px = (width - pw) / 2
+    const py = Math.max(70, (height - ph) / 2)
+    ctx.save()
+    ctx.fillStyle = 'rgba(4, 4, 10, 0.82)'
+    ctx.fillRect(0, 0, width, height)
+    ctx.fillStyle = 'rgba(18, 15, 28, 0.99)'
+    ctx.fillRect(px, py, pw, ph)
+    ctx.strokeStyle = '#e8d4a0'
+    ctx.lineWidth = 3
+    ctx.strokeRect(px, py, pw, ph)
+
+    ctx.textAlign = 'left'
+    ctx.textBaseline = 'top'
+    ctx.fillStyle = '#f6b74a'
+    ctx.font = '11px "Press Start 2P", monospace'
+    ctx.fillText(EQUIP_SLOT_LABELS[slot].toUpperCase(), px + 20, py + 18)
+    ctx.textAlign = 'right'
+    ctx.fillStyle = '#5a567a'
+    ctx.font = '8px "Press Start 2P", monospace'
+    ctx.fillText('W/S MOVE    J EQUIP    K BACK', px + pw - 20, py + 20)
+
+    const startY = py + 50
+    options.forEach((opt, i) => {
+      const ry = startY + i * rowH
+      const selected = i === this.equipPickIndex
+      const isEquipped = (opt?.id ?? null) === equippedId
+      ctx.fillStyle = selected ? 'rgba(44, 36, 62, 0.98)' : 'rgba(16, 24, 43, 0.55)'
+      ctx.fillRect(px + 12, ry, pw - 24, rowH - 6)
+      if (selected) {
+        ctx.strokeStyle = '#e8d4a0'
+        ctx.lineWidth = 2
+        ctx.strokeRect(px + 12, ry, pw - 24, rowH - 6)
+      }
+      ctx.textAlign = 'left'
+      ctx.textBaseline = 'top'
+      ctx.fillStyle = opt ? (selected ? '#e8d4a0' : '#c7c1de') : '#6a6480'
+      ctx.font = '11px "Press Start 2P", monospace'
+      ctx.fillText(opt ? opt.name.toUpperCase() : '— NONE —', px + 22, ry + 8)
+      if (opt) {
+        ctx.fillStyle = '#9aa8c8'
+        ctx.font = '8px "Press Start 2P", monospace'
+        ctx.fillText(opt.blurb, px + 22, ry + 24)
+      }
+      if (isEquipped) {
+        ctx.textAlign = 'right'
+        ctx.fillStyle = '#7ad67a'
+        ctx.font = '8px "Press Start 2P", monospace'
+        ctx.fillText('EQUIPPED', px + pw - 26, ry + 14)
+      }
+    })
     ctx.restore()
   }
 }
