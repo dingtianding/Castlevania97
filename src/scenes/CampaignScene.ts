@@ -321,6 +321,17 @@ interface FloatingText {
   ticksLeft: number
 }
 
+/** Short-lived debris bit — e.g. wax shards and sparks from a shattered candle. */
+interface Particle {
+  position: Vec2
+  velocity: Vec2
+  ticksLeft: number
+  life: number
+  size: number
+  color: string
+  gravity: number
+}
+
 interface EnemyBone {
   position: Vec2
   velocity: Vec2
@@ -1015,6 +1026,7 @@ export class CampaignScene extends Scene {
   private levelUpTicks = 0
   private readonly rewardedDeaths = new Set<CastleActor>()
   private floatingTexts: FloatingText[] = []
+  private particles: Particle[] = []
   private drafting = false
   private draftOptions: RelicDef[] = []
   private draftIndex = 0
@@ -1395,6 +1407,7 @@ export class CampaignScene extends Scene {
     this.grantEnemyRewards()
     this.enemies = this.enemies.filter((enemy) => !enemy.isGone) // despawn defeated enemies
     this.updateFloatingTexts()
+    this.updateParticles()
     if (this.levelUpTicks > 0) this.levelUpTicks -= 1
 
     if (this.player.isDead && this.player.hurtbox().y > 0) {
@@ -1602,6 +1615,7 @@ export class CampaignScene extends Scene {
     this.victoryTicks = 0
     this.rewardedDeaths.clear()
     this.floatingTexts = []
+    this.particles = []
     this.attackingLastTick.clear()
     this.showMap = false
     this.showMenu = false
@@ -1842,6 +1856,7 @@ export class CampaignScene extends Scene {
       const hitBySoul = this.soulBolts.some((bolt) => rectsOverlap(soulBoltBox(bolt), box))
       if (!hitByWhip && !hitBySubweapon && !hitBySoul) continue
       candle.broken = true
+      this.spawnCandleBreak(candle.x, candle.y)
       this.spawnCandleDrop(candle.x, candle.y)
       this.ctx.audio.hit()
     }
@@ -2212,6 +2227,43 @@ export class CampaignScene extends Scene {
     this.floatingTexts = this.floatingTexts.filter((entry) => entry.ticksLeft > 0)
   }
 
+  private updateParticles(): void {
+    for (const p of this.particles) {
+      p.velocity.y += p.gravity
+      p.position.x += p.velocity.x
+      p.position.y += p.velocity.y
+      if (p.position.y > FLOOR_Y) { p.position.y = FLOOR_Y; p.velocity.y *= -0.4; p.velocity.x *= 0.6 }
+      p.ticksLeft -= 1
+    }
+    this.particles = this.particles.filter((p) => p.ticksLeft > 0)
+  }
+
+  /** A candle bursting apart: pale wax shards flung outward plus a couple of
+   *  guttering flame sparks. Purely cosmetic feedback for the break. */
+  private spawnCandleBreak(x: number, y: number): void {
+    const rng = this.ctx.rng
+    for (let i = 0; i < 7; i += 1) {
+      const life = 20 + Math.floor(rng.next() * 14)
+      this.particles.push({
+        position: { x: x + (rng.next() - 0.5) * 8, y: y - 14 + (rng.next() - 0.5) * 20 },
+        velocity: { x: (rng.next() - 0.5) * 5.2, y: -2.4 - rng.next() * 3.2 },
+        ticksLeft: life, life, size: 2 + Math.floor(rng.next() * 2),
+        color: rng.next() < 0.7 ? '#e6dcc0' : '#b7a988',
+        gravity: 0.42,
+      })
+    }
+    for (let i = 0; i < 3; i += 1) {
+      const life = 12 + Math.floor(rng.next() * 8)
+      this.particles.push({
+        position: { x: x + (rng.next() - 0.5) * 5, y: y - 34 },
+        velocity: { x: (rng.next() - 0.5) * 3, y: -1.6 - rng.next() * 2 },
+        ticksLeft: life, life, size: 2,
+        color: rng.next() < 0.5 ? '#ffb64a' : '#ff7a3a',
+        gravity: 0.16,
+      })
+    }
+  }
+
   private resolvePickups(): void {
     if (this.player.isDead) return
     const playerBox = this.player.hurtbox()
@@ -2432,6 +2484,12 @@ export class CampaignScene extends Scene {
     for (const hazard of this.layout.hazards) drawSpikes(ctx, hazard)
     for (const candle of this.candles) drawCandle(ctx, candle)
     for (const pickup of this.pickups) drawPickup(ctx, pickup)
+    for (const p of this.particles) {
+      ctx.globalAlpha = Math.min(1, (p.ticksLeft / p.life) * 1.4)
+      ctx.fillStyle = p.color
+      ctx.fillRect(p.position.x - p.size / 2, p.position.y - p.size / 2, p.size, p.size)
+    }
+    ctx.globalAlpha = 1
     // Exit passages on whichever edges have a door in the castle graph.
     const doors = castleDoors(this.node.id)
     if (doors.w) drawExit(ctx, 0, this.layout.doorY, 'w', this.isDoorSealed('w'))
@@ -3535,7 +3593,10 @@ function buildCandles(layout: RoomLayout): Candle[] {
 }
 
 function candleBox(candle: Candle): Rect {
-  return { x: candle.x - 9, y: candle.y - 28, width: 18, height: 32 }
+  // Tall enough to reach up into the whip's arc (which swings at torso height,
+  // well above a floor candle) — otherwise the whip sails over and never breaks
+  // it. Widened a little so you don't have to be pixel-perfect.
+  return { x: candle.x - 13, y: candle.y - 66, width: 26, height: 74 }
 }
 
 function pickupBox(pickup: Pickup): Rect {
