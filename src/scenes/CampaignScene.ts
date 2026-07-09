@@ -39,10 +39,17 @@ const EDGE_ZONE = 14
 // Vertical passage is centered on the room. You climb (stairs + ledges) up to
 // the doorway and cross beyond the top edge to leave; you descend at the floor.
 const VERT_PASSAGE_X = ROOM_WIDTH / 2
-const VERT_RANGE = 120
-// Climbing past this height near the central shaft carries you up through the
-// top doorway (i.e. beyond the room's top edge) — no key press.
-const TOP_EXIT_Y = 120
+// The top/bottom passage is a narrow column centred on the room.
+const DOORWAY_HALF = 74
+// Crossing this height moving UP, inside the doorway column, exits through the top
+// door — a directional edge-crossing, so no key press and a top spawn can't retrigger it.
+const TOP_EDGE_Y = 162
+// Crossing this depth moving DOWN, inside the column, drops through to the room below.
+const BOTTOM_EDGE_Y = FLOOR_Y + 76
+// Half-width of the drop-through gap opened in the floor of a room with a south door.
+const FLOOR_GAP_HALF = 56
+// Frames the drop-through window stays open after pressing Down on the shaft platform.
+const DROP_WINDOW = 8
 // Save/merchant/relic placement is defined once in castleMapData (so the map
 // icons and the gameplay objects can't drift). Here we index them by x-position.
 const SAVE_POINTS: Record<string, number> = Object.fromEntries(CASTLE_SAVE_ROOMS.map((r) => [r.id, r.x]))
@@ -227,6 +234,8 @@ interface Platform {
   crumbleTimer?: number
   fallen?: boolean
   respawnTimer?: number
+  /** A one-way platform you can fall through by holding Down (drop-through shaft). */
+  dropThrough?: boolean
 }
 
 interface Hazard {
@@ -264,6 +273,8 @@ interface RoomLayout {
   stairs: Stair[]
   barriers: Barrier[]
   hazards: Hazard[]
+  /** Open shaft in the floor (drop-through passage down), or null for a solid floor. */
+  floorGap: { x: number; width: number } | null
   doorX: number
   doorY: number
   checkpointX: number
@@ -428,6 +439,10 @@ class CastleActor {
   stairs: Stair[] = []
   /** Low tunnels that only a slide passes (empty for enemies). */
   barriers: Barrier[] = []
+  /** Open shaft in the floor at this x-span — no floor there (drop-through down). */
+  floorGap: { x: number; width: number } | null = null
+  /** Counts down while a Down-press lets the player fall through drop-through platforms. */
+  private dropTicks = 0
   private dashTicks = 0
   private dashCooldown = 0
 
@@ -506,6 +521,7 @@ class CastleActor {
     if (this.invulnerableTicks > 0) this.invulnerableTicks -= 1
     if (this.dashCooldown > 0) this.dashCooldown -= 1
     if (this.slideCooldown > 0) this.slideCooldown -= 1
+    if (this.dropTicks > 0) this.dropTicks -= 1
 
     if (this.state === 'death') {
       this.deathTicks += 1
@@ -698,6 +714,8 @@ class CastleActor {
     if (!this.grounded && intent.downHeld && this.velocity.y > 0 && this.velocity.y < FAST_FALL_SPEED) {
       this.velocity.y = FAST_FALL_SPEED
     }
+    // Holding Down while grounded opens the drop-through window (used at floor shafts).
+    if (this.grounded && intent.downHeld) this.dropTicks = DROP_WINDOW
 
     this.integrate(platforms)
 
@@ -782,6 +800,8 @@ class CastleActor {
     let landingY = FLOOR_Y
     for (const platform of platforms) {
       if (platform.fallen) continue
+      // While a drop-through is active, fall straight through shaft platforms.
+      if (platform.dropThrough && this.dropTicks > 0) continue
       if (this.position.x < platform.x - 2 || this.position.x > platform.x + platform.width + 2) continue
       if (this.prevPosition.y <= platform.y && this.position.y >= platform.y && this.velocity.y >= 0) {
         landed = true
@@ -801,8 +821,15 @@ class CastleActor {
       }
     }
 
-    if (this.position.y >= FLOOR_Y || landed) {
-      this.position.y = landed ? landingY : FLOOR_Y
+    // The room's base floor catches everyone, except over an open shaft, where the
+    // only footing is the drop-through platform handled above.
+    const overGap = this.floorGap !== null && this.position.x > this.floorGap.x && this.position.x < this.floorGap.x + this.floorGap.width
+    if (!overGap && this.position.y >= FLOOR_Y) {
+      landed = true
+      landingY = Math.min(landingY, FLOOR_Y)
+    }
+    if (landed) {
+      this.position.y = landingY
       this.velocity.y = 0
       this.grounded = true
       this.jumpCount = 0
@@ -1565,7 +1592,7 @@ export class CampaignScene extends Scene {
     this.node = getCampaignNode(nodeId)
     this.chapter = getCampaignChapter(this.node.chapterId)
     this.layout = buildLayout(this.node.stage)
-    addVerticalClimb(this.layout, castleDoors(this.node.id))
+    addVerticalPassages(this.layout, castleDoors(this.node.id))
     // A high-jump-gated Life Max Up perches on a ledge above double-jump range.
     // The room becomes a clean column (floor + ledge) so it can't be cheesed by
     // double-jumping off a decorative platform.
@@ -1587,6 +1614,7 @@ export class CampaignScene extends Scene {
     this.player = new CastleActor(CAMPAIGN_HERO, this.ctx.assets, this.layout.checkpointX, this.layout.checkpointY, 1, moveSpeed)
     this.player.stairs = this.layout.stairs
     this.player.barriers = this.layout.barriers
+    this.player.floorGap = this.layout.floorGap
     this.player.setMaxHealth(this.computeMaxHealth())
     this.player.reset(this.layout.checkpointX, this.layout.checkpointY, 1)
     this.player.meterGainMultiplier = this.computeMeterGainMult()
@@ -2071,14 +2099,18 @@ export class CampaignScene extends Scene {
       const east = castleNeighbor(this.node.id, 'e')
       if (east && this.canPassDoor('e')) { this.enterRoom(east, 'west'); return }
     }
-    // Vertical: climb the platforms to the top doorway to go up (no key press);
-    // descend at the floor stairwell to go down.
+    // Vertical: cross the room's edge through the central door column — climb up
+    // and out the top door, or drop down through the floor shaft. Directional
+    // crossings (not a height zone), so a spawn at either edge can't retrigger.
     const doors = castleDoors(this.node.id)
-    if (doors.n && this.player.position.y <= TOP_EXIT_Y && Math.abs(x - VERT_PASSAGE_X) <= VERT_RANGE) {
+    const prevY = this.player.prevPosition.y
+    const curY = this.player.position.y
+    const inColumn = Math.abs(x - VERT_PASSAGE_X) <= DOORWAY_HALF
+    if (doors.n && inColumn && prevY > TOP_EDGE_Y && curY <= TOP_EDGE_Y) {
       const north = castleNeighbor(this.node.id, 'n')
       if (north && this.canPassDoor('n')) { this.enterRoom(north, 'bottom'); return }
     }
-    if (doors.s && this.player.grounded && intent.downHeld && Math.abs(x - VERT_PASSAGE_X) <= VERT_RANGE) {
+    if (doors.s && inColumn && prevY < BOTTOM_EDGE_Y && curY >= BOTTOM_EDGE_Y) {
       const south = castleNeighbor(this.node.id, 's')
       if (south && this.canPassDoor('s')) this.enterRoom(south, 'top')
     }
@@ -3880,40 +3912,53 @@ function drawStair(ctx: CanvasRenderingContext2D, stair: Stair): void {
 }
 
 function drawVertPassage(ctx: CanvasRenderingContext2D, x: number, floorY: number, up: boolean, down: boolean, blink: number): void {
-  const w = 90
   const pulse = 0.5 + 0.5 * Math.sin(blink * 0.1)
   ctx.save()
   if (up) {
-    // A doorway at the top of the room — climb the platforms to reach it.
-    const top = 58, h = 96
-    ctx.fillStyle = '#070510'
-    ctx.fillRect(x - w / 2, top, w, h)
-    const g = ctx.createLinearGradient(0, top, 0, top + h)
-    g.addColorStop(0, 'rgba(120,96,56,0.34)')
-    g.addColorStop(1, 'rgba(120,96,56,0)')
+    // A framed stone door set into the top wall — climb up and cross through it.
+    const half = DOORWAY_HALF
+    const bandY = 132, bandH = 16    // top-wall band, broken by the door
+    const top = bandY, base = 162    // door opening (continues up behind the HUD)
+    // Masonry top wall either side of the door, with a lit lower lip.
+    ctx.fillStyle = '#2c2440'
+    ctx.fillRect(0, bandY, x - half - 10, bandH)
+    ctx.fillRect(x + half + 10, bandY, ROOM_WIDTH - (x + half + 10), bandH)
+    ctx.fillStyle = '#4a4568'
+    ctx.fillRect(0, bandY + bandH - 3, x - half - 10, 3)
+    ctx.fillRect(x + half + 10, bandY + bandH - 3, ROOM_WIDTH - (x + half + 10), 3)
+    // Dark opening with a warm glow spilling out.
+    ctx.fillStyle = '#05040c'
+    ctx.fillRect(x - half, top, half * 2, base - top)
+    const g = ctx.createLinearGradient(0, base, 0, top)
+    g.addColorStop(0, `rgba(240,200,130,${0.34 + 0.16 * pulse})`)
+    g.addColorStop(1, 'rgba(240,200,130,0)')
     ctx.fillStyle = g
-    ctx.fillRect(x - w / 2, top, w, h)
-    ctx.fillStyle = '#3a3352'
-    ctx.fillRect(x - w / 2 - 6, top, 6, h) // pillars
-    ctx.fillRect(x + w / 2, top, 6, h)
-    ctx.fillRect(x - w / 2 - 6, top + h, w + 12, 8) // threshold at the base of the doorway
-    // Up-chevron hint just below the doorway.
-    ctx.strokeStyle = `rgba(232,212,160,${0.35 + 0.4 * pulse})`
-    ctx.lineWidth = 3
-    ctx.beginPath()
-    ctx.moveTo(x - 9, top + h + 20); ctx.lineTo(x, top + h + 11); ctx.lineTo(x + 9, top + h + 20)
-    ctx.stroke()
+    ctx.fillRect(x - half, top, half * 2, base - top)
+    // Stone frame: bright pillars, a lintel across the top, and a threshold slab.
+    ctx.fillStyle = '#6a628c'
+    ctx.fillRect(x - half - 10, top, 10, base - top)      // left pillar
+    ctx.fillRect(x + half, top, 10, base - top)           // right pillar
+    ctx.fillRect(x - half - 10, top, half * 2 + 20, 8)    // lintel
+    ctx.fillStyle = '#4a4568'
+    ctx.fillRect(x - half - 10, base, half * 2 + 20, 8)   // threshold slab
+    // Keystone notch at the centre of the lintel.
+    ctx.fillStyle = '#8a82ac'
+    ctx.fillRect(x - 7, top, 14, 12)
   }
   if (down) {
-    // A descending stairwell at the floor (press down to take it).
-    ctx.fillStyle = '#070510'
-    ctx.fillRect(x - w / 2, floorY - 6, w, 26)
-    ctx.fillStyle = '#2a2238'
-    for (let i = 0; i < 4; i++) ctx.fillRect(x - w / 2 + i * 8, floorY + i * 5 - 4, w - i * 16, 4)
-    ctx.fillStyle = `rgba(232,212,160,${0.5 + 0.5 * pulse})`
-    ctx.font = '9px "Press Start 2P", monospace'
-    ctx.textAlign = 'center'
-    ctx.fillText('S: DOWN', x, floorY - 22)
+    // An open shaft in the floor — the thin cover platform draws with the others;
+    // here we add the dark hole below it and a downward hint.
+    const half = FLOOR_GAP_HALF
+    ctx.fillStyle = '#05040c'
+    ctx.fillRect(x - half, floorY, half * 2, 60)
+    ctx.fillStyle = '#4a4568'
+    ctx.fillRect(x - half - 6, floorY - 6, 6, 18) // broken floor lips
+    ctx.fillRect(x + half, floorY - 6, 6, 18)
+    ctx.strokeStyle = `rgba(232,212,160,${0.3 + 0.4 * pulse})`
+    ctx.lineWidth = 3
+    ctx.beginPath()
+    ctx.moveTo(x - 9, floorY + 18); ctx.lineTo(x, floorY + 27); ctx.lineTo(x + 9, floorY + 18)
+    ctx.stroke()
   }
   ctx.restore()
 }
@@ -4057,23 +4102,38 @@ function stairSurfaceY(stair: Stair, px: number): number | null {
 /** Rooms with an up-door get a climb to the top doorway: a walkable diagonal
  *  staircase up one side, plus staggered jump-ledges up the other, meeting at a
  *  ledge under the doorway. Climb past the top edge (either route) to exit up. */
-function addVerticalClimb(layout: RoomLayout, doors: Record<MapDir, boolean>): void {
-  if (!doors.n) return
+function addVerticalPassages(layout: RoomLayout, doors: Record<MapDir, boolean>): void {
   const px = VERT_PASSAGE_X
-  // Staircase: from the floor left-of-centre up to the doorway ledge.
-  layout.stairs.push({ x: px - 300, y: FLOOR_Y, dir: 1, steps: 10, run: 30, rise: 34 })
-  layout.platforms.push(
-    // Staggered jump-ledges up the right side (an alternate route).
-    { x: px + 96, y: 404, width: 150, height: 12 },
-    { x: px + 20, y: 318, width: 140, height: 12 },
-    { x: px + 120, y: 232, width: 150, height: 12 },
-    // Ledge directly under the top doorway (top of both routes).
-    { x: px - 74, y: 150, width: 148, height: 12 },
-  )
+  if (doors.n) {
+    // Climb to the top door: a staircase up one side, jump-ledges up the other,
+    // both topping out on a doorstep flush with the top-edge doorway.
+    layout.stairs.push({ x: px - 300, y: FLOOR_Y, dir: 1, steps: 10, run: 30, rise: 34 })
+    layout.platforms.push(
+      { x: px + 96, y: 404, width: 150, height: 12 },
+      { x: px + 20, y: 318, width: 140, height: 12 },
+      { x: px + 120, y: 232, width: 150, height: 12 },
+      { x: px - 74, y: 150, width: 148, height: 12 }, // doorstep under the top door
+    )
+  }
+  if (doors.s) {
+    // Open a drop-through shaft in the floor: solid floor either side, and a
+    // one-way platform over the gap (hold Down to fall through to the room below).
+    const gapL = px - FLOOR_GAP_HALF
+    const gapW = FLOOR_GAP_HALF * 2
+    const floor = layout.platforms.find((p) => p.y === FLOOR_Y && p.x <= 0 && p.x + p.width >= ROOM_WIDTH)
+    if (floor) {
+      floor.width = gapL - floor.x
+      layout.platforms.push(
+        { x: gapL + gapW, y: FLOOR_Y, width: ROOM_WIDTH - (gapL + gapW), height: 22 },
+        { x: gapL, y: FLOOR_Y, width: gapW, height: 22, dropThrough: true },
+      )
+    }
+    layout.floorGap = { x: gapL, width: gapW }
+  }
 }
 
 function buildLayout(stage: string): RoomLayout {
-  const base = { doorX: ROOM_WIDTH - 128, doorY: FLOOR_Y, checkpointX: 120, checkpointY: FLOOR_Y, stairs: [] as Stair[], barriers: [] as Barrier[] }
+  const base = { doorX: ROOM_WIDTH - 128, doorY: FLOOR_Y, checkpointX: 120, checkpointY: FLOOR_Y, stairs: [] as Stair[], barriers: [] as Barrier[], floorGap: null as { x: number; width: number } | null }
   switch (stage) {
     case 'outer_wall':
       return {
