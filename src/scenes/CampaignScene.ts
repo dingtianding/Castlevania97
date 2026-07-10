@@ -1345,17 +1345,33 @@ export class CampaignScene extends Scene {
     this.ctx.audio.startBgm(AUDIO_MANIFEST['bgm.heartOfFire'])
     this.bindInput()
     window.addEventListener('keydown', this.onKeyDown)
+    window.addEventListener('blur', this.onFocusLost)
+    document.addEventListener('visibilitychange', this.onVisibilityChange)
     this.ctx.renderer.canvas.addEventListener('pointerdown', this.onPointerDown)
     this.reloadFromSave()
   }
 
   override exit(): void {
     window.removeEventListener('keydown', this.onKeyDown)
+    window.removeEventListener('blur', this.onFocusLost)
+    document.removeEventListener('visibilitychange', this.onVisibilityChange)
     this.ctx.renderer.canvas.removeEventListener('pointerdown', this.onPointerDown)
     this.input.dispose?.()
     this.touchControls?.dispose()
     this.touchControls = null
     this.ctx.audio.stopBgm()
+  }
+
+  /** Auto-pause when the tab/window loses focus, but only while this scene is on
+   *  top (not already paused) and gameplay is actually live. */
+  private readonly onFocusLost = (): void => {
+    if (this.ctx.scenes.current !== this) return
+    if (this.ending || this.player.isDead) return
+    this.ctx.scenes.push(new PauseScene(this.ctx))
+  }
+
+  private readonly onVisibilityChange = (): void => {
+    if (document.hidden) this.onFocusLost()
   }
 
   update(): void {
@@ -3648,6 +3664,8 @@ function updateSubweapon(subweapon: SubweaponRuntime): void {
     if (subweapon.phase !== 'returning' && subweapon.ticksLeft <= 76) {
       subweapon.phase = 'returning'
       subweapon.velocity.x *= -1
+      // Forget who it already struck so it damages again on the way back.
+      subweapon.hitTargets?.clear()
     }
   }
 
