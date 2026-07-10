@@ -99,6 +99,13 @@ const LIFE_UP_RANGE = 48
 const SLIDE_BARRIERS: Record<string, { x: number; width: number }> = {
   'res-cistern': { x: 1120, width: 72 },
 }
+// Rooms that are bigger than one screen — they scroll in 2D. `width` grows the
+// room rightward (default 1680); a negative `top` grows it upward (default 0).
+const BIG_ROOMS: Record<string, { width: number; top: number }> = {
+  'cor-grand': { width: 2600, top: -340 },
+  'std-reading': { width: 2400, top: -120 },
+  'inr-servants': { width: 2600, top: -80 },
+}
 // Doors sealed until an ability/key is owned: nodeId -> direction -> required id.
 // The Chapel's bell-loft branch is barred until you find the Silver Key.
 const SEALED_DOORS: Record<string, Partial<Record<MapDir, string>>> = {
@@ -273,6 +280,10 @@ interface RoomLayout {
   stairs: Stair[]
   barriers: Barrier[]
   hazards: Hazard[]
+  /** Room extent. It spans x=[0,width] and y=[top,ROOM_HEIGHT]; the floor stays at
+   *  FLOOR_Y, so bigger rooms grow rightward (width) and upward (a negative top). */
+  width: number
+  top: number
   /** Open shaft in the floor (drop-through passage down), or null for a solid floor. */
   floorGap: { x: number; width: number } | null
   doorX: number
@@ -441,6 +452,9 @@ class CastleActor {
   barriers: Barrier[] = []
   /** Open shaft in the floor at this x-span — no floor there (drop-through down). */
   floorGap: { x: number; width: number } | null = null
+  /** Current room bounds (for clamps). The floor stays at FLOOR_Y. */
+  roomWidth = ROOM_WIDTH
+  roomTop = 0
   /** Counts down while a Down-press lets the player fall through drop-through platforms. */
   private dropTicks = 0
   private dashTicks = 0
@@ -780,7 +794,7 @@ class CastleActor {
   private integrate(platforms: Platform[]): void {
     const wasGrounded = this.grounded
     this.position.x += this.velocity.x
-    this.position.x = clamp(this.position.x, WALL_MARGIN, ROOM_WIDTH - WALL_MARGIN)
+    this.position.x = clamp(this.position.x, WALL_MARGIN, this.roomWidth - WALL_MARGIN)
     // Low tunnels block a standing/jumping player across their whole span; only a
     // slide fits through the floor gap.
     if (!this.isSliding) {
@@ -795,6 +809,7 @@ class CastleActor {
     }
     this.velocity.y += GRAVITY
     this.position.y += this.velocity.y
+    if (this.position.y < this.roomTop) { this.position.y = this.roomTop; if (this.velocity.y < 0) this.velocity.y = 0 }
 
     let landed = false
     let landingY = FLOOR_Y
@@ -1028,6 +1043,7 @@ export class CampaignScene extends Scene {
   private soulCooldown = 0
   private input!: InputSource
   private cameraX = 0
+  private cameraY = 0
   private blink = 0
   private ending = false
   private transitionTicks = 0
@@ -1513,7 +1529,13 @@ export class CampaignScene extends Scene {
     if (this.sealMessageTicks > 0) this.sealMessageTicks -= 1
     if (this.abilityGetTicks > 0) this.abilityGetTicks -= 1
 
-    this.cameraX = clamp(this.player.position.x - this.ctx.width / 2, 0, ROOM_WIDTH - this.ctx.width)
+    this.updateCamera(this.player.position.x, this.player.position.y)
+  }
+
+  /** Follow the player in both axes, clamped to the current room's bounds. */
+  private updateCamera(x: number, y: number): void {
+    this.cameraX = clamp(x - this.ctx.width / 2, 0, Math.max(0, this.layout.width - this.ctx.width))
+    this.cameraY = clamp(y - this.ctx.height * 0.58, this.layout.top, ROOM_HEIGHT - this.ctx.height)
   }
 
   render(): void {
@@ -1527,7 +1549,7 @@ export class CampaignScene extends Scene {
     ctx.restore()
     ctx.fillStyle = stage.overlay
     ctx.fillRect(0, 0, width, height)
-    drawBackdrop(ctx, this.node.stage, this.isCastleGateNode)
+    drawBackdrop(ctx, this.node.stage, this.layout.width, this.layout.top, this.isCastleGateNode)
     this.drawWorld()
     // Crush the rendered world down to a GBA-style resolution + 15-bit palette,
     // then draw the crisp HUD/menus on top (so text stays readable).
@@ -1637,6 +1659,7 @@ export class CampaignScene extends Scene {
     this.node = getCampaignNode(nodeId)
     this.chapter = getCampaignChapter(this.node.chapterId)
     this.layout = buildLayout(this.node.stage)
+    enlargeRoom(this.layout, BIG_ROOMS[this.node.id])
     addVerticalPassages(this.layout, castleDoors(this.node.id))
     // A high-jump-gated Life Max Up perches on a ledge above double-jump range.
     // The room becomes a clean column (floor + ledge) so it can't be cheesed by
@@ -1660,12 +1683,15 @@ export class CampaignScene extends Scene {
     this.player.stairs = this.layout.stairs
     this.player.barriers = this.layout.barriers
     this.player.floorGap = this.layout.floorGap
+    this.player.roomWidth = this.layout.width
+    this.player.roomTop = this.layout.top
     this.player.setMaxHealth(this.computeMaxHealth())
     this.player.reset(this.layout.checkpointX, this.layout.checkpointY, 1)
     this.player.meterGainMultiplier = this.computeMeterGainMult()
     this.player.meter = this.runMods.startMeterBonus + this.equipMods.startMeterBonus
     this.applyAbilities()
     this.enemies = buildEnemies(this.node, this.ctx.assets, this.layout)
+    for (const enemy of this.enemies) { enemy.roomWidth = this.layout.width; enemy.roomTop = this.layout.top }
     this.projectiles = []
     this.subweapons = []
     this.enemyBones = []
@@ -2141,7 +2167,7 @@ export class CampaignScene extends Scene {
     if (intent.moveX < 0 && x <= WALL_MARGIN + EDGE_ZONE) {
       const west = castleNeighbor(this.node.id, 'w')
       if (west && this.canPassDoor('w')) { this.enterRoom(west, 'east'); return }
-    } else if (intent.moveX > 0 && x >= ROOM_WIDTH - WALL_MARGIN - EDGE_ZONE) {
+    } else if (intent.moveX > 0 && x >= this.layout.width - WALL_MARGIN - EDGE_ZONE) {
       const east = castleNeighbor(this.node.id, 'e')
       if (east && this.canPassDoor('e')) { this.enterRoom(east, 'west'); return }
     }
@@ -2151,8 +2177,9 @@ export class CampaignScene extends Scene {
     const doors = castleDoors(this.node.id)
     const prevY = this.player.prevPosition.y
     const curY = this.player.position.y
+    const topEdge = this.layout.top + TOP_EDGE_Y
     const inColumn = Math.abs(x - VERT_PASSAGE_X) <= DOORWAY_HALF
-    if (doors.n && inColumn && prevY > TOP_EDGE_Y && curY <= TOP_EDGE_Y) {
+    if (doors.n && inColumn && prevY > topEdge && curY <= topEdge) {
       const north = castleNeighbor(this.node.id, 'n')
       if (north && this.canPassDoor('n')) { this.enterRoom(north, 'bottom'); return }
     }
@@ -2254,14 +2281,14 @@ export class CampaignScene extends Scene {
     let y = this.layout.checkpointY
     let facing: Facing = this.player.facing
     if (entrySide === 'west') { x = WALL_MARGIN + 90; facing = 1 }
-    else if (entrySide === 'east') { x = ROOM_WIDTH - WALL_MARGIN - 90; facing = -1 }
+    else if (entrySide === 'east') { x = this.layout.width - WALL_MARGIN - 90; facing = -1 }
     // Coming down through the passage: arrive on the top doorway ledge and descend.
-    else if (entrySide === 'top') { y = 150 }
+    else if (entrySide === 'top') { y = this.layout.top + 150 }
     // Coming up through the passage: arrive at the floor of the room above.
     this.player.reset(x, y, facing)
     this.player.health = Math.min(this.player.maxHealth, Math.max(1, carryHealth))
     this.player.meter = clamp(carryMeter, 0, 100)
-    this.cameraX = clamp(x - this.ctx.width / 2, 0, ROOM_WIDTH - this.ctx.width)
+    this.updateCamera(x, y)
     this.roomCooldown = 22
     this.ctx.audio.swing()
   }
@@ -2553,7 +2580,7 @@ export class CampaignScene extends Scene {
   private drawWorld(): void {
     const { ctx } = this.ctx.renderer
     ctx.save()
-    ctx.translate(-this.cameraX, 0)
+    ctx.translate(-this.cameraX, -this.cameraY)
     for (const platform of this.layout.platforms) {
       if (platform.fallen) continue
       const crumbling = platform.crumble && platform.crumbleTimer !== undefined && platform.crumbleTimer < CRUMBLE_DELAY
@@ -2578,8 +2605,8 @@ export class CampaignScene extends Scene {
     // Exit passages on whichever edges have a door in the castle graph.
     const doors = castleDoors(this.node.id)
     if (doors.w) drawExit(ctx, 0, this.layout.doorY, 'w', this.isDoorSealed('w'))
-    if (doors.e) drawExit(ctx, ROOM_WIDTH, this.layout.doorY, 'e', this.isDoorSealed('e'))
-    if (doors.n || doors.s) drawVertPassage(ctx, VERT_PASSAGE_X, this.layout.doorY, doors.n, doors.s, this.blink)
+    if (doors.e) drawExit(ctx, this.layout.width, this.layout.doorY, 'e', this.isDoorSealed('e'))
+    if (doors.n || doors.s) drawVertPassage(ctx, VERT_PASSAGE_X, this.layout.doorY, this.layout.top, this.layout.width, doors.n, doors.s, this.blink)
     // Ability relic, if this room has an uncollected one.
     const orb = ABILITY_PICKUPS[this.node.id]
     if (orb && !this.save.abilities.includes(orb.ability)) drawAbilityOrb(ctx, orb.x, this.layout.doorY, this.blink)
@@ -2600,6 +2627,10 @@ export class CampaignScene extends Scene {
     if (mx !== undefined) drawMerchant(ctx, mx, this.layout.doorY, this.blink)
     ctx.restore()
 
+    // Actors/projectiles offset x by cameraX internally; apply the vertical camera
+    // offset here so everything scrolls together in 2D.
+    ctx.save()
+    ctx.translate(0, -this.cameraY)
     this.player.render(this.ctx.renderer, this.cameraX)
     for (const enemy of this.enemies) enemy.render(this.ctx.renderer, this.cameraX)
     for (const projectile of this.projectiles) renderProjectile(projectile, this.ctx.renderer, this.cameraX)
@@ -2609,6 +2640,7 @@ export class CampaignScene extends Scene {
     this.drawEnemyHealthBars()
     this.drawFloatingTexts()
     if (DEBUG_HITBOXES) this.drawDebugBoxes()
+    ctx.restore()
   }
 
   private drawFloatingTexts(): void {
@@ -4030,21 +4062,21 @@ function drawStair(ctx: CanvasRenderingContext2D, stair: Stair): void {
   ctx.restore()
 }
 
-function drawVertPassage(ctx: CanvasRenderingContext2D, x: number, floorY: number, up: boolean, down: boolean, blink: number): void {
+function drawVertPassage(ctx: CanvasRenderingContext2D, x: number, floorY: number, roomTop: number, roomWidth: number, up: boolean, down: boolean, blink: number): void {
   const pulse = 0.5 + 0.5 * Math.sin(blink * 0.1)
   ctx.save()
   if (up) {
-    // A framed stone door set into the top wall — climb up and cross through it.
+    // A framed stone door set into the room's top wall — climb up and cross it.
     const half = DOORWAY_HALF
-    const bandY = 132, bandH = 16    // top-wall band, broken by the door
-    const top = bandY, base = 162    // door opening (continues up behind the HUD)
+    const bandY = roomTop + 132, bandH = 16    // top-wall band, broken by the door
+    const top = bandY, base = roomTop + 162    // door opening at the top edge
     // Masonry top wall either side of the door, with a lit lower lip.
     ctx.fillStyle = '#2c2440'
     ctx.fillRect(0, bandY, x - half - 10, bandH)
-    ctx.fillRect(x + half + 10, bandY, ROOM_WIDTH - (x + half + 10), bandH)
+    ctx.fillRect(x + half + 10, bandY, roomWidth - (x + half + 10), bandH)
     ctx.fillStyle = '#4a4568'
     ctx.fillRect(0, bandY + bandH - 3, x - half - 10, 3)
-    ctx.fillRect(x + half + 10, bandY + bandH - 3, ROOM_WIDTH - (x + half + 10), 3)
+    ctx.fillRect(x + half + 10, bandY + bandH - 3, roomWidth - (x + half + 10), 3)
     // Dark opening with a warm glow spilling out.
     ctx.fillStyle = '#05040c'
     ctx.fillRect(x - half, top, half * 2, base - top)
@@ -4217,29 +4249,58 @@ function stairSurfaceY(stair: Stair, px: number): number | null {
 /** Rooms with an up-door get a climb to the top doorway: a walkable diagonal
  *  staircase up one side, plus staggered jump-ledges up the other, meeting at a
  *  ledge under the doorway. Climb past the top edge (either route) to exit up. */
+/** Grow a room beyond one screen and fill the extra space so it stays explorable.
+ *  The floor stays at FLOOR_Y; width extends right, a negative top extends up. */
+function enlargeRoom(layout: RoomLayout, big: { width: number; top: number } | undefined): void {
+  if (!big) return
+  layout.width = big.width
+  layout.top = big.top
+  // Stretch the base floor across the whole width.
+  const floor = layout.platforms.find((p) => p.y === FLOOR_Y && p.x <= 0)
+  if (floor) floor.width = big.width
+  // Platforms across the extra width (beyond the original screen-and-a-half).
+  for (let x = ROOM_WIDTH - 120; x < big.width - 220; x += 340) {
+    layout.platforms.push({ x, y: FLOOR_Y - 118, width: 210, height: 12 })
+    layout.platforms.push({ x: x + 170, y: FLOOR_Y - 250, width: 180, height: 12, crumble: (x / 340) % 2 < 1 })
+  }
+  // Platforms up the extra height (kept off-centre so they don't foul the shaft).
+  if (big.top < 0) {
+    let s = 1
+    for (let y = FLOOR_Y - 170; y > big.top + 130; y -= 128) {
+      layout.platforms.push({ x: s > 0 ? 1080 : 1420, y, width: 220, height: 12 })
+      s = -s
+    }
+  }
+}
+
 function addVerticalPassages(layout: RoomLayout, doors: Record<MapDir, boolean>): void {
   const px = VERT_PASSAGE_X
   if (doors.n) {
-    // Climb to the top door: a staircase up one side, jump-ledges up the other,
-    // both topping out on a doorstep flush with the top-edge doorway.
-    layout.stairs.push({ x: px - 300, y: FLOOR_Y, dir: 1, steps: 10, run: 30, rise: 34 })
-    layout.platforms.push(
-      { x: px + 96, y: 404, width: 150, height: 12 },
-      { x: px + 20, y: 318, width: 140, height: 12 },
-      { x: px + 120, y: 232, width: 150, height: 12 },
-      { x: px - 74, y: 150, width: 148, height: 12 }, // doorstep under the top door
-    )
+    // Climb to the top door. The doorstep sits at the room's top edge, so in a
+    // tall room the shaft is correspondingly taller — the staircase and the
+    // zig-zag jump-ledges both scale to reach it.
+    const doorstepY = layout.top + 150
+    const totalRise = FLOOR_Y - doorstepY
+    const run = 30
+    const steps = Math.max(4, Math.round(totalRise / 34))
+    layout.stairs.push({ x: px - steps * run, y: FLOOR_Y, dir: 1, steps, run, rise: totalRise / steps })
+    let side = 1
+    for (let y = FLOOR_Y - 88; y > doorstepY + 40; y -= 86) {
+      layout.platforms.push({ x: px + (side > 0 ? 40 : -190), y, width: 150, height: 12 })
+      side = -side
+    }
+    layout.platforms.push({ x: px - 74, y: doorstepY, width: 148, height: 12 }) // doorstep
   }
   if (doors.s) {
     // Open a drop-through shaft in the floor: solid floor either side, and a
     // one-way platform over the gap (hold Down to fall through to the room below).
     const gapL = px - FLOOR_GAP_HALF
     const gapW = FLOOR_GAP_HALF * 2
-    const floor = layout.platforms.find((p) => p.y === FLOOR_Y && p.x <= 0 && p.x + p.width >= ROOM_WIDTH)
+    const floor = layout.platforms.find((p) => p.y === FLOOR_Y && p.x <= 0 && p.x + p.width >= layout.width)
     if (floor) {
       floor.width = gapL - floor.x
       layout.platforms.push(
-        { x: gapL + gapW, y: FLOOR_Y, width: ROOM_WIDTH - (gapL + gapW), height: 22 },
+        { x: gapL + gapW, y: FLOOR_Y, width: layout.width - (gapL + gapW), height: 22 },
         { x: gapL, y: FLOOR_Y, width: gapW, height: 22, dropThrough: true },
       )
     }
@@ -4248,7 +4309,7 @@ function addVerticalPassages(layout: RoomLayout, doors: Record<MapDir, boolean>)
 }
 
 function buildLayout(stage: string): RoomLayout {
-  const base = { doorX: ROOM_WIDTH - 128, doorY: FLOOR_Y, checkpointX: 120, checkpointY: FLOOR_Y, stairs: [] as Stair[], barriers: [] as Barrier[], floorGap: null as { x: number; width: number } | null }
+  const base = { width: ROOM_WIDTH, top: 0, doorX: ROOM_WIDTH - 128, doorY: FLOOR_Y, checkpointX: 120, checkpointY: FLOOR_Y, stairs: [] as Stair[], barriers: [] as Barrier[], floorGap: null as { x: number; width: number } | null }
   switch (stage) {
     case 'outer_wall':
       return {
@@ -4283,27 +4344,24 @@ function hazardBox(hazard: Hazard): Rect {
   return { x: hazard.x, y: hazard.y, width: hazard.width, height: hazard.height }
 }
 
-function drawBackdrop(ctx: CanvasRenderingContext2D, stage: string, castleGate = false): void {
+function drawBackdrop(ctx: CanvasRenderingContext2D, stage: string, width: number, top: number, castleGate = false): void {
   ctx.save()
   ctx.fillStyle = backdropColor(stage)
-  ctx.fillRect(0, 0, ROOM_WIDTH, ROOM_HEIGHT)
+  ctx.fillRect(0, top, width, ROOM_HEIGHT - top)
   ctx.fillStyle = 'rgba(8, 6, 14, 0.58)'
-  ctx.fillRect(0, 364, ROOM_WIDTH, 212)
+  ctx.fillRect(0, 364, width, 212)
   ctx.fillStyle = 'rgba(20, 18, 31, 0.82)'
-  ctx.fillRect(0, 220, ROOM_WIDTH, 14)
-  ctx.fillRect(160, 140, 72, 180)
-  ctx.fillRect(340, 120, 112, 220)
-  ctx.fillRect(640, 100, 132, 240)
-  ctx.fillRect(940, 80, 152, 260)
-  ctx.fillRect(1260, 120, 112, 220)
-  ctx.fillStyle = 'rgba(232, 212, 160, 0.08)'
-  ctx.fillRect(240, 156, 22, 112)
-  ctx.fillRect(520, 144, 22, 124)
-  ctx.fillRect(840, 132, 22, 136)
-  ctx.fillRect(1160, 152, 22, 116)
+  ctx.fillRect(0, 220, width, 14)
+  // Buttress columns + lit windows tiled across the whole width.
+  for (let bx = 160; bx < width - 120; bx += 300) {
+    ctx.fillStyle = 'rgba(20, 18, 31, 0.82)'
+    ctx.fillRect(bx, 120, 112, 220)
+    ctx.fillStyle = 'rgba(232, 212, 160, 0.08)'
+    ctx.fillRect(bx + 80, 156, 22, 112)
+  }
   if (stage === 'throne_room') {
     ctx.fillStyle = 'rgba(185, 29, 43, 0.12)'
-    ctx.fillRect(0, 0, ROOM_WIDTH, ROOM_HEIGHT)
+    ctx.fillRect(0, top, width, ROOM_HEIGHT - top)
   }
   if (castleGate) drawCastleGateBackdrop(ctx)
   ctx.restore()
