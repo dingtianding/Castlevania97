@@ -575,6 +575,9 @@ class CastleActor {
     if (!this.canBeHit) return false
     this.lastDamageTaken = Math.max(1, Math.round(move.damage * damageMultiplier))
     this.health = Math.max(0, this.health - this.lastDamageTaken)
+    // Bosses take the damage but shrug off the knockback and stagger (super armour),
+    // keeping their footing and their attack. Death still plays out normally.
+    if (this.isBoss && this.health > 0) return true
     this.velocity.x = this.position.x >= fromX ? 6 : -6
     this.velocity.y = move.knockbackY
     this.grounded = false
@@ -595,6 +598,7 @@ class CastleActor {
     if (!this.canBeHit) return false
     this.lastDamageTaken = Math.max(1, Math.round(damage * damageMultiplier))
     this.health = Math.max(0, this.health - this.lastDamageTaken)
+    if (this.isBoss && this.health > 0) return true
     this.velocity.x = this.position.x >= fromX ? 5 : -5
     this.velocity.y = knockbackY
     this.grounded = false
