@@ -7,7 +7,7 @@ import { AUDIO_MANIFEST } from '../assets/manifest.ts'
 import { addCampaignAbility, addCampaignBulletSoul, addCampaignEquipment, addCampaignPerk, addCampaignRelic, addCampaignSoul, equipCampaignBulletSoul, equipCampaignItem, equippedDefs, getCampaignChapter, getCampaignNode, grantCampaignRewards, hasWorldFlag, loadCampaignSave, markCampaignVisited, MAX_LEVEL, saveCampaignSave, setWorldFlag, unequipCampaignSlot, xpForNextLevel } from '../data/campaign.ts'
 import { draftPowerUps, powerUpStacks, type PowerUpDef } from '../data/powerups.ts'
 import { BASE_BULLET_SOUL, bulletSoulForEnemy, getBulletSoul, type BulletSoulDef } from '../data/bulletSouls.ts'
-import { CASTLE_ITEM_ROOMS, CASTLE_LIFEUP_ROOMS, CASTLE_MAP_DATA, CASTLE_MERCHANT_ROOMS, CASTLE_SAVE_ROOMS } from '../data/castleMapData.ts'
+import { CASTLE_ITEM_ROOMS, CASTLE_LIFEUP_ROOMS, CASTLE_MAP_DATA, CASTLE_MERCHANT_ROOMS, CASTLE_SAVE_ROOMS, ROOM_CELLS } from '../data/castleMapData.ts'
 import { MapService, MapRenderer, MinimapRenderer } from '../map/index.ts'
 import { castleDoors, castleNeighbor, type MapDir } from '../data/castleMap.ts'
 import { buildEquipmentModifiers, EQUIP_SLOT_LABELS, EQUIP_SLOTS, equipmentForSlot, EQUIPMENT_POOL, getEquipment, type EquipmentDef, type EquipmentModifiers, type EquipSlot } from '../data/equipment.ts'
@@ -99,13 +99,14 @@ const LIFE_UP_RANGE = 48
 const SLIDE_BARRIERS: Record<string, { x: number; width: number }> = {
   'res-cistern': { x: 1120, width: 72 },
 }
-// Rooms that are bigger than one screen — they scroll in 2D. `width` grows the
-// room rightward (default 1680); a negative `top` grows it upward (default 0).
-const BIG_ROOMS: Record<string, { width: number; top: number }> = {
-  'cor-grand': { width: 2600, top: -340 },
-  'std-reading': { width: 2400, top: -120 },
-  'inr-servants': { width: 2600, top: -80 },
-}
+// Rooms bigger than one screen scroll in 2D. Their pixel size is derived from
+// the map footprint (ROOM_CELLS): a w-cell-wide room is w screens wide, a
+// h-cell-tall room grows h-1 screens upward. So map boxes and in-game size match.
+const BIG_ROOMS: Record<string, { width: number; top: number }> = Object.fromEntries(
+  Object.entries(ROOM_CELLS)
+    .filter(([, c]) => c.w > 1 || c.h > 1)
+    .map(([id, c]) => [id, { width: c.w * ROOM_WIDTH, top: (1 - c.h) * ROOM_HEIGHT }]),
+)
 // Doors sealed until an ability/key is owned: nodeId -> direction -> required id.
 // The Chapel's bell-loft branch is barred until you find the Silver Key.
 const SEALED_DOORS: Record<string, Partial<Record<MapDir, string>>> = {
@@ -3185,7 +3186,7 @@ export class CampaignScene extends Scene {
       y: 20,
       width: 160,
       height: 108,
-      cellSize: 22,
+      cellSize: 12,
       pulse,
     })
   }

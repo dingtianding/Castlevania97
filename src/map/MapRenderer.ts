@@ -173,7 +173,8 @@ export class MapRenderer {
     for (const icon of room.icons) this.drawIcon(ctx, icon, r.x + r.w / 2, r.y + r.h / 2, room, service)
   }
 
-  /** Short connector stubs between a room and its linked neighbours. */
+  /** Corridors bridging the gap between a room and its linked neighbours, drawn
+   *  along the shared edge so different-sized rooms still connect cleanly. */
   private drawConnections(ctx: CanvasRenderingContext2D, service: MapService, room: Room, offset: { x: number; y: number }, cell: number): void {
     if (!this.isVisible(service, room)) return
     const r = this.roomRect(room, offset, cell)
@@ -181,16 +182,25 @@ export class MapRenderer {
       const other = service.getRoom(conn.to)
       if (!other || !this.isVisible(service, other)) continue
       if (conn.type === 'secret' && !service.state.isDiscovered(room.id)) continue
-      const color =
+      const o = this.roomRect(other, offset, cell)
+      ctx.fillStyle =
         conn.type === 'locked' ? COLORS.connLocked : conn.type === 'ability' ? COLORS.connAbility : conn.type === 'secret' ? COLORS.connSecret : COLORS.connNormal
-      ctx.fillStyle = color
-      const cx = r.x + r.w / 2
-      const cy = r.y + r.h / 2
-      const t = 5 // stub thickness
-      if (conn.direction === 'right') ctx.fillRect(r.x + r.w, cy - t / 2, this.gap * 2, t)
-      else if (conn.direction === 'left') ctx.fillRect(r.x - this.gap * 2, cy - t / 2, this.gap * 2, t)
-      else if (conn.direction === 'down') ctx.fillRect(cx - t / 2, r.y + r.h, t, this.gap * 2)
-      else if (conn.direction === 'up') ctx.fillRect(cx - t / 2, r.y - this.gap * 2, t, this.gap * 2)
+      const t = 5
+      if (conn.direction === 'right' || conn.direction === 'left') {
+        const overlapTop = Math.max(r.y, o.y)
+        const overlapBot = Math.min(r.y + r.h, o.y + o.h)
+        const y = (overlapTop < overlapBot ? (overlapTop + overlapBot) / 2 : r.y + r.h / 2) - t / 2
+        const x1 = conn.direction === 'right' ? r.x + r.w : o.x + o.w
+        const x2 = conn.direction === 'right' ? o.x : r.x
+        ctx.fillRect(Math.min(x1, x2), y, Math.abs(x2 - x1), t)
+      } else {
+        const overlapL = Math.max(r.x, o.x)
+        const overlapR = Math.min(r.x + r.w, o.x + o.w)
+        const x = (overlapL < overlapR ? (overlapL + overlapR) / 2 : r.x + r.w / 2) - t / 2
+        const y1 = conn.direction === 'down' ? r.y + r.h : o.y + o.h
+        const y2 = conn.direction === 'down' ? o.y : r.y
+        ctx.fillRect(x, Math.min(y1, y2), t, Math.abs(y2 - y1))
+      }
     }
   }
 

@@ -41,9 +41,26 @@ const saveIds = new Set<string>(CASTLE_SAVE_ROOMS.map((r) => r.id))
 const shopIds = new Set<string>(CASTLE_MERCHANT_ROOMS.map((r) => r.id))
 const itemIds = new Set<string>([...CASTLE_ITEM_ROOMS.map((r) => r.id), ...CASTLE_LIFEUP_ROOMS.map((r) => r.id)])
 
+/** Room footprint in standard cells. A standard room is 1x1; a bigger room spans
+ *  more boxes on the map (and is correspondingly larger in-game). This is the
+ *  single source of truth — the gameplay pixel size is derived from it. */
+export const ROOM_CELLS: Record<string, { w: number; h: number }> = {
+  'cor-grand': { w: 2, h: 2 },
+  'std-reading': { w: 2, h: 1 },
+  'inr-servants': { w: 2, h: 1 },
+}
+/** Grid positions are scaled by this so multi-cell rooms have room to expand
+ *  without overlapping neighbours (footprints are <= this). */
+export const MAP_CELL_SCALE = 2
+
+function roomCells(id: string): { w: number; h: number } {
+  return ROOM_CELLS[id] ?? { w: 1, h: 1 }
+}
+
 function buildRoom(node: (typeof CAMPAIGN_NODES)[number]): Room | null {
   const cell = CASTLE_CELLS[node.id]
   if (!cell) return null
+  const fp = roomCells(node.id)
   const doors = castleDoors(node.id)
   const connections: Connection[] = []
   for (const dir of ['n', 's', 'e', 'w'] as MapDir[]) {
@@ -59,10 +76,10 @@ function buildRoom(node: (typeof CAMPAIGN_NODES)[number]): Room | null {
   return {
     id: node.id,
     zone: getCampaignChapter(node.chapterId).title,
-    mapX: cell.col,
-    mapY: cell.row,
-    width: 1,
-    height: 1,
+    mapX: cell.col * MAP_CELL_SCALE,
+    mapY: cell.row * MAP_CELL_SCALE - (fp.h - 1),
+    width: fp.w,
+    height: fp.h,
     type: node.isBoss ? 'boss' : saveIds.has(node.id) ? 'save' : 'normal',
     icons,
     hasBoss: node.isBoss ?? false,
