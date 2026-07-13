@@ -11,7 +11,7 @@ import { CASTLE_ITEM_ROOMS, CASTLE_LIFEUP_ROOMS, CASTLE_MAP_DATA, CASTLE_MERCHAN
 import { MapService, MapRenderer, MinimapRenderer } from '../map/index.ts'
 import { castleDoors, castleNeighbor, type MapDir } from '../data/castleMap.ts'
 import { buildEquipmentModifiers, EQUIP_SLOT_LABELS, EQUIP_SLOTS, equipmentForSlot, EQUIPMENT_POOL, getEquipment, type EquipmentDef, type EquipmentModifiers, type EquipSlot } from '../data/equipment.ts'
-import { buildRunModifiers, RELIC_POOL, type RelicDef, type RelicId, type RunModifiers } from '../data/relics.ts'
+import { buildRunModifiers, RELIC_POOL, type RelicDef, type RunModifiers } from '../data/relics.ts'
 import { buildSoulModifiers, getSoul, soulForEnemy, SOUL_POOL, type SoulDef, type SoulModifiers } from '../data/souls.ts'
 import { juliusBelmont as CAMPAIGN_HERO } from '../data/characters/castlevaniaCampaign.ts'
 import { getStage } from '../data/stages.ts'
@@ -223,13 +223,6 @@ const ENEMY_GLOW: Record<string, string> = {
   boneThrower: '178,132,224',
 }
 
-const RELIC_PIP_COLORS: Record<RelicId, string> = {
-  vitality: '#b91d2d',
-  fury: '#f6b74a',
-  focus: '#8dc2ff',
-  quickstep: '#7ad67a',
-  catalyst: '#d67ad6',
-}
 
 interface Platform {
   x: number
@@ -2715,85 +2708,72 @@ export class CampaignScene extends Scene {
     ctx.restore()
   }
 
+  /** Aria-style HUD: the HP value to the left of a red HP bar, a blue MP bar
+   *  below it, and one small line for the essentials. */
   private drawHud(): void {
     const { ctx } = this.ctx.renderer
+    const p = this.player
+    const barX = 108
+    const barW = 268
+    const hpY = 38
+    const mpY = 56
+    const hpFill = clamp(p.health / p.maxHealth, 0, 1)
+    const mpFill = clamp(p.meter / 100, 0, 1)
+
     ctx.save()
-    ctx.fillStyle = 'rgba(8, 6, 14, 0.78)'
-    ctx.fillRect(24, 20, 392, 96)
-    ctx.strokeStyle = '#5a567a'
-    ctx.lineWidth = 2
-    ctx.strokeRect(24, 20, 392, 96)
+    // Soft backing for legibility over the world (no hard-bordered panel).
+    ctx.fillStyle = 'rgba(6, 5, 12, 0.5)'
+    ctx.fillRect(20, 20, barX + barW - 4, 62)
+
+    // Tiny HP / MP labels at the far left.
+    ctx.textAlign = 'left'
+    ctx.textBaseline = 'middle'
+    ctx.font = '8px "Press Start 2P", monospace'
+    ctx.fillStyle = '#d68a8a'
+    ctx.fillText('HP', 30, hpY)
+    ctx.fillStyle = '#7aa8d6'
+    ctx.fillText('MP', 30, mpY)
+
+    // HP number, right-aligned just left of the HP bar.
+    ctx.textAlign = 'right'
+    ctx.font = '14px "Press Start 2P", monospace'
+    ctx.fillStyle = '#f4ece0'
+    ctx.fillText(String(Math.max(0, Math.ceil(p.health))), barX - 10, hpY)
+
+    // HP bar (red).
+    ctx.fillStyle = '#2a1014'
+    ctx.fillRect(barX, hpY - 7, barW, 14)
+    ctx.fillStyle = '#c8323a'
+    ctx.fillRect(barX, hpY - 7, barW * hpFill, 14)
+    ctx.fillStyle = 'rgba(255, 210, 200, 0.28)'
+    ctx.fillRect(barX, hpY - 7, barW * hpFill, 3)
+    ctx.strokeStyle = '#e8d4a0'
+    ctx.lineWidth = 1
+    ctx.strokeRect(barX + 0.5, hpY - 6.5, barW - 1, 13)
+
+    // MP bar (blue).
+    ctx.fillStyle = '#0e1a2a'
+    ctx.fillRect(barX, mpY - 5, barW, 10)
+    ctx.fillStyle = '#3a86d0'
+    ctx.fillRect(barX, mpY - 5, barW * mpFill, 10)
+    ctx.fillStyle = 'rgba(200, 230, 255, 0.28)'
+    ctx.fillRect(barX, mpY - 5, barW * mpFill, 2)
+    ctx.strokeStyle = '#5a86b0'
+    ctx.strokeRect(barX + 0.5, mpY - 4.5, barW - 1, 9)
+
+    // One small essentials line beneath the bars.
     ctx.textAlign = 'left'
     ctx.textBaseline = 'top'
-    ctx.fillStyle = '#e8d4a0'
-    ctx.font = '11px "Press Start 2P", monospace'
-    ctx.fillText('JULIUS BELMONT', 40, 34)
-    ctx.fillStyle = '#f6b74a'
-    ctx.font = '9px "Press Start 2P", monospace'
-    ctx.fillText(`LV ${this.save.level}`, 288, 35)
-    if (this.save.armorTier > 0) {
-      ctx.fillStyle = '#9fb0d6'
-      ctx.fillText(`DEF ${this.save.armorTier}`, 356, 35)
-    }
-    ctx.fillStyle = '#b7c7e6'
-    ctx.font = '8px "Press Start 2P", monospace'
-    ctx.fillText(`${this.chapter.year}  ${this.chapter.title.toUpperCase()}`, 40, 52)
-    ctx.fillStyle = '#8a8aa0'
-    ctx.fillText(this.node.title.toUpperCase(), 40, 66)
-    ctx.fillStyle = '#b7c7e6'
-    ctx.fillText(`SUB ${SUBWEAPON_LABELS[this.currentSubweapon()]}`, 250, 52)
-    ctx.fillStyle = '#8fd0ff'
-    ctx.fillText(`MP ${Math.round(this.player.meter).toString().padStart(3, '0')}`, 250, 66)
-    // Health bar
-    ctx.fillStyle = '#2a1014'
-    ctx.fillRect(40, 78, 300, 9)
-    ctx.fillStyle = '#b91d2d'
-    ctx.fillRect(40, 78, 300 * (this.player.health / this.player.maxHealth), 9)
-    ctx.strokeStyle = '#e8d4a0'
-    ctx.strokeRect(40, 78, 300, 9)
-    // MP bar (Aria-style magic): the special meter spent on soul casts.
-    const soulDef = this.equippedSoulDef()
-    ctx.fillStyle = '#0e1a2a'
-    ctx.fillRect(40, 88, 300, 7)
-    ctx.fillStyle = this.player.meter >= soulDef.mpCost ? '#3aa0e0' : '#2a5a7a'
-    ctx.fillRect(40, 88, 300 * clamp(this.player.meter / 100, 0, 1), 7)
-    ctx.strokeStyle = '#5a86b0'
-    ctx.strokeRect(40, 88, 300, 7)
-    // Equipped Bullet Soul label at the end of the magic bar.
-    ctx.fillStyle = '#8fd4ff'
     ctx.font = '7px "Press Start 2P", monospace'
-    ctx.fillText(`◈${soulDef.name.toUpperCase()}`, 346, 90)
-    // XP bar
-    const xpRatio = this.save.level >= MAX_LEVEL ? 1 : clamp(this.save.xp / xpForNextLevel(this.save.level), 0, 1)
-    ctx.fillStyle = '#161326'
-    ctx.fillRect(40, 96, 300, 4)
-    ctx.fillStyle = '#6f7ad6'
-    ctx.fillRect(40, 96, 300 * xpRatio, 4)
-    ctx.strokeStyle = '#3a3550'
-    ctx.strokeRect(40, 96, 300, 4)
-    ctx.fillStyle = '#f6b74a'
-    ctx.font = '8px "Press Start 2P", monospace'
-    ctx.fillText(`GOLD ${this.save.gold}`, 250, 104)
+    ctx.fillStyle = '#8a8aa0'
+    ctx.fillText(`LV ${this.save.level}`, 30, 70)
+    ctx.fillText(`SUB ${SUBWEAPON_LABELS[this.currentSubweapon()]}`, 92, 70)
     ctx.fillStyle = '#7ad6ff'
-    ctx.fillText(`SOULS ${this.save.souls.length}/${SOUL_POOL.length}`, 150, 104)
-    this.drawRelicPips(ctx)
+    ctx.fillText(`◈${this.equippedSoulDef().name.toUpperCase()}`, 214, 70)
+    ctx.textAlign = 'right'
+    ctx.fillStyle = '#f6b74a'
+    ctx.fillText(`${this.save.gold}G`, barX + barW - 2, 70)
     ctx.restore()
-  }
-
-  private drawRelicPips(ctx: CanvasRenderingContext2D): void {
-    if (this.save.relicIds.length === 0) return
-    const size = 11
-    const gap = 5
-    let x = 40
-    const y = 104
-    for (const id of this.save.relicIds) {
-      ctx.fillStyle = RELIC_PIP_COLORS[id] ?? '#e8d4a0'
-      ctx.fillRect(x, y, size, size)
-      ctx.strokeStyle = '#0b0912'
-      ctx.lineWidth = 2
-      ctx.strokeRect(x, y, size, size)
-      x += size + gap
-    }
   }
 
   private drawLevelUp(): void {
