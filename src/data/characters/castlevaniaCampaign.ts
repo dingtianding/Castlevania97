@@ -1,11 +1,13 @@
 import type { CharacterDef } from './CharacterDef.ts'
 
-export const juliusBelmont: CharacterDef = {
-  id: 'juliusBelmont',
-  name: 'JULIUS BELMONT',
+export const red: CharacterDef = {
+  id: 'red',
+  name: 'RED',
+  color: '#d2483c',
+  isHero: true,
   meta: {
-    archetype: 'VAMPIRE HUNTER',
-    bio: 'The last Belmont of the age. Long reach, precise confirms, and a seal-breaking finisher.',
+    archetype: 'HUNTER',
+    bio: 'A veteran hunter. Long reach, precise confirms, and a seal-breaking finisher.',
     stats: { power: 4, speed: 3, range: 5, technique: 4 },
     moveNames: {
       light: 'Whip Crack',
@@ -79,6 +81,21 @@ export const juliusBelmont: CharacterDef = {
       meterCost: 100,
       hitbox: { forward: 8, top: 176, width: 176, height: 122 },
     },
+  },
+}
+
+/** The campaign's main character: a soul-wielder. Shares the base moveset for
+ *  now (placeholder), distinguished by its own identity and colour. */
+export const grey: CharacterDef = {
+  ...red,
+  id: 'grey',
+  name: 'GREY',
+  color: '#aab2bd',
+  isHero: true,
+  meta: {
+    ...red.meta,
+    archetype: 'SOUL REAVER',
+    bio: 'A drifter who binds the souls of the fallen and turns them on the castle.',
   },
 }
 

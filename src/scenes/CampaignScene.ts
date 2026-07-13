@@ -13,7 +13,7 @@ import { castleDoors, castleNeighbor, type MapDir } from '../data/castleMap.ts'
 import { buildEquipmentModifiers, EQUIP_SLOT_LABELS, EQUIP_SLOTS, equipmentForSlot, EQUIPMENT_POOL, getEquipment, type EquipmentDef, type EquipmentModifiers, type EquipSlot } from '../data/equipment.ts'
 import { buildRunModifiers, RELIC_POOL, type RelicDef, type RunModifiers } from '../data/relics.ts'
 import { buildSoulModifiers, getSoul, soulForEnemy, SOUL_POOL, type SoulDef, type SoulModifiers } from '../data/souls.ts'
-import { juliusBelmont as CAMPAIGN_HERO } from '../data/characters/castlevaniaCampaign.ts'
+import { grey as CAMPAIGN_HERO } from '../data/characters/castlevaniaCampaign.ts'
 import { getStage } from '../data/stages.ts'
 import type { CharacterDef } from '../data/characters/CharacterDef.ts'
 import { KeyboardSource } from '../input/KeyboardSource.ts'
@@ -28,7 +28,7 @@ import { clamp, rectsOverlap } from '../core/math.ts'
 import type { Rng } from '../core/rng.ts'
 import type { Facing, Rect, Vec2 } from '../types.ts'
 import type { Renderer } from '../render/Renderer.ts'
-import { Animator, drawSprite, makeSheet, type SpriteSheet } from '../render/SpriteRenderer.ts'
+import { Animator, makeSheet, type SpriteSheet } from '../render/SpriteRenderer.ts'
 import { computeHitbox, isActiveAt, totalFrames, type AttackMove } from '../combat/AttackMove.ts'
 
 const ROOM_WIDTH = 1680
@@ -879,63 +879,123 @@ class CastleActor {
   }
 
   private updateAnimator(): void {
-    if (this.def.id === 'juliusBelmont' && this.state === 'idle') return
+    if (this.def.isHero === true && this.state === 'idle') return
     this.animator.update()
   }
 
   render(renderer: Renderer, cameraX: number): void {
     this.drawGlow(renderer, cameraX)
-    const sheet = this.currentSheet()
-    const frame = this.animator.currentFrame
-    const scale = this.renderScale()
-    const anchorY = this.renderAnchorY()
-    const x = this.position.x - cameraX
-    const y = this.position.y
-    const attackShiftX = this.renderAttackShiftX(frame) * scale * this.facing
-    const drawX =
-      (this.facing === 1 ? x - this.def.visual.anchorX * scale : x - (sheet.frameWidth - this.def.visual.anchorX) * scale) +
-      attackShiftX
-    const drawY = y - anchorY * scale
     if (this.invulnerableTicks > 0 && Math.floor(this.invulnerableTicks / 4) % 2 === 0) return
+    const { ctx } = renderer
+    const fx = this.position.x - cameraX
+    const fy = this.position.y
+    let alpha = 1
     if (this.state === 'death') {
-      // Play the death animation, then fade the corpse out and stop drawing it.
       if (this.deathTicks >= DEATH_HOLD_TICKS + DEATH_FADE_TICKS) return
-      const alpha = clamp(1 - (this.deathTicks - DEATH_HOLD_TICKS) / DEATH_FADE_TICKS, 0, 1)
-      const { ctx } = renderer
-      ctx.save()
-      ctx.globalAlpha = alpha
-      drawSprite(renderer, sheet, frame, drawX, drawY, scale, this.facing)
-      ctx.restore()
-      return
+      alpha = clamp(1 - (this.deathTicks - DEATH_HOLD_TICKS) / DEATH_FADE_TICKS, 0, 1)
     }
+    ctx.save()
+    ctx.globalAlpha = alpha
     if (this.state === 'dash') {
-      const { ctx } = renderer
-      ctx.save()
-      ctx.globalAlpha = 0.28
-      drawSprite(renderer, sheet, frame, drawX - this.facing * 28, drawY, scale, this.facing)
-      ctx.globalAlpha = 0.14
-      drawSprite(renderer, sheet, frame, drawX - this.facing * 54, drawY, scale, this.facing)
-      ctx.restore()
-    }
-    if (this.shouldDrawJuliusWhipExtension(frame)) {
-      const extensionX = drawX + this.facing * sheet.frameWidth * scale
-      drawSprite(renderer, sheet, 1, drawX, drawY, scale, this.facing)
-      drawSprite(renderer, sheet, frame, extensionX, drawY, scale, this.facing)
-      return
+      ctx.globalAlpha = alpha * 0.22
+      this.drawStick(ctx, fx - this.facing * 26, fy)
+      ctx.globalAlpha = alpha * 0.44
+      this.drawStick(ctx, fx - this.facing * 13, fy)
+      ctx.globalAlpha = alpha
     }
     if (this.isSliding) {
-      // Squash vertically around the feet so the slide reads as a low crawl.
-      const { ctx } = renderer
-      const feet = this.position.y
-      ctx.save()
-      ctx.translate(0, feet)
-      ctx.scale(1, 0.55)
-      ctx.translate(0, -feet)
-      drawSprite(renderer, sheet, frame, drawX, drawY, scale, this.facing)
+      // Squash around the feet so the slide reads as a low crawl.
+      ctx.translate(0, fy)
+      ctx.scale(1, 0.5)
+      ctx.translate(0, -fy)
+    }
+    this.drawStick(ctx, fx, fy)
+    ctx.restore()
+  }
+
+  private bodyColor(): string {
+    return this.def.color ?? (this.isBoss ? '#d0846a' : '#cdc6b2')
+  }
+
+  /** Placeholder stick-figure art, posed by state, sized to the hurtbox. */
+  private drawStick(ctx: CanvasRenderingContext2D, fx: number, fy: number): void {
+    const H = this.def.visual.hurtbox.height * ACTOR_SCALE * 1.3
+    const f = this.facing
+    const col = this.bodyColor()
+    const lw = Math.max(2, H * 0.06)
+    const headR = H * 0.12
+    ctx.save()
+    ctx.strokeStyle = col
+    ctx.fillStyle = col
+    ctx.lineWidth = lw
+    ctx.lineCap = 'round'
+    ctx.lineJoin = 'round'
+
+    if (this.state === 'death') {
+      // A crumpled heap on the floor.
+      const hy = fy - H * 0.16
+      ctx.beginPath(); ctx.arc(fx - f * H * 0.22, hy, headR, 0, Math.PI * 2); ctx.fill()
+      ctx.beginPath(); ctx.moveTo(fx - f * H * 0.14, hy); ctx.lineTo(fx + f * H * 0.24, fy - H * 0.03); ctx.stroke()
+      ctx.beginPath(); ctx.moveTo(fx + f * H * 0.02, fy - H * 0.12); ctx.lineTo(fx + f * H * 0.3, fy); ctx.stroke()
       ctx.restore()
       return
     }
-    drawSprite(renderer, sheet, frame, drawX, drawY, scale, this.facing)
+
+    const headCy = fy - H + headR
+    const shoulderY = fy - H * 0.70
+    const hipY = fy - H * 0.42
+    const st = this.state
+    let legL = { x: fx - H * 0.12, y: fy }
+    let legR = { x: fx + H * 0.12, y: fy }
+    let armL = { x: fx - H * 0.17, y: hipY - H * 0.02 }
+    let armR = { x: fx + H * 0.17, y: hipY - H * 0.02 }
+    let weapon: { x: number; y: number } | null = null
+    let lean = 0
+
+    if (st === 'run' || st === 'dash') {
+      const ph = Math.sin(this.position.x * 0.09)
+      legL = { x: fx - ph * H * 0.24, y: fy }
+      legR = { x: fx + ph * H * 0.24, y: fy }
+      armL = { x: fx + ph * H * 0.2, y: shoulderY + H * 0.16 }
+      armR = { x: fx - ph * H * 0.2, y: shoulderY + H * 0.16 }
+      lean = f * (st === 'dash' ? H * 0.16 : H * 0.07)
+    } else if (st === 'jump' || st === 'fall') {
+      legL = { x: fx - H * 0.15, y: fy - H * 0.05 }
+      legR = { x: fx + H * 0.15, y: fy - H * 0.05 }
+      const up = st === 'jump' ? -H * 0.12 : H * 0.04
+      armL = { x: fx - H * 0.2, y: shoulderY + up }
+      armR = { x: fx + H * 0.2, y: shoulderY + up }
+    } else if (st === 'attack') {
+      lean = f * H * 0.05
+      armR = { x: fx + f * H * 0.3, y: shoulderY + H * 0.06 }
+      armL = { x: fx - f * H * 0.1, y: hipY }
+      weapon = { x: fx + f * H * 0.66, y: shoulderY + H * 0.1 }
+      legL = { x: fx - f * H * 0.16, y: fy }
+      legR = { x: fx + f * H * 0.08, y: fy }
+    } else if (st === 'hurt') {
+      lean = -f * H * 0.11
+      armL = { x: fx - H * 0.23, y: shoulderY }
+      armR = { x: fx + H * 0.23, y: shoulderY }
+    }
+
+    const topX = fx + lean
+    const shoulderX = (topX + fx) / 2
+    ctx.beginPath(); ctx.arc(topX, headCy, headR, 0, Math.PI * 2); ctx.fill()
+    ctx.beginPath(); ctx.moveTo(topX, headCy + headR); ctx.lineTo(fx, hipY); ctx.stroke()
+    ctx.beginPath()
+    ctx.moveTo(shoulderX, shoulderY); ctx.lineTo(armL.x, armL.y)
+    ctx.moveTo(shoulderX, shoulderY); ctx.lineTo(armR.x, armR.y)
+    ctx.stroke()
+    ctx.beginPath()
+    ctx.moveTo(fx, hipY); ctx.lineTo(legL.x, legL.y)
+    ctx.moveTo(fx, hipY); ctx.lineTo(legR.x, legR.y)
+    ctx.stroke()
+    if (weapon) {
+      ctx.strokeStyle = '#e8e2d0'
+      ctx.lineWidth = lw * 0.8
+      ctx.beginPath(); ctx.moveTo(armR.x, armR.y); ctx.lineTo(weapon.x, weapon.y); ctx.stroke()
+    }
+    ctx.restore()
   }
 
   private drawGlow(renderer: Renderer, cameraX: number): void {
@@ -959,29 +1019,8 @@ class CastleActor {
     ctx.restore()
   }
 
-  private shouldDrawJuliusWhipExtension(frame: number): boolean {
-    return this.def.id === 'juliusBelmont' && this.state === 'attack' && (frame === 2 || frame === 3)
-  }
-
   private shouldUseHitInvulnerability(): boolean {
-    return this.def.id === 'juliusBelmont'
-  }
-
-  private renderScale(): number {
-    if (this.def.id === 'juliusBelmont' && this.state === 'attack') return 0.84 * ACTOR_SCALE
-    return this.def.visual.scale * ACTOR_SCALE
-  }
-
-  private renderAnchorY(): number {
-    if (this.def.id === 'juliusBelmont' && this.state === 'attack') return 98
-    return this.def.visual.anchorY
-  }
-
-  private renderAttackShiftX(frame: number): number {
-    if ((this.def.id !== 'skeleton' && this.def.id !== 'armoredSkeleton') || this.state !== 'attack') return 0
-    if (frame <= 2) return 0
-    if (frame === 3) return 6
-    return 0
+    return this.def.isHero === true
   }
 
   hurtbox(): Rect {
@@ -999,16 +1038,6 @@ class CastleActor {
     this.moveSpeedMultiplier = value
   }
 
-  private currentSheet(): SpriteSheet {
-    const s = this.sheets
-    if (this.state === 'attack') return this.attackMove?.animKey === 'attack2' ? s.attack2 : s.attack1
-    if (this.state === 'dash') return s.run
-    if (this.state === 'jump') return s.jump
-    if (this.state === 'fall') return s.fall
-    if (this.state === 'hurt') return s.takeHit
-    if (this.state === 'death') return s.death
-    return this.state === 'run' ? s.run : s.idle
-  }
 }
 
 function buildSpriteSet(def: CharacterDef, assets: AssetManager): SpriteSet {
@@ -2793,7 +2822,7 @@ export class CampaignScene extends Scene {
     ctx.fillText('LEVEL UP', this.ctx.width / 2, 150)
     ctx.fillStyle = '#e8d4a0'
     ctx.font = '9px "Press Start 2P", monospace'
-    ctx.fillText(`JULIUS REACHES LEVEL ${this.save.level}`, this.ctx.width / 2, 176)
+    ctx.fillText(`${CAMPAIGN_HERO.name} REACHES LEVEL ${this.save.level}`, this.ctx.width / 2, 176)
     ctx.restore()
   }
 
@@ -2919,7 +2948,7 @@ export class CampaignScene extends Scene {
     ctx.textBaseline = 'middle'
     ctx.fillStyle = '#e8d4a0'
     ctx.font = '20px "Press Start 2P", monospace'
-    ctx.fillText('JULIUS FALLS', this.ctx.width / 2, this.ctx.height / 2 - 32)
+    ctx.fillText(`${CAMPAIGN_HERO.name} FALLS`, this.ctx.width / 2, this.ctx.height / 2 - 32)
     ctx.fillStyle = '#8a8aa0'
     ctx.font = '9px "Press Start 2P", monospace'
     ctx.fillText('J RETRY     K TITLE', this.ctx.width / 2, this.ctx.height / 2 + 18)
@@ -3215,7 +3244,7 @@ export class CampaignScene extends Scene {
     ctx.fillText('MENU', width / 2, py + 32)
     ctx.fillStyle = '#8a8aa0'
     ctx.font = '8px "Press Start 2P", monospace'
-    ctx.fillText(`JULIUS   LV ${this.save.level}   ${this.save.gold}G`, width / 2, py + 58)
+    ctx.fillText(`${CAMPAIGN_HERO.name}   LV ${this.save.level}   ${this.save.gold}G`, width / 2, py + 58)
     ctx.font = '13px "Press Start 2P", monospace'
     MENU_ITEMS.forEach((item, i) => {
       const iy = py + 104 + i * 38
@@ -3247,7 +3276,7 @@ export class CampaignScene extends Scene {
     ctx.textBaseline = 'top'
     ctx.fillStyle = '#e8d4a0'
     ctx.font = '18px "Press Start 2P", monospace'
-    ctx.fillText('JULIUS  —  STATUS', width / 2, 56)
+    ctx.fillText(`${CAMPAIGN_HERO.name}  —  STATUS`, width / 2, 56)
 
     // Left column: computed stats.
     ctx.textAlign = 'left'
@@ -3657,13 +3686,16 @@ function projectileBox(projectile: ProjectileRuntime): Rect {
 }
 
 function renderProjectile(projectile: ProjectileRuntime, renderer: Renderer, cameraX: number): void {
-  const spec = projectile.spawn.move.projectile
-  if (!spec) return
-  const x = projectile.spawn.facing === 1
-    ? projectile.position.x - cameraX
-    : projectile.position.x - cameraX - projectile.sheet.frameWidth * spec.scale
-  const y = projectile.position.y - projectile.sheet.frameHeight * spec.scale
-  drawSprite(renderer, projectile.sheet, projectile.animator.currentFrame, x, y, spec.scale, projectile.spawn.facing)
+  if (!projectile.spawn.move.projectile) return
+  const { ctx } = renderer
+  const x = projectile.position.x - cameraX
+  const y = projectile.position.y - projectile.sheet.frameHeight * 0.4
+  ctx.save()
+  ctx.translate(x, y)
+  ctx.rotate(projectile.animator.currentFrame * 0.9)
+  ctx.fillStyle = '#e0dac6'
+  ctx.fillRect(-9, -2, 18, 4) // a small tumbling shard
+  ctx.restore()
 }
 
 function updateSubweapon(subweapon: SubweaponRuntime): void {

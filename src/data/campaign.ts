@@ -1,5 +1,5 @@
 import type { CharacterDef } from './characters/CharacterDef.ts'
-import { armoredSkeleton, bigGolem, boneThrower, chaos, creakingSkull, death, ghoul, greatArmor, headhunter, juliusBelmont, legion, manticore, skeleton, zombie } from './characters/castlevaniaCampaign.ts'
+import { armoredSkeleton, bigGolem, boneThrower, chaos, creakingSkull, death, ghoul, greatArmor, headhunter, grey, legion, manticore, skeleton, zombie } from './characters/castlevaniaCampaign.ts'
 import type { StageId } from './stages.ts'
 import { RELIC_POOL, type RelicId } from './relics.ts'
 import { SOUL_POOL } from './souls.ts'
@@ -103,7 +103,7 @@ export interface CampaignBattleSeed {
   nodeId: string
 }
 
-export const CAMPAIGN_HERO = juliusBelmont
+export const CAMPAIGN_HERO = grey
 
 export const CAMPAIGN_CHAPTERS: readonly CampaignChapterDef[] = [
   {
@@ -111,9 +111,9 @@ export const CAMPAIGN_CHAPTERS: readonly CampaignChapterDef[] = [
     year: 1997,
     title: 'Castle Corridor',
     intro:
-      'The gate opens onto the long corridor that runs like a spine through the castle. Young Julius steps inside, and the doors seal behind him.',
+      'The gate opens onto the long corridor that runs like a spine through the castle. Young Red steps inside, and the doors seal behind him.',
     outro:
-      'The corridor is his. Julius reads the castle now: it is not a ruin, but a machine, and every hall feeds toward its heart.',
+      'The corridor is his. Red reads the castle now: it is not a ruin, but a machine, and every hall feeds toward its heart.',
     nodeIds: ['cor-entrance', 'cor-grand', 'cor-alcove', 'cor-skull'],
   },
   {
@@ -123,7 +123,7 @@ export const CAMPAIGN_CHAPTERS: readonly CampaignChapterDef[] = [
     intro:
       'Below the corridor the stone gives way to black water. The reservoir drinks the light and hides whatever the castle wants kept.',
     outro:
-      'Julius drains the reservoir of its keepers and climbs back toward air, colder than when he went down.',
+      'Red drains the reservoir of its keepers and climbs back toward air, colder than when he went down.',
     nodeIds: ['res-descent', 'res-cistern', 'res-golem'],
   },
   {
@@ -131,7 +131,7 @@ export const CAMPAIGN_CHAPTERS: readonly CampaignChapterDef[] = [
     year: 1997,
     title: 'Chapel',
     intro:
-      'A chapel the castle built to mock the ones it burned. Its candles light for no god Julius would name.',
+      'A chapel the castle built to mock the ones it burned. Its candles light for no god Red would name.',
     outro:
       'The chapel falls silent. Whatever prayed here is dead, and the thing in the rafters with it.',
     nodeIds: ['chp-nave', 'chp-loft', 'chp-manticore'],
@@ -143,7 +143,7 @@ export const CAMPAIGN_CHAPTERS: readonly CampaignChapterDef[] = [
     intro:
       'Shelves of black glass and stolen scripture. The castle keeps a library of everyone it plans to become.',
     outro:
-      'Julius takes what the study will not miss and moves deeper, one more secret ahead of the war.',
+      'Red takes what the study will not miss and moves deeper, one more secret ahead of the war.',
     nodeIds: ['std-reading', 'std-archive'],
   },
   {
@@ -153,7 +153,7 @@ export const CAMPAIGN_CHAPTERS: readonly CampaignChapterDef[] = [
     intro:
       'A ballroom for a court that never arrives. The music plays anyway, and the armor along the walls remembers how to move.',
     outro:
-      'The last dancer is broken plate on the marble. Julius crosses the empty floor to the far door.',
+      'The last dancer is broken plate on the marble. Red crosses the empty floor to the far door.',
     nodeIds: ['dnc-ballroom', 'dnc-greatarmor'],
   },
   {
@@ -163,7 +163,7 @@ export const CAMPAIGN_CHAPTERS: readonly CampaignChapterDef[] = [
     intro:
       'Past the public halls the castle keeps its private rooms — narrow, watchful, and hungry for anyone who wanders in.',
     outro:
-      'The quarters give up their stalker and their secrets. Julius is nearer the top than the castle would like.',
+      'The quarters give up their stalker and their secrets. Red is nearer the top than the castle would like.',
     nodeIds: ['inr-servants', 'inr-headhunter'],
   },
   {
@@ -173,7 +173,7 @@ export const CAMPAIGN_CHAPTERS: readonly CampaignChapterDef[] = [
     intro:
       'The great clock keeps a time that is not this year. Its gears count down to a war two years away, and something patient waits at the top.',
     outro:
-      'The clock stops. At its summit Julius meets Death and walks away — the only answer that has ever mattered.',
+      'The clock stops. At its summit Red meets Death and walks away — the only answer that has ever mattered.',
     nodeIds: ['clk-ascent', 'clk-death'],
   },
   {
@@ -193,7 +193,7 @@ export const CAMPAIGN_CHAPTERS: readonly CampaignChapterDef[] = [
     intro:
       'The highest halls, where the castle stops pretending to be a place and starts being a threat. The air itself leans on him.',
     outro:
-      'Julius crosses the last of the keep. Beyond the final door there is only the forbidden heart, and the thing that made all of this.',
+      'Red crosses the last of the keep. Beyond the final door there is only the forbidden heart, and the thing that made all of this.',
     nodeIds: ['top-keep', 'top-antechamber'],
   },
   {
@@ -201,9 +201,9 @@ export const CAMPAIGN_CHAPTERS: readonly CampaignChapterDef[] = [
     year: 1997,
     title: 'Forbidden Area',
     intro:
-      'The room the castle keeps for itself. Young Julius steps through, two years early, to look the coming war in the face.',
+      'The room the castle keeps for itself. Young Red steps through, two years early, to look the coming war in the face.',
     outro:
-      'Julius walks back out of a castle that was never there, alive and marked by it. He is not ready for Dracula. But now he knows exactly what he will have to become.',
+      'Red walks back out of a castle that was never there, alive and marked by it. He is not ready for Dracula. But now he knows exactly what he will have to become.',
     nodeIds: ['fbd-gate', 'fbd-chaos'],
   },
 ]
@@ -217,7 +217,7 @@ export const CAMPAIGN_NODES: readonly CampaignNodeDef[] = [
     title: 'Entrance Hall',
     blurb: 'The mouth of the corridor, where the castle first shows its teeth.',
     story:
-      'The doors seal behind Julius and the corridor stretches away into torchlight. The first defenders test him before he has taken ten steps.',
+      'The doors seal behind Red and the corridor stretches away into torchlight. The first defenders test him before he has taken ten steps.',
     stage: 'outer_wall',
     enemy: skeleton,
     difficulty: 'easy',
@@ -231,7 +231,7 @@ export const CAMPAIGN_NODES: readonly CampaignNodeDef[] = [
     title: 'Grand Corridor',
     blurb: 'A vaulted run of the spine hall, long enough to see trouble coming.',
     story:
-      'The grand corridor opens up, all pillars and long sightlines. Julius uses the space the way a Belmont should — and finds a stair climbing off into the dark.',
+      'The grand corridor opens up, all pillars and long sightlines. Red uses the space the way a Belmont should — and finds a stair climbing off into the dark.',
     stage: 'outer_wall',
     enemy: skeleton,
     extraEnemies: [{ def: zombie, count: 1 }],
@@ -246,7 +246,7 @@ export const CAMPAIGN_NODES: readonly CampaignNodeDef[] = [
     title: 'Corridor Alcove',
     blurb: 'A side alcove off the corridor, stacked with the castle’s spare dead.',
     story:
-      'A dead-end alcove hides a knot of the risen. Julius clears it so nothing follows him up the spine, then returns to the hall.',
+      'A dead-end alcove hides a knot of the risen. Red clears it so nothing follows him up the spine, then returns to the hall.',
     stage: 'outer_wall',
     enemy: zombie,
     extraEnemies: [{ def: ghoul, count: 1 }],
@@ -261,7 +261,7 @@ export const CAMPAIGN_NODES: readonly CampaignNodeDef[] = [
     title: 'Sentinel Gate',
     blurb: 'The corridor’s far gate, held by a giant of stacked bone.',
     story:
-      'At the end of the corridor a colossus of bone unfolds to block the way. Julius breaks the Creaking Skull apart and the spine of the castle is his.',
+      'At the end of the corridor a colossus of bone unfolds to block the way. Red breaks the Creaking Skull apart and the spine of the castle is his.',
     stage: 'outer_wall',
     enemy: creakingSkull,
     difficulty: 'hard',
@@ -292,7 +292,7 @@ export const CAMPAIGN_NODES: readonly CampaignNodeDef[] = [
     title: 'Sunken Cistern',
     blurb: 'A drowned cistern off the main pool, where the water never quite stills.',
     story:
-      'A flooded side chamber hoards the castle’s overflow. Julius wades it and cuts down the iron thing left to guard the dark.',
+      'A flooded side chamber hoards the castle’s overflow. Red wades it and cuts down the iron thing left to guard the dark.',
     stage: 'catacombs',
     enemy: zombie,
     extraEnemies: [{ def: armoredSkeleton, count: 1 }],
@@ -307,7 +307,7 @@ export const CAMPAIGN_NODES: readonly CampaignNodeDef[] = [
     title: 'Reservoir Heart',
     blurb: 'The deepest pool, where a flooded colossus stands watch.',
     story:
-      'At the reservoir’s heart a Big Golem rises streaming water. Julius fights it in the shallows until the giant comes apart like wet clay.',
+      'At the reservoir’s heart a Big Golem rises streaming water. Red fights it in the shallows until the giant comes apart like wet clay.',
     stage: 'catacombs',
     enemy: bigGolem,
     difficulty: 'hard',
@@ -323,7 +323,7 @@ export const CAMPAIGN_NODES: readonly CampaignNodeDef[] = [
     title: 'Chapel Nave',
     blurb: 'A false sanctuary of black candles and long, cold pews.',
     story:
-      'The chapel apes a holy place and gets every detail wrong. Julius walks its nave and the congregation of the dead rises to meet him.',
+      'The chapel apes a holy place and gets every detail wrong. Red walks its nave and the congregation of the dead rises to meet him.',
     stage: 'cathedral',
     enemy: skeleton,
     extraEnemies: [{ def: ghoul, count: 1 }, { def: boneThrower, count: 1 }],
@@ -338,7 +338,7 @@ export const CAMPAIGN_NODES: readonly CampaignNodeDef[] = [
     title: 'Bell Loft',
     blurb: 'The choir loft above the nave, hung with bells that toll on their own.',
     story:
-      'Up a narrow stair the bell loft rings without hands. Julius silences its marksmen and the toll dies in the rafters.',
+      'Up a narrow stair the bell loft rings without hands. Red silences its marksmen and the toll dies in the rafters.',
     stage: 'cathedral',
     enemy: skeleton,
     extraEnemies: [{ def: boneThrower, count: 1 }],
@@ -353,7 +353,7 @@ export const CAMPAIGN_NODES: readonly CampaignNodeDef[] = [
     title: 'Rafter Nest',
     blurb: 'The high vault of the chapel, where a winged horror has made its nest.',
     story:
-      'In the chapel’s highest vault the Manticore drops from the dark on leathered wings. Julius answers it with the whip and does not look away.',
+      'In the chapel’s highest vault the Manticore drops from the dark on leathered wings. Red answers it with the whip and does not look away.',
     stage: 'cathedral',
     enemy: manticore,
     difficulty: 'hard',
@@ -369,7 +369,7 @@ export const CAMPAIGN_NODES: readonly CampaignNodeDef[] = [
     title: 'Reading Room',
     blurb: 'A hall of shelves where the castle keeps its stolen books.',
     story:
-      'The study hoards scripture the castle plans to unwrite. Julius reads enough to know the war’s shape and cuts down its keepers.',
+      'The study hoards scripture the castle plans to unwrite. Red reads enough to know the war’s shape and cuts down its keepers.',
     stage: 'library',
     enemy: zombie,
     extraEnemies: [{ def: ghoul, count: 1 }, { def: boneThrower, count: 1 }],
@@ -384,7 +384,7 @@ export const CAMPAIGN_NODES: readonly CampaignNodeDef[] = [
     title: 'Hidden Archive',
     blurb: 'A sealed record room where the final name in the war is written down.',
     story:
-      'Behind the study lies the archive, and in it the name the cult has been circling for years. Julius commits it to memory and burns the rest.',
+      'Behind the study lies the archive, and in it the name the cult has been circling for years. Red commits it to memory and burns the rest.',
     stage: 'library',
     enemy: skeleton,
     extraEnemies: [{ def: armoredSkeleton, count: 1 }],
@@ -400,7 +400,7 @@ export const CAMPAIGN_NODES: readonly CampaignNodeDef[] = [
     title: 'Ballroom',
     blurb: 'A mirrored floor for a dance that never happened, and never stops.',
     story:
-      'The ballroom’s music swells for no one. Julius crosses the mirrored floor while the castle’s idea of guests circles him.',
+      'The ballroom’s music swells for no one. Red crosses the mirrored floor while the castle’s idea of guests circles him.',
     stage: 'throne_room',
     enemy: skeleton,
     extraEnemies: [{ def: ghoul, count: 2 }],
@@ -415,7 +415,7 @@ export const CAMPAIGN_NODES: readonly CampaignNodeDef[] = [
     title: 'Hall of Plate',
     blurb: 'The far end of the ballroom, lined with armor that remembers the guard.',
     story:
-      'At the ballroom’s end the ceremonial Great Armor steps off its dais, empty and exact. Julius breaks the plate one heavy blow at a time.',
+      'At the ballroom’s end the ceremonial Great Armor steps off its dais, empty and exact. Red breaks the plate one heavy blow at a time.',
     stage: 'throne_room',
     enemy: greatArmor,
     difficulty: 'hard',
@@ -431,7 +431,7 @@ export const CAMPAIGN_NODES: readonly CampaignNodeDef[] = [
     title: 'Servants’ Passage',
     blurb: 'Cramped back-halls the castle uses to move its dead unseen.',
     story:
-      'The servants’ passages twist behind the walls, narrow and watchful. Julius fights through them with no room to run.',
+      'The servants’ passages twist behind the walls, narrow and watchful. Red fights through them with no room to run.',
     stage: 'cathedral',
     enemy: zombie,
     extraEnemies: [{ def: ghoul, count: 1 }, { def: boneThrower, count: 1 }],
@@ -446,7 +446,7 @@ export const CAMPAIGN_NODES: readonly CampaignNodeDef[] = [
     title: 'Private Chambers',
     blurb: 'The heart of the quarters, where a trophy-taker keeps its collection.',
     story:
-      'In the deepest chamber the Headhunter turns, its wall of stolen heads watching. Julius refuses to become another and cuts it down.',
+      'In the deepest chamber the Headhunter turns, its wall of stolen heads watching. Red refuses to become another and cuts it down.',
     stage: 'cathedral',
     enemy: headhunter,
     difficulty: 'hard',
@@ -462,7 +462,7 @@ export const CAMPAIGN_NODES: readonly CampaignNodeDef[] = [
     title: 'Gear Ascent',
     blurb: 'A vertical climb through turning gears and timed iron bridges.',
     story:
-      'The clock tower is a gauntlet of moving iron over a long drop. Julius times the gears and climbs while the castle tries to grind him off them.',
+      'The clock tower is a gauntlet of moving iron over a long drop. Red times the gears and climbs while the castle tries to grind him off them.',
     stage: 'clock_tower',
     enemy: skeleton,
     extraEnemies: [{ def: boneThrower, count: 1 }, { def: ghoul, count: 1 }],
@@ -477,7 +477,7 @@ export const CAMPAIGN_NODES: readonly CampaignNodeDef[] = [
     title: 'Clock Summit',
     blurb: 'The top of the clock, where the castle’s oldest servant waits.',
     story:
-      'At the summit Death is already waiting, scythe idle, patient as the gears below. Julius meets the reaper two years early and lives to keep climbing.',
+      'At the summit Death is already waiting, scythe idle, patient as the gears below. Red meets the reaper two years early and lives to keep climbing.',
     stage: 'clock_tower',
     enemy: death,
     difficulty: 'hard',
@@ -493,7 +493,7 @@ export const CAMPAIGN_NODES: readonly CampaignNodeDef[] = [
     title: 'Hanging Garden',
     blurb: 'A garden strung in the open air, its paths hung over nothing.',
     story:
-      'The garden floats on nothing, its beds spilling over a bottomless drop. Julius fights across it while the wind pulls at every step.',
+      'The garden floats on nothing, its beds spilling over a bottomless drop. Red fights across it while the wind pulls at every step.',
     stage: 'outer_wall',
     enemy: skeleton,
     extraEnemies: [{ def: boneThrower, count: 2 }],
@@ -508,7 +508,7 @@ export const CAMPAIGN_NODES: readonly CampaignNodeDef[] = [
     title: 'Sky Bridge',
     blurb: 'A span of pale light crossing the drop to a dead-end terrace.',
     story:
-      'A bridge of light arcs off to a lonely terrace. Julius crosses it to break the archers picking at the garden from afar.',
+      'A bridge of light arcs off to a lonely terrace. Red crosses it to break the archers picking at the garden from afar.',
     stage: 'outer_wall',
     enemy: skeleton,
     extraEnemies: [{ def: armoredSkeleton, count: 1 }],
@@ -523,7 +523,7 @@ export const CAMPAIGN_NODES: readonly CampaignNodeDef[] = [
     title: 'Garden Height',
     blurb: 'The garden’s summit, where a single body of many holds the sky.',
     story:
-      'At the garden’s height Legion drifts into view, a knot of the dead woven into one. Julius carves it down until nothing is left to rise.',
+      'At the garden’s height Legion drifts into view, a knot of the dead woven into one. Red carves it down until nothing is left to rise.',
     stage: 'outer_wall',
     enemy: legion,
     difficulty: 'hard',
@@ -539,7 +539,7 @@ export const CAMPAIGN_NODES: readonly CampaignNodeDef[] = [
     title: 'Upper Keep',
     blurb: 'The castle’s highest halls, where the air itself pushes back.',
     story:
-      'The upper keep barely pretends to be a building now. Julius holds his ground against everything the castle can still spare.',
+      'The upper keep barely pretends to be a building now. Red holds his ground against everything the castle can still spare.',
     stage: 'throne_room',
     enemy: skeleton,
     extraEnemies: [{ def: armoredSkeleton, count: 1 }, { def: boneThrower, count: 1 }],
@@ -554,7 +554,7 @@ export const CAMPAIGN_NODES: readonly CampaignNodeDef[] = [
     title: 'Antechamber',
     blurb: 'The last room before the forbidden door, thick with the castle’s dead.',
     story:
-      'The antechamber is the castle’s final held breath. Julius clears the last of its defenders and faces the door it never meant to open.',
+      'The antechamber is the castle’s final held breath. Red clears the last of its defenders and faces the door it never meant to open.',
     stage: 'throne_room',
     enemy: zombie,
     extraEnemies: [{ def: ghoul, count: 2 }, { def: boneThrower, count: 1 }],
@@ -570,7 +570,7 @@ export const CAMPAIGN_NODES: readonly CampaignNodeDef[] = [
     title: 'Forbidden Gate',
     blurb: 'The threshold of the room the castle keeps only for itself.',
     story:
-      'The forbidden gate stands open for the first time in a hundred years. Julius steps to the threshold and the guardians of the heart close ranks.',
+      'The forbidden gate stands open for the first time in a hundred years. Red steps to the threshold and the guardians of the heart close ranks.',
     stage: 'throne_room',
     enemy: skeleton,
     extraEnemies: [{ def: armoredSkeleton, count: 1 }, { def: ghoul, count: 1 }],
@@ -585,7 +585,7 @@ export const CAMPAIGN_NODES: readonly CampaignNodeDef[] = [
     title: 'Chaotic Realm',
     blurb: 'The forbidden heart, where the castle keeps the shape of the war to come.',
     story:
-      'In the forbidden heart the war itself gathers a shape and calls itself Chaos. Julius fights the thing Dracula will one day be, two years too soon, and refuses to fall.',
+      'In the forbidden heart the war itself gathers a shape and calls itself Chaos. Red fights the thing Dracula will one day be, two years too soon, and refuses to fall.',
     stage: 'throne_room',
     enemy: chaos,
     difficulty: 'hard',

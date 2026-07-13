@@ -52,4 +52,8 @@ export interface CharacterDef {
   sprites: Record<AnimName, SpriteDef>
   visual: FighterVisual
   moves: Moveset
+  /** Body colour for the placeholder stick-figure renderer. */
+  color?: string
+  /** A player-controlled character (gets hit invulnerability, etc.). */
+  isHero?: boolean
 }
