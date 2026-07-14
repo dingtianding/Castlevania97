@@ -144,8 +144,8 @@ const BIG_HIT_FLASH_TICKS = 10
 const SPIKE_DAMAGE = 14
 const CRUMBLE_DELAY = 40
 const CRUMBLE_RESPAWN = 150
-const DEATH_HOLD_TICKS = 44 // let the death animation play, then fade the corpse
-const DEATH_FADE_TICKS = 22
+const DEATH_HOLD_TICKS = 4 // brief crumple, then a quick fade so kills despawn fast
+const DEATH_FADE_TICKS = 10
 const DEFEAT_RETRY_TICKS = 120
 const BOSS_INTRO_TICKS = 120 // cinematic name-reveal pause when a boss room starts
 // Global shrink applied uniformly to every campaign actor's on-screen size and
@@ -412,6 +412,12 @@ class CastleActor {
   meterGainMultiplier = 1
   isBoss = false
   rangedAttacker = false
+  /** Ground-spawn emerge: counts down while the enemy rises out of the floor. */
+  riseTicks = 0
+  riseMax = 1
+  /** Wander AI state (shambling enemies): current move (-1/0/1) and its timer. */
+  wanderMove: -1 | 0 | 1 = 0
+  wanderTicks = 0
   private pendingRangedShot: { x: number; y: number; facing: Facing } | null = null
   grounded = true
   facing: Facing
@@ -488,7 +494,7 @@ class CastleActor {
   }
 
   get canBeHit(): boolean {
-    return this.state !== 'death' && this.invulnerableTicks <= 0
+    return this.state !== 'death' && this.invulnerableTicks <= 0 && this.riseTicks <= 0
   }
 
   get isEnraged(): boolean {
@@ -889,6 +895,16 @@ class CastleActor {
     const { ctx } = renderer
     const fx = this.position.x - cameraX
     const fy = this.position.y
+    if (this.riseTicks > 0) {
+      // Emerge from the floor: the figure rises out of the ground, clipped at it.
+      const prog = 1 - this.riseTicks / this.riseMax
+      const H = this.def.visual.hurtbox.height * ACTOR_SCALE * 1.3
+      ctx.save()
+      ctx.beginPath(); ctx.rect(fx - 130, FLOOR_Y - 4000, 260, 4000); ctx.clip()
+      this.drawStick(ctx, fx, fy + (1 - prog) * H)
+      ctx.restore()
+      return
+    }
     let alpha = 1
     if (this.state === 'death') {
       if (this.deathTicks >= DEATH_HOLD_TICKS + DEATH_FADE_TICKS) return
@@ -1459,6 +1475,7 @@ export class CampaignScene extends Scene {
 
     for (const enemy of this.enemies) {
       if (enemy.isDead) continue
+      if (enemy.riseTicks > 0) { enemy.riseTicks -= 1; continue } // still emerging from the floor
       if (this.enemyFreezeTicks > 0) continue
       const ai = enemyIntent(enemy, this.player, this.node, this.ctx.rng)
       enemy.update(ai, this.player.position.x, this.layout.platforms)
@@ -2022,9 +2039,10 @@ export class CampaignScene extends Scene {
   private spawnBone(shot: { x: number; y: number; facing: Facing }): void {
     this.enemyBones.push({
       position: { x: shot.x, y: shot.y },
-      velocity: { x: shot.facing * BONE_SPEED, y: -3.4 },
+      // Lobbed high: mostly upward with a little drift, so it arcs up and rains down.
+      velocity: { x: shot.facing * BONE_SPEED * 0.55, y: -8.6 },
       spin: 0,
-      ticksLeft: 110,
+      ticksLeft: 150,
       hasHit: false,
     })
     this.ctx.audio.swing()
@@ -2085,6 +2103,7 @@ export class CampaignScene extends Scene {
       const result = grantCampaignRewards(this.save, reward.xp, reward.gold)
       this.save = result.save
       const hurt = enemy.hurtbox()
+      this.spawnDeathPoof(hurt.x + hurt.width / 2, hurt.y + hurt.height * 0.5)
       this.spawnFloatingText(hurt.x + hurt.width / 2, hurt.y - 6, `+${reward.xp} XP`, '#b7c7e6')
       if (result.levelsGained > 0) this.onLevelUp(result.levelsGained)
       this.tryDropSoul(enemy, hurt)
@@ -2373,6 +2392,21 @@ export class CampaignScene extends Scene {
 
   /** A candle bursting apart: pale wax shards flung outward plus a couple of
    *  guttering flame sparks. Purely cosmetic feedback for the break. */
+  /** A puff of dust when a defeated enemy despawns. */
+  private spawnDeathPoof(x: number, y: number): void {
+    const rng = this.ctx.rng
+    for (let i = 0; i < 9; i += 1) {
+      const life = 14 + Math.floor(rng.next() * 12)
+      this.particles.push({
+        position: { x: x + (rng.next() - 0.5) * 24, y: y + (rng.next() - 0.5) * 30 },
+        velocity: { x: (rng.next() - 0.5) * 3.4, y: -1 - rng.next() * 2.4 },
+        ticksLeft: life, life, size: 2 + Math.floor(rng.next() * 2),
+        color: rng.next() < 0.5 ? '#8a8496' : '#b0aaa0',
+        gravity: 0.12,
+      })
+    }
+  }
+
   private spawnCandleBreak(x: number, y: number): void {
     const rng = this.ctx.rng
     for (let i = 0; i < 7; i += 1) {
@@ -3528,7 +3562,8 @@ function buildEnemies(node: ReturnType<typeof getCampaignNode>, assets: AssetMan
       const x = slots[slot] ?? layout.doorX - 200
       const enemy = new CastleActor(group.def, assets, x, layout.checkpointY, -1, campaignEnemySpeed(group.def.id))
       enemy.setMaxHealth(campaignEnemyHealth(group.def.id, node.difficulty))
-      if (group.def.id === 'boneThrower') enemy.rangedAttacker = true
+      if (group.def.id === 'boneThrower' || group.def.id === 'skeleton') enemy.rangedAttacker = true
+      if (group.def.id === 'zombie') { enemy.riseTicks = 20 + slot * 12; enemy.riseMax = enemy.riseTicks }
       enemies.push(enemy)
       slot += 1
     }
@@ -3590,8 +3625,17 @@ function enemyIntent(enemy: CastleActor, player: CastleActor, node: ReturnType<t
   const kind = enemy.def.id
 
   if (kind === 'zombie') {
-    if (dist > 92) intent.moveX = dir
-    else if (enemy.currentMove === null) intent.lightPressed = true
+    // Shambles aimlessly — wanders and pauses, never targets the player. Its
+    // threat is contact, not pursuit.
+    enemy.wanderTicks -= 1
+    if (enemy.wanderTicks <= 0) {
+      const r = rng.next()
+      enemy.wanderMove = r < 0.35 ? 0 : r < 0.675 ? -1 : 1
+      enemy.wanderTicks = 50 + Math.floor(rng.next() * 110)
+    }
+    if (enemy.position.x <= WALL_MARGIN + 40) enemy.wanderMove = 1
+    else if (enemy.position.x >= enemy.roomWidth - WALL_MARGIN - 40) enemy.wanderMove = -1
+    intent.moveX = enemy.wanderMove
     return intent
   }
 
@@ -3626,14 +3670,9 @@ function enemyIntent(enemy: CastleActor, player: CastleActor, node: ReturnType<t
   }
 
   if (kind === 'skeleton') {
-    if (dist > 156) intent.moveX = dir
-    else if (dist > 90) {
-      intent.moveX = dir
-      if (enemy.grounded && rng.next() < 0.02) intent.jumpPressed = true
-    } else if (enemy.currentMove === null) {
-      if (dist < 78 || node.difficulty === 'hard') intent.heavyPressed = true
-      else intent.lightPressed = true
-    }
+    // Bone Soldier: holds its ground and lobs bones in a high arc — no chasing.
+    intent.moveX = 0
+    if (enemy.currentMove === null && dist < 560) intent.lightPressed = true
     return intent
   }
 
