@@ -5492,13 +5492,10 @@ function addVerticalPassages(layout: RoomLayout, doors: Record<MapDir, boolean>)
     // Climb to the top door. The doorstep sits at the room's top edge, so in a
     // tall room the shaft is correspondingly taller — the staircase and the
     // zig-zag jump-ledges both scale to reach it.
+    // Stairs removed for now — climb the zig-zag jump-ledges to the top door.
     const doorstepY = layout.top + 150
-    const totalRise = FLOOR_Y - doorstepY
-    const run = 30
-    const steps = Math.max(4, Math.round(totalRise / 34))
-    layout.stairs.push({ x: px - steps * run, y: FLOOR_Y, dir: 1, steps, run, rise: totalRise / steps })
     let side = 1
-    for (let y = FLOOR_Y - 88; y > doorstepY + 40; y -= 86) {
+    for (let y = FLOOR_Y - 78; y > doorstepY + 40; y -= 76) {
       layout.platforms.push({ x: px + (side > 0 ? 40 : -190), y, width: 150, height: 12 })
       side = -side
     }
@@ -5525,19 +5522,16 @@ function buildLayout(stage: string): RoomLayout {
   const base = { width: ROOM_WIDTH, top: 0, doorX: ROOM_WIDTH - 128, doorY: FLOOR_Y, checkpointX: 120, checkpointY: FLOOR_Y, stairs: [] as Stair[], barriers: [] as Barrier[], floorGap: null as { x: number; width: number } | null }
   switch (stage) {
     case 'outer_wall':
-      // The first region is a long, gently-rising corridor stair (low elevation)
-      // up to a landing, rather than a scatter of floating platforms.
+      // Stairs removed for now — flat floor with a few one-way ledges.
       return {
         ...base,
         backdrop: '#111221',
         doorX: ROOM_WIDTH - 132,
         platforms: [
           { x: 0, y: FLOOR_Y, width: ROOM_WIDTH, height: 22 },
-          // Landing at the top of the stair; the floor runs on to the far door.
-          { x: 1120, y: FLOOR_Y - 78, width: 320, height: 12 },
-        ],
-        stairs: [
-          { x: 300, y: FLOOR_Y, dir: 1, steps: 13, run: 66, rise: 6 },
+          { x: 300, y: FLOOR_Y - 96, width: 220, height: 12 },
+          { x: 700, y: FLOOR_Y - 150, width: 220, height: 12 },
+          { x: 1120, y: FLOOR_Y - 96, width: 260, height: 12 },
         ],
         hazards: [],
       }
