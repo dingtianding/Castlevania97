@@ -1,5 +1,5 @@
 import type { CharacterDef } from './characters/CharacterDef.ts'
-import { armoredSkeleton, bat, bigGolem, boneThrower, chaos, creakingSkull, death, ghoul, greatArmor, headhunter, grey, legion, manticore, skeleton, zombie } from './characters/castlevaniaCampaign.ts'
+import { armoredSkeleton, axeArmor, bat, bigGolem, boneThrower, chaos, creakingSkull, death, ghoul, greatArmor, headhunter, grey, legion, manticore, skeleton, zombie } from './characters/castlevaniaCampaign.ts'
 import type { StageId } from './stages.ts'
 import { RELIC_POOL, type RelicId } from './relics.ts'
 import { SOUL_POOL } from './souls.ts'
@@ -459,7 +459,7 @@ export const CAMPAIGN_NODES: readonly CampaignNodeDef[] = [
       'Behind the study lies the archive, and in it the name the cult has been circling for years. Red commits it to memory and burns the rest.',
     stage: 'library',
     enemy: skeleton,
-    extraEnemies: [{ def: armoredSkeleton, count: 1 }],
+    extraEnemies: [{ def: armoredSkeleton, count: 1 }, { def: axeArmor, count: 1 }],
     difficulty: 'hard',
     nextIds: ['dnc-ballroom'],
     position: { x: 460, y: 200 },
@@ -474,7 +474,7 @@ export const CAMPAIGN_NODES: readonly CampaignNodeDef[] = [
     story:
       'The ballroom’s music swells for no one. Red crosses the mirrored floor while the castle’s idea of guests circles him.',
     stage: 'throne_room',
-    enemy: skeleton,
+    enemy: axeArmor,
     extraEnemies: [{ def: ghoul, count: 2 }],
     difficulty: 'hard',
     nextIds: ['dnc-greatarmor'],

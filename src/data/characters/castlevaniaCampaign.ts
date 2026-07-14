@@ -341,6 +341,36 @@ export const armoredSkeleton: CharacterDef = {
   },
 }
 
+// Axe Sentinel — a suit of war-plate that marches in and hurls axes in a high
+// arc (spawned procedurally by CampaignScene, like the skeleton's bones). Reuses
+// the armored-skeleton frames with a steel-blue tint; up close it chops instead.
+export const axeArmor: CharacterDef = {
+  ...armoredSkeleton,
+  id: 'axeArmor',
+  name: 'AXE SENTINEL',
+  color: '#8a94a6',
+  meta: {
+    ...armoredSkeleton.meta,
+    archetype: 'PLATED AXE-HURLER',
+    bio: 'A walking suit of war-plate that lobs axes in a high arc and chops anyone who closes the distance.',
+    moveNames: { light: 'Axe Throw', heavy: 'Axe Chop', special: 'Iron Charge', super: 'Siege Break' },
+  },
+  moves: {
+    light: {
+      id: 'axe-throw', animKey: 'attack2',
+      startup: 16, active: 6, recovery: 22, damage: 10, knockbackX: 7, knockbackY: -5, hitstop: 7,
+      hitbox: { forward: 20, top: 122, width: 92, height: 74 },
+    },
+    heavy: {
+      id: 'axe-chop', animKey: 'attack1',
+      startup: 16, active: 7, recovery: 24, damage: 16, knockbackX: 11, knockbackY: -7, hitstop: 10,
+      hitbox: { forward: 22, top: 120, width: 122, height: 92 },
+    },
+    special: armoredSkeleton.moves.special,
+    super: armoredSkeleton.moves.super,
+  },
+}
+
 // Ghoul — a fast, fragile zombie variant that rushes in and swarms. Reuses the
 // zombie sheets with a sickly green glow so groups read as a distinct threat.
 export const ghoul: CharacterDef = {

@@ -378,6 +378,9 @@ interface EnemyBone {
   spin: number
   ticksLeft: number
   hasHit: boolean
+  /** Which projectile this is (drives the drawing and damage). */
+  kind: 'bone' | 'axe'
+  damage: number
 }
 
 // Aria-of-Sorrow-style magic: the special meter doubles as MP, spent to cast a
@@ -407,12 +410,15 @@ const SOUL_HIT_LIMIT = 3
 const SOUL_CAST_COOLDOWN = 22
 
 const BONE_DAMAGE = 8
+const AXE_DAMAGE = 12
 const BONE_SPEED = 8
 const BONE_GRAVITY = 0.2
 // Skeletons throw sparingly — ~one bone every 5s (300 ticks) plus a little jitter.
 const SKELETON_THROW_COOLDOWN = 300
 // Creaking Skull: a long pause between its big sweeps (~2.5s on top of the swing).
 const CREAKING_SKULL_ATTACK_CD = 150
+// Axe Sentinel: pause between axe throws (~1.6s + the throw animation).
+const AXE_THROW_COOLDOWN = 96
 
 // XP and gold granted when each enemy type is defeated. Bosses use a fixed
 // bounty (see campaignEnemyReward) rather than this table.
@@ -421,6 +427,7 @@ const ENEMY_REWARD: Record<string, { xp: number; gold: number }> = {
   zombie: { xp: 5, gold: 3 },
   ghoul: { xp: 4, gold: 2 },
   bat: { xp: 4, gold: 3 },
+  axeArmor: { xp: 13, gold: 9 },
   armoredSkeleton: { xp: 14, gold: 10 },
   boneThrower: { xp: 10, gold: 7 },
 }
@@ -1829,7 +1836,7 @@ export class CampaignScene extends Scene {
       const ai = enemyIntent(enemy, this.player, this.node, this.ctx.rng)
       enemy.update(ai, this.player.position.x, this.layout.platforms)
       const shot = enemy.consumeRangedShot()
-      if (shot) this.spawnBone(shot)
+      if (shot) this.spawnBone(shot, enemy.def.id === 'axeArmor' ? 'axe' : 'bone')
     }
     this.playSwingSfx()
     this.updateCrumblePlatforms()
@@ -2470,14 +2477,18 @@ export class CampaignScene extends Scene {
     }
   }
 
-  private spawnBone(shot: { x: number; y: number; facing: Facing }): void {
+  private spawnBone(shot: { x: number; y: number; facing: Facing }, kind: 'bone' | 'axe' = 'bone'): void {
+    const axe = kind === 'axe'
     this.enemyBones.push({
       position: { x: shot.x, y: shot.y },
-      // Lobbed high: mostly upward with a little drift, so it arcs up and rains down.
-      velocity: { x: shot.facing * BONE_SPEED * 0.55, y: -8.6 },
+      // Lobbed high: mostly upward with a little drift, so it arcs up and rains
+      // down. The axe is thrown flatter and faster than a bone.
+      velocity: { x: shot.facing * BONE_SPEED * (axe ? 0.85 : 0.55), y: axe ? -7.2 : -8.6 },
       spin: 0,
       ticksLeft: 150,
       hasHit: false,
+      kind,
+      damage: axe ? AXE_DAMAGE : BONE_DAMAGE,
     })
     this.ctx.audio.swing()
   }
@@ -2487,7 +2498,7 @@ export class CampaignScene extends Scene {
     const box = this.player.hurtbox()
     for (const bone of this.enemyBones) {
       if (bone.hasHit || !rectsOverlap(boneBox(bone), box)) continue
-      if (this.player.applyFlatDamage(BONE_DAMAGE, bone.position.x, -6, this.playerDamageTakenMult)) {
+      if (this.player.applyFlatDamage(bone.damage, bone.position.x, -6, this.playerDamageTakenMult)) {
         bone.hasHit = true
         this.ctx.audio.hit()
         this.hitstop = Math.max(this.hitstop, 5)
@@ -4281,7 +4292,7 @@ function buildEnemies(node: ReturnType<typeof getCampaignNode>, assets: AssetMan
       const x = isBat ? batXs[batIndex] ?? layout.doorX - 300 : slots[slot] ?? layout.doorX - 200
       const enemy = new CastleActor(group.def, assets, x, layout.checkpointY, -1, campaignEnemySpeed(group.def.id))
       enemy.setMaxHealth(campaignEnemyHealth(group.def.id, node.difficulty))
-      if (group.def.id === 'boneThrower' || group.def.id === 'skeleton') enemy.rangedAttacker = true
+      if (group.def.id === 'boneThrower' || group.def.id === 'skeleton' || group.def.id === 'axeArmor') enemy.rangedAttacker = true
       if (group.def.id === 'zombie') { enemy.riseTicks = 20 + slot * 12; enemy.riseMax = enemy.riseTicks }
       if (isBat) {
         // Roost up in the air at a staggered height; it dives when the player nears.
@@ -4304,6 +4315,7 @@ function campaignEnemyReward(enemy: CastleActor): { xp: number; gold: number } {
 
 function campaignEnemySpeed(enemyId: string): number {
   if (enemyId === 'armoredSkeleton') return 0.58
+  if (enemyId === 'axeArmor') return 0.5
   if (enemyId === 'creakingSkull') return 0.4 // a ponderous colossus
   if (enemyId === 'ghoul') return 1.02
   if (enemyId === 'boneThrower') return 0.72
@@ -4331,6 +4343,7 @@ function campaignEnemyCount(enemyId: string, difficulty: 'easy' | 'normal' | 'ha
     return 4
   }
   if (enemyId === 'zombie') return difficulty === 'hard' ? 2 : 1
+  if (enemyId === 'axeArmor') return difficulty === 'hard' ? 2 : 1
   return difficulty === 'easy' ? 1 : difficulty === 'normal' ? 2 : 3
 }
 
@@ -4338,6 +4351,7 @@ function campaignEnemyHealth(enemyId: string, difficulty: 'easy' | 'normal' | 'h
   if (enemyId === 'skeleton') return 21
   if (enemyId === 'zombie') return 6
   if (enemyId === 'bat') return 12
+  if (enemyId === 'axeArmor') return difficulty === 'hard' ? 56 : 44
   if (enemyId === 'ghoul') return 16
   if (enemyId === 'boneThrower') return 18
   if (enemyId === 'armoredSkeleton') return difficulty === 'hard' ? 96 : 78
@@ -4406,6 +4420,22 @@ function enemyIntent(enemy: CastleActor, player: CastleActor, node: ReturnType<t
     if (enemy.currentMove === null && enemy.throwCooldown <= 0 && dist < 560) {
       intent.lightPressed = true
       enemy.throwCooldown = SKELETON_THROW_COOLDOWN + Math.floor(rng.next() * 90)
+    }
+    return intent
+  }
+
+  if (kind === 'axeArmor') {
+    // Marches into mid-range and lobs axes on a cooldown; chops if you crowd it.
+    if (enemy.throwCooldown > 0) enemy.throwCooldown -= 1
+    if (dist < 104) {
+      if (enemy.currentMove === null) intent.heavyPressed = true // axe chop up close
+    } else if (dist > 360) {
+      intent.moveX = dir // close the gap
+    } else if (enemy.currentMove === null && enemy.throwCooldown <= 0) {
+      intent.lightPressed = true // throw an axe
+      enemy.throwCooldown = AXE_THROW_COOLDOWN + Math.floor(rng.next() * 40)
+    } else if (enemy.currentMove === null) {
+      intent.moveX = dir // drift closer between throws
     }
     return intent
   }
@@ -4612,9 +4642,21 @@ function drawBone(bone: EnemyBone, renderer: Renderer, cameraX: number): void {
   ctx.save()
   ctx.translate(bone.position.x - cameraX, bone.position.y)
   ctx.rotate(bone.spin)
-  ctx.fillStyle = '#e8e2cf'
   ctx.strokeStyle = '#0b0912'
   ctx.lineWidth = 1
+  if (bone.kind === 'axe') {
+    // A spinning throwing axe: wooden haft + steel head.
+    ctx.fillStyle = '#7a5230'
+    ctx.fillRect(-2, -12, 4, 24) // haft
+    ctx.strokeRect(-2, -12, 4, 24)
+    ctx.fillStyle = '#c8cdd6'
+    ctx.beginPath() // axe head
+    ctx.moveTo(2, -12); ctx.lineTo(14, -8); ctx.lineTo(14, 0); ctx.lineTo(2, -2)
+    ctx.closePath(); ctx.fill(); ctx.stroke()
+    ctx.restore()
+    return
+  }
+  ctx.fillStyle = '#e8e2cf'
   ctx.fillRect(-8, -2, 16, 4)
   ctx.strokeRect(-8, -2, 16, 4)
   ctx.fillRect(-11, -5, 6, 10)
