@@ -15,6 +15,11 @@ export const EQUIP_SLOT_LABELS: Record<EquipSlot, string> = {
 }
 
 export type EquipmentId =
+  | 'dagger'
+  | 'longSword'
+  | 'broadsword'
+  | 'lance'
+  | 'elementalSword'
   | 'shortSword'
   | 'alucardSword'
   | 'crissaegrim'
@@ -28,6 +33,25 @@ export type EquipmentId =
   | 'ringOfAres'
   | 'heartBrooch'
   | 'ringOfVlad'
+
+/** How a weapon actually swings — reach, speed, and damage of its light attack,
+ *  so each weapon type plays differently instead of only changing a stat. */
+export interface WeaponProfile {
+  /** Hitbox: distance from the fighter's centre to the near edge, and its size. */
+  reach: number
+  width: number
+  height: number
+  top: number
+  /** Timing (ticks): wind-up, live hitbox, cool-down. */
+  startup: number
+  active: number
+  recovery: number
+  damage: number
+  knockbackX: number
+  knockbackY: number
+  /** Blade colour for the stick-figure swing. */
+  color: string
+}
 
 export interface EquipmentDef {
   id: EquipmentId
@@ -43,6 +67,8 @@ export interface EquipmentDef {
   meterGainMultiplier: number
   moveSpeedMultiplier: number
   startMeterBonus: number
+  /** Weapons: the swing profile that replaces the base light attack. */
+  weapon?: WeaponProfile
 }
 
 export interface EquipmentModifiers {
@@ -64,7 +90,18 @@ const base = {
 }
 
 export const EQUIPMENT_POOL: readonly EquipmentDef[] = [
-  // Weapons — raw attack.
+  // Weapons — each swings differently (reach / speed / damage), not just a stat.
+  { ...base, id: 'dagger', name: 'Dagger', slot: 'weapon', price: 30, blurb: 'Short reach, very fast, light hits.',
+    weapon: { reach: 12, width: 66, height: 62, top: 148, startup: 3, active: 4, recovery: 7, damage: 5, knockbackX: 4, knockbackY: -3, color: '#cdd2dc' } },
+  { ...base, id: 'longSword', name: 'Long Sword', slot: 'weapon', price: 90, blurb: 'Balanced reach and speed. A dependable blade.',
+    weapon: { reach: 22, width: 108, height: 74, top: 150, startup: 6, active: 5, recovery: 13, damage: 10, knockbackX: 7, knockbackY: -4, color: '#dfe6ef' } },
+  { ...base, id: 'broadsword', name: 'Broadsword', slot: 'weapon', price: 160, blurb: 'Wide, heavy cleave. Slow but hits hard.',
+    weapon: { reach: 18, width: 130, height: 104, top: 150, startup: 12, active: 7, recovery: 22, damage: 18, knockbackX: 11, knockbackY: -6, color: '#e8dcc0' } },
+  { ...base, id: 'lance', name: 'Lance', slot: 'weapon', price: 150, blurb: 'Long thrust — great reach, narrow arc.',
+    weapon: { reach: 40, width: 158, height: 56, top: 138, startup: 8, active: 6, recovery: 17, damage: 12, knockbackX: 9, knockbackY: -3, color: '#cfd8e0' } },
+  { ...base, id: 'elementalSword', name: 'Elemental Sword', slot: 'weapon', price: 260, blurb: 'A blade wreathed in flame — strong, wide swings.',
+    weapon: { reach: 26, width: 120, height: 86, top: 150, startup: 7, active: 6, recovery: 15, damage: 15, knockbackX: 8, knockbackY: -5, color: '#ff8a4a' } },
+  // Stat weapons — flat attack boosts over the base swing.
   { ...base, id: 'shortSword', name: 'Short Sword', slot: 'weapon', price: 60, damageMultiplier: 1.08, blurb: '+8% ATTACK. A reliable starting blade.' },
   { ...base, id: 'alucardSword', name: 'Alucard Sword', slot: 'weapon', price: 180, damageMultiplier: 1.18, startMeterBonus: 8, blurb: '+18% ATTACK, start with 8 meter.' },
   { ...base, id: 'crissaegrim', name: 'Crissaegrim', slot: 'weapon', price: 380, damageMultiplier: 1.3, meterGainMultiplier: 1.1, blurb: '+30% ATTACK, +10% meter. A relic blade.' },

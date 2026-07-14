@@ -10,7 +10,7 @@ import { BASE_BULLET_SOUL, bulletSoulForEnemy, getBulletSoul, type BulletSoulDef
 import { CASTLE_ITEM_ROOMS, CASTLE_LIFEUP_ROOMS, CASTLE_MAP_DATA, CASTLE_MERCHANT_ROOMS, CASTLE_SAVE_ROOMS, ROOM_CELLS } from '../data/castleMapData.ts'
 import { MapService, MapRenderer, MinimapRenderer } from '../map/index.ts'
 import { castleDoors, castleNeighbor, type MapDir } from '../data/castleMap.ts'
-import { buildEquipmentModifiers, EQUIP_SLOT_LABELS, EQUIP_SLOTS, equipmentForSlot, EQUIPMENT_POOL, getEquipment, type EquipmentDef, type EquipmentModifiers, type EquipSlot } from '../data/equipment.ts'
+import { buildEquipmentModifiers, EQUIP_SLOT_LABELS, EQUIP_SLOTS, equipmentForSlot, EQUIPMENT_POOL, getEquipment, type EquipmentDef, type EquipmentModifiers, type EquipSlot, type WeaponProfile } from '../data/equipment.ts'
 import { buildRunModifiers, RELIC_POOL, type RelicDef, type RunModifiers } from '../data/relics.ts'
 import { buildSoulModifiers, getSoul, soulForEnemy, SOUL_POOL, type SoulDef, type SoulModifiers } from '../data/souls.ts'
 import { grey as CAMPAIGN_HERO } from '../data/characters/castlevaniaCampaign.ts'
@@ -415,6 +415,8 @@ class CastleActor {
   meterGainMultiplier = 1
   isBoss = false
   rangedAttacker = false
+  /** Equipped weapon's swing profile (players only); null uses the base attack. */
+  weaponProfile: WeaponProfile | null = null
   /** Ground-spawn emerge: counts down while the enemy rises out of the floor. */
   riseTicks = 0
   riseMax = 1
@@ -685,7 +687,7 @@ class CastleActor {
 
   private tryStartAttack(intent: IntentState): boolean {
     if (this.state === 'death' || this.state === 'hurt' || this.state === 'attack') return false
-    const move = intent.specialPressed && this.meter >= (this.def.moves.super.meterCost ?? Number.POSITIVE_INFINITY)
+    let move = intent.specialPressed && this.meter >= (this.def.moves.super.meterCost ?? Number.POSITIVE_INFINITY)
       ? this.def.moves.super
       : intent.specialPressed
         ? this.def.moves.special
@@ -695,6 +697,9 @@ class CastleActor {
             ? this.def.moves.light
             : null
     if (!move) return false
+    // The light attack is the weapon swing — take its reach/speed/damage from
+    // the equipped weapon so each weapon type plays differently.
+    if (move === this.def.moves.light && this.weaponProfile) move = this.weaponMove(this.weaponProfile)
     if (move.meterCost) this.meter = Math.max(0, this.meter - move.meterCost)
     this.attackMove = move
     this.attackTick = 0
@@ -706,6 +711,20 @@ class CastleActor {
     this.animator.play(move.animKey === 'attack2' ? this.sheets.attack2 : this.sheets.attack1, 4, false)
     this.animator.reset()
     return true
+  }
+
+  /** The base light attack retimed and re-sized to the equipped weapon. */
+  private weaponMove(w: WeaponProfile): AttackMove {
+    return {
+      ...this.def.moves.light,
+      startup: w.startup,
+      active: w.active,
+      recovery: w.recovery,
+      damage: w.damage,
+      knockbackX: w.knockbackX,
+      knockbackY: w.knockbackY,
+      hitbox: { forward: w.reach, top: w.top, width: w.width, height: w.height },
+    }
   }
 
   private updateLocomotion(intent: IntentState, opponentX: number, platforms: Platform[]): void {
@@ -993,7 +1012,9 @@ class CastleActor {
       lean = f * H * 0.05
       armR = { x: fx + f * H * 0.3, y: shoulderY + H * 0.06 }
       armL = { x: fx - f * H * 0.1, y: hipY }
-      weapon = { x: fx + f * H * 0.66, y: shoulderY + H * 0.1 }
+      const wp = this.weaponProfile
+      const wlen = wp ? (wp.reach + wp.width) * 0.5 : H * 0.36
+      weapon = { x: armR.x + f * wlen, y: shoulderY + H * 0.1 }
       legL = { x: fx - f * H * 0.16, y: fy }
       legR = { x: fx + f * H * 0.08, y: fy }
     } else if (st === 'hurt') {
@@ -1015,8 +1036,8 @@ class CastleActor {
     ctx.moveTo(fx, hipY); ctx.lineTo(legR.x, legR.y)
     ctx.stroke()
     if (weapon) {
-      ctx.strokeStyle = '#e8e2d0'
-      ctx.lineWidth = lw * 0.8
+      ctx.strokeStyle = this.weaponProfile?.color ?? '#e8e2d0'
+      ctx.lineWidth = lw * 0.9
       ctx.beginPath(); ctx.moveTo(armR.x, armR.y); ctx.lineTo(weapon.x, weapon.y); ctx.stroke()
     }
     ctx.restore()
@@ -1737,6 +1758,7 @@ export class CampaignScene extends Scene {
     this.player.floorGap = this.layout.floorGap
     this.player.roomWidth = this.layout.width
     this.player.roomTop = this.layout.top
+    this.player.weaponProfile = this.equippedWeaponProfile()
     this.player.setMaxHealth(this.computeMaxHealth())
     this.player.reset(this.layout.checkpointX, this.layout.checkpointY, 1)
     this.player.meterGainMultiplier = this.computeMeterGainMult()
@@ -1854,6 +1876,12 @@ export class CampaignScene extends Scene {
   /** The currently equipped Bullet Soul definition (falls back to the base). */
   private equippedSoulDef(): BulletSoulDef {
     return getBulletSoul(this.save.equippedBulletSoul) ?? getBulletSoul(BASE_BULLET_SOUL)!
+  }
+
+  /** The swing profile of the equipped weapon, if any (drives the light attack). */
+  private equippedWeaponProfile(): WeaponProfile | null {
+    const id = this.save.equipped.weapon
+    return id ? getEquipment(id)?.weapon ?? null : null
   }
 
   /** Owned castable souls in a stable order: base first, then collected. */
@@ -2643,6 +2671,7 @@ export class CampaignScene extends Scene {
     if (!slot) return
     this.save = option ? equipCampaignItem(this.save, option.id) : unequipCampaignSlot(this.save, slot)
     this.equipMods = buildEquipmentModifiers(equippedDefs(this.save))
+    this.player.weaponProfile = this.equippedWeaponProfile()
     this.refreshLivePlayerStats()
   }
 
