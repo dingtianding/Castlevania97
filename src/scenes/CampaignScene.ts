@@ -146,6 +146,10 @@ const DASH_COOLDOWN_TICKS = 28
 const SLIDE_SPEED = 11
 const SLIDE_TICKS = 22
 const SLIDE_COOLDOWN_TICKS = 20
+// Dive attack: a fast downward plunge (Down+jump after your jumps are spent) that
+// damages anything it drops onto.
+const DIVE_SPEED = 15
+const DIVE_DAMAGE = 16
 // A low tunnel's floor gap — a standing player is blocked, a sliding one fits.
 const CRAWL_GAP = 46
 const JUMP_VELOCITY = -15.5
@@ -480,7 +484,9 @@ class CastleActor {
   private pendingRangedShot: { x: number; y: number; facing: Facing } | null = null
   grounded = true
   facing: Facing
-  state: 'idle' | 'run' | 'jump' | 'fall' | 'attack' | 'dash' | 'hurt' | 'death' | 'crouch' = 'idle'
+  state: 'idle' | 'run' | 'jump' | 'fall' | 'attack' | 'dash' | 'hurt' | 'death' | 'crouch' | 'dive' = 'idle'
+  /** Enemies already struck by the current dive attack (so each is hit once). */
+  readonly diveHits = new Set<CastleActor>()
   private glowPhase = 0
   private deathTicks = 0
   private readonly sheets: SpriteSet
@@ -612,6 +618,12 @@ class CastleActor {
 
     if (this.state === 'attack') {
       this.updateAttack(intent, platforms)
+      this.updateAnimator()
+      return
+    }
+
+    if (this.state === 'dive') {
+      this.updateDive(platforms)
       this.updateAnimator()
       return
     }
@@ -820,6 +832,36 @@ class CastleActor {
     this.animator.play(this.sheets.run, 3, true)
   }
 
+  /** Diving slam: plunge straight down fast; the scene damages whatever it hits. */
+  private tryDiveAttack(): void {
+    if (this.state === 'death' || this.state === 'hurt') return
+    this.state = 'dive'
+    this.velocity.x = 0
+    this.velocity.y = DIVE_SPEED
+    this.attackMove = null
+    this.attackConnected = false
+    this.diveHits.clear()
+    this.animator.play(this.sheets.jump, 4, true)
+  }
+
+  private updateDive(platforms: Platform[]): void {
+    this.velocity.x = 0
+    this.velocity.y = DIVE_SPEED // hold the plunge speed
+    this.integrate(platforms)
+    if (this.grounded) this.setMotion('idle') // landed — dive ends
+  }
+
+  get isDiving(): boolean {
+    return this.state === 'dive'
+  }
+
+  /** The damaging box around a diving fighter (body + a bit below the feet). */
+  diveHitbox(): Rect {
+    const w = this.def.visual.hurtbox.width * ACTOR_SCALE
+    const h = this.def.visual.hurtbox.height * ACTOR_SCALE
+    return { x: this.position.x - w / 2 - 6, y: this.position.y - h, width: w + 12, height: h + 20 }
+  }
+
   private tryStartAttack(intent: IntentState): boolean {
     if (this.state === 'death' || this.state === 'hurt' || this.state === 'attack') return false
     let move = intent.specialPressed && this.meter >= (this.def.moves.super.meterCost ?? Number.POSITIVE_INFINITY)
@@ -907,9 +949,14 @@ class CastleActor {
         // Down + jump on a one-way platform drops through it instead of jumping.
         this.dropTicks = DROP_WINDOW
         this.grounded = false
+      } else if (this.grounded && intent.downHeld) {
+        this.trySlide(this.facing) // Down + jump on solid ground is a slide.
+      } else if (!this.grounded && intent.downHeld && this.jumpCount >= this.maxJumps) {
+        this.tryDiveAttack() // Down + jump in the air (jumps spent) is a diving slam.
       } else if (this.grounded && intent.upHeld && this.hasHighJump) this.highJump()
       else this.tryJump()
     }
+    if (this.state === 'dive') return // the dive takes over from here
     // Variable jump height: releasing jump while still rising cuts the ascent
     // short, so a light tap is a mini-hop and holding gives the full jump.
     if (this.state === 'jump' && !intent.jumpHeld && this.velocity.y < JUMP_CUTOFF) {
@@ -1283,6 +1330,12 @@ class CastleActor {
       const up = st === 'jump' ? -H * 0.12 : H * 0.04
       armL = { x: fx - H * 0.2, y: shoulderY + up }
       armR = { x: fx + H * 0.2, y: shoulderY + up }
+    } else if (st === 'dive') {
+      // A plunge: legs snapped together downward, arms swept up overhead.
+      legL = { x: fx - H * 0.05, y: fy }
+      legR = { x: fx + H * 0.05, y: fy }
+      armL = { x: fx - H * 0.16, y: shoulderY - H * 0.16 }
+      armR = { x: fx + H * 0.16, y: shoulderY - H * 0.16 }
     } else if (st === 'crouch') {
       // Ducked low, arms drawn in over bent legs.
       legL = { x: fx - H * 0.22, y: fy }
@@ -2216,6 +2269,19 @@ export class CampaignScene extends Scene {
   }
 
   private resolveCombat(): void {
+    // A diving slam damages every enemy it drops onto (each once per dive).
+    if (this.player.isDiving) {
+      const dbox = this.player.diveHitbox()
+      for (const enemy of this.enemies) {
+        if (enemy.isDead || this.player.diveHits.has(enemy)) continue
+        if (!rectsOverlap(dbox, enemy.hurtbox())) continue
+        if (enemy.applyFlatDamage(DIVE_DAMAGE, this.player.position.x, -7, this.playerDamageMult)) {
+          this.player.diveHits.add(enemy)
+          this.spawnDamageNumber(enemy, '#ffe08a')
+          this.hitstop = Math.max(this.hitstop, 4)
+        }
+      }
+    }
     for (const enemy of this.enemies) {
       if (enemy.isDead) continue
       const playerAtk = this.player.activeAttack()
