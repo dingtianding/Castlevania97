@@ -84,6 +84,8 @@ const chestFlag = (nodeId: string): string => `chest:${nodeId}`
 // once opened it stays open on return, with no new save field. Room -> x + gold.
 const CHEST_ROOMS: Record<string, { x: number; gold: number }> = {
   'cor-grand': { x: 1300, gold: 120 },
+  'cor-larder': { x: 520, gold: 90 },
+  'cor-drain': { x: 520, gold: 110 },
   'dnc-ballroom': { x: 1300, gold: 220 },
   'inr-servants': { x: 1300, gold: 320 },
 }

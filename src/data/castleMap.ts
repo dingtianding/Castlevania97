@@ -18,12 +18,18 @@ export interface CastleCell {
 /** Grid coordinates per node id. Row 0 is the top of the castle. Every linked
  *  pair is exactly one orthogonal step apart so doors derive cleanly. */
 export const CASTLE_CELLS: Readonly<Record<string, CastleCell>> = {
-  // Castle Corridor — the entrance spine along the base (row 6), with a dead-end
-  // alcove tucked up off the grand corridor.
+  // Castle Corridor — the entrance spine along the base (row 6). The grand
+  // corridor is the hub: a store alcove and a watch-post branch up off it (the
+  // watch loops back down to the sentinel gate), and an undercroft with a
+  // flooded drain hang below.
   'cor-entrance': { col: 0, row: 6 },
   'cor-grand': { col: 1, row: 6 },
   'cor-alcove': { col: 1, row: 5 },
+  'cor-larder': { col: 0, row: 5 },
+  'cor-watch': { col: 2, row: 5 },
   'cor-skull': { col: 2, row: 6 },
+  'cor-undercroft': { col: 1, row: 7 },
+  'cor-drain': { col: 2, row: 7 },
   // Underground Reservoir — continues along the base then drops a sunken cistern.
   'res-descent': { col: 3, row: 6 },
   'res-cistern': { col: 3, row: 5 },
