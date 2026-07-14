@@ -126,6 +126,9 @@ const SLIDE_COOLDOWN_TICKS = 20
 // A low tunnel's floor gap — a standing player is blocked, a sliding one fits.
 const CRAWL_GAP = 46
 const JUMP_VELOCITY = -15.5
+// Releasing jump caps the rising speed to this, giving variable jump height
+// (a light tap is a mini-hop; holding through the ascent is the full jump).
+const JUMP_CUTOFF = -8.5
 // Griffon Wing high-jump strength, relative to a normal jump.
 const HIGH_JUMP_MULT = 1.7
 const FAST_FALL_SPEED = 12
@@ -728,6 +731,11 @@ class CastleActor {
     if (intent.jumpPressed && !sliding) {
       if (this.grounded && intent.upHeld && this.hasHighJump) this.highJump()
       else this.tryJump()
+    }
+    // Variable jump height: releasing jump while still rising cuts the ascent
+    // short, so a light tap is a mini-hop and holding gives the full jump.
+    if (this.state === 'jump' && !intent.jumpHeld && this.velocity.y < JUMP_CUTOFF) {
+      this.velocity.y = JUMP_CUTOFF
     }
     if (!this.grounded && intent.downHeld && this.velocity.y > 0 && this.velocity.y < FAST_FALL_SPEED) {
       this.velocity.y = FAST_FALL_SPEED
