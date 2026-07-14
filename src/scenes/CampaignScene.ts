@@ -4,9 +4,10 @@ import { ModeSelectScene } from './ModeSelectScene.ts'
 import { PauseScene } from './PauseScene.ts'
 import { AssetManager } from '../assets/AssetManager.ts'
 import { AUDIO_MANIFEST } from '../assets/manifest.ts'
-import { addCampaignAbility, addCampaignBulletSoul, addCampaignEquipment, addCampaignPerk, addCampaignRelic, addCampaignSoul, equipCampaignBulletSoul, equipCampaignItem, equippedDefs, getCampaignChapter, getCampaignNode, grantCampaignRewards, hasWorldFlag, loadCampaignSave, markCampaignVisited, MAX_LEVEL, saveCampaignSave, setWorldFlag, unequipCampaignSlot, xpForNextLevel } from '../data/campaign.ts'
+import { addCampaignAbility, addCampaignBlueSoul, addCampaignBulletSoul, addCampaignEquipment, addCampaignPerk, addCampaignRelic, addCampaignSoul, equipCampaignBlueSoul, equipCampaignBulletSoul, equipCampaignItem, equipCampaignYellowSoul, equippedDefs, getCampaignChapter, getCampaignNode, grantCampaignRewards, hasWorldFlag, loadCampaignSave, markCampaignVisited, MAX_LEVEL, saveCampaignSave, setWorldFlag, unequipCampaignSlot, xpForNextLevel } from '../data/campaign.ts'
 import { draftPowerUps, powerUpStacks, type PowerUpDef } from '../data/powerups.ts'
 import { BASE_BULLET_SOUL, bulletSoulForEnemy, getBulletSoul, type BulletSoulDef } from '../data/bulletSouls.ts'
+import { BASE_BLUE_SOUL, blueSoulForEnemy, getBlueSoul, type BlueSoulEffect } from '../data/blueSouls.ts'
 import { CASTLE_ITEM_ROOMS, CASTLE_LIFEUP_ROOMS, CASTLE_MAP_DATA, CASTLE_MERCHANT_ROOMS, CASTLE_SAVE_ROOMS, ROOM_CELLS } from '../data/castleMapData.ts'
 import { MapService, MapRenderer, MinimapRenderer } from '../map/index.ts'
 import { castleDoors, castleNeighbor, type MapDir } from '../data/castleMap.ts'
@@ -59,7 +60,13 @@ const MERCHANT_RANGE = 80
 // Beating this room's boss completes the campaign.
 const FINAL_BOSS_NODE = 'fbd-chaos'
 // Navigable pause menu entries (GBA-style).
-const MENU_ITEMS = ['STATUS', 'EQUIP', 'MAP', 'RESUME'] as const
+const MENU_ITEMS = ['STATUS', 'EQUIP', 'SOULS', 'MAP', 'RESUME'] as const
+// The soul-reaver hero (Grey) casts souls with the sub button and activates a
+// guardian on ;; a hunter (Red) uses subweapons instead. Sub-weapons are Red's.
+const HERO_USES_SOULS = CAMPAIGN_HERO.meta.archetype !== 'HUNTER'
+// The three soul slots shown in the SOULS menu, top to bottom.
+const SOUL_SLOTS = ['RED', 'BLUE', 'YELLOW'] as const
+type SoulSlot = (typeof SOUL_SLOTS)[number]
 // Metroidvania traversal abilities.
 const ABILITIES: Record<string, { name: string; blurb: string; getSub: string }> = {
   'double-jump': { name: 'Leap Stone', blurb: 'Jump a second time in mid-air.', getSub: 'DOUBLE JUMP UNLOCKED' },
@@ -1156,6 +1163,12 @@ export class CampaignScene extends Scene {
   private enemyFreezeTicks = 0
   private runMods: RunModifiers = buildRunModifiers([])
   private soulMods: SoulModifiers = buildSoulModifiers([])
+  // Blue (Guardian) soul buff: the active effect, how long it lasts, and the
+  // cooldown before it can be re-cast.
+  private blueBuffEffect: BlueSoulEffect | null = null
+  private blueBuffTicks = 0
+  private blueBuffMax = 1
+  private blueCooldown = 0
   private equipMods: EquipmentModifiers = buildEquipmentModifiers([])
   private playerDamageMult = 1
   private playerDamageTakenMult = 1
@@ -1178,6 +1191,8 @@ export class CampaignScene extends Scene {
   private shopIndex = 0
   private showStatus = false
   private showEquipment = false
+  private showSouls = false
+  private soulSlotIndex = 0
   private showMap = false
   private showMenu = false
   private menuIndex = 0
@@ -1312,6 +1327,36 @@ export class CampaignScene extends Scene {
       if (isMenuCancel(e.code) || e.code === 'Escape' || e.code === 'KeyI' || e.code === 'Tab') {
         e.preventDefault()
         this.showEquipment = false
+        if (this.menuReturn) this.showMenu = true
+      }
+      return
+    }
+    if (this.showSouls) {
+      if (e.code === 'KeyW' || e.code === 'ArrowUp') {
+        e.preventDefault()
+        this.soulSlotIndex = (this.soulSlotIndex - 1 + SOUL_SLOTS.length) % SOUL_SLOTS.length
+        this.ctx.audio.swing()
+        return
+      }
+      if (e.code === 'KeyS' || e.code === 'ArrowDown') {
+        e.preventDefault()
+        this.soulSlotIndex = (this.soulSlotIndex + 1) % SOUL_SLOTS.length
+        this.ctx.audio.swing()
+        return
+      }
+      if (e.code === 'KeyA' || e.code === 'ArrowLeft') {
+        e.preventDefault()
+        this.cycleSoulSlot(SOUL_SLOTS[this.soulSlotIndex]!, -1)
+        return
+      }
+      if (e.code === 'KeyD' || e.code === 'ArrowRight' || isMenuConfirm(e.code)) {
+        e.preventDefault()
+        this.cycleSoulSlot(SOUL_SLOTS[this.soulSlotIndex]!, 1)
+        return
+      }
+      if (isMenuCancel(e.code) || e.code === 'Escape' || e.code === 'KeyI' || e.code === 'Tab') {
+        e.preventDefault()
+        this.showSouls = false
         if (this.menuReturn) this.showMenu = true
       }
       return
@@ -1499,7 +1544,7 @@ export class CampaignScene extends Scene {
     if (this.flashTicks > 0) this.flashTicks -= 1
     if (this.contactHitCooldown > 0) this.contactHitCooldown -= 1
     if (this.levelUpTicks > 0) this.levelUpTicks -= 1
-    if (this.ending || this.drafting || this.perkChoosing || this.levelUpScreen || this.shopping || this.showStatus || this.showEquipment || this.showMap || this.showMenu) return
+    if (this.ending || this.drafting || this.perkChoosing || this.levelUpScreen || this.shopping || this.showStatus || this.showEquipment || this.showSouls || this.showMap || this.showMenu) return
     if (this.defeatTicks > 0) {
       this.defeatTicks += 1
       if (this.defeatTicks > DEFEAT_RETRY_TICKS) this.reloadNode(this.node.id, true)
@@ -1521,19 +1566,31 @@ export class CampaignScene extends Scene {
 
     const intent = this.input.poll()
     if (intent.dashPressed) {
+      // The ; button activates the Blue (Guardian) soul. Down + ; still slides,
+      // since the slide is a traversal tool for low tunnels.
       const dir = intent.moveX === 0 ? this.player.facing : (intent.moveX as Facing)
       if (intent.downHeld && this.player.hasSlide && this.player.grounded) this.player.trySlide(dir)
-      else this.player.tryDash(dir)
+      else this.activateBlueSoul()
     }
     if (intent.heavyPressed) {
       this.cycleSubweapon()
       intent.heavyPressed = false
     }
-    if (intent.upHeld && intent.lightPressed && this.tryUseSubweapon()) intent.lightPressed = false
+    // The sub button (Up + attack): a soul-reaver hero casts the Red soul here;
+    // a hunter throws a sub-weapon. Sub-weapons belong to the hunter (Red).
+    if (intent.upHeld && intent.lightPressed) {
+      const used = HERO_USES_SOULS ? this.castSoul() : this.tryUseSubweapon()
+      if (used) intent.lightPressed = false
+    }
     this.player.update(intent, this.player.position.x + this.player.facing * 80, this.layout.platforms)
     // MP passively refills so soul magic is always coming back (Aria-style).
     this.player.meter = clamp(this.player.meter + MP_REGEN, 0, 100)
     if (this.soulCooldown > 0) this.soulCooldown -= 1
+    if (this.blueCooldown > 0) this.blueCooldown -= 1
+    if (this.blueBuffTicks > 0) {
+      this.blueBuffTicks -= 1
+      if (this.blueBuffTicks === 0) { this.blueBuffEffect = null; this.refreshLivePlayerStats() }
+    }
 
     for (const enemy of this.enemies) {
       if (enemy.isDead) continue
@@ -1668,6 +1725,7 @@ export class CampaignScene extends Scene {
     else if (this.showMenu) this.drawMenu()
     else if (this.showMap) this.drawMap()
     else if (this.showEquipment) this.drawEquipment()
+    else if (this.showSouls) this.drawSouls()
     else if (this.showStatus) this.drawStatus()
     else if (this.defeatTicks > 0) this.drawDefeat()
     else {
@@ -1688,7 +1746,7 @@ export class CampaignScene extends Scene {
 
   /** True when the room is in normal play, i.e. no blocking overlay is up. */
   private get canOpenOverlay(): boolean {
-    return !this.ending && !this.drafting && !this.shopping && !this.showStatus && !this.showEquipment && !this.showMenu && this.defeatTicks === 0
+    return !this.ending && !this.drafting && !this.shopping && !this.showStatus && !this.showEquipment && !this.showSouls && !this.showMenu && this.defeatTicks === 0
   }
 
 
@@ -1728,6 +1786,7 @@ export class CampaignScene extends Scene {
     this.menuReturn = true
     if (item === 'STATUS') this.showStatus = true
     else if (item === 'EQUIP') { this.showEquipment = true; this.equipSlotIndex = 0; this.equipPicking = false }
+    else if (item === 'SOULS') { this.showSouls = true; this.soulSlotIndex = 0 }
     else if (item === 'MAP') this.openMap()
   }
 
@@ -1779,7 +1838,7 @@ export class CampaignScene extends Scene {
     const barrier = SLIDE_BARRIERS[this.node.id]
     if (barrier) this.layout.barriers.push(barrier)
     this.runMods = buildRunModifiers(this.save.relicIds.map((id) => RELIC_POOL.find((relic) => relic.id === id)).filter((relic): relic is RelicDef => Boolean(relic)))
-    this.soulMods = buildSoulModifiers(this.save.souls)
+    this.soulMods = this.yellowSoulMods()
     this.equipMods = buildEquipmentModifiers(equippedDefs(this.save))
     this.playerDamageMult = this.computeDamageMult()
     this.playerDamageTakenMult = this.computeDamageTakenMult()
@@ -1817,6 +1876,7 @@ export class CampaignScene extends Scene {
     this.showStatus = false
     this.showEquipment = false
     this.equipPicking = false
+    this.showSouls = false
     this.perkChoosing = false
     this.perkOptions = []
     this.pendingLevelUps = 0
@@ -1922,6 +1982,30 @@ export class CampaignScene extends Scene {
     return [BASE_BULLET_SOUL, ...this.save.bulletSouls]
   }
 
+  private ownedBlueSoulIds(): string[] {
+    return [BASE_BLUE_SOUL, ...this.save.blueSouls]
+  }
+
+  /** Change the equipped soul in a slot (dir ±1), from the souls you own. */
+  private cycleSoulSlot(slot: SoulSlot, dir: number): void {
+    if (slot === 'RED') {
+      const owned = this.ownedBulletSoulIds()
+      const i = Math.max(0, owned.indexOf(this.save.equippedBulletSoul))
+      this.save = equipCampaignBulletSoul(this.save, owned[(i + dir + owned.length) % owned.length]!)
+    } else if (slot === 'BLUE') {
+      const owned = this.ownedBlueSoulIds()
+      const i = Math.max(0, owned.indexOf(this.save.equippedBlueSoul))
+      this.save = equipCampaignBlueSoul(this.save, owned[(i + dir + owned.length) % owned.length]!)
+    } else {
+      // YELLOW: your owned enchant souls plus a "none" (unequipped) option.
+      const opts: (string | null)[] = [null, ...this.save.souls]
+      const i = Math.max(0, opts.indexOf(this.save.equippedYellowSoul))
+      this.save = equipCampaignYellowSoul(this.save, opts[(i + dir + opts.length) % opts.length] ?? null)
+      this.applySoulMods()
+    }
+    this.ctx.audio.swing()
+  }
+
   private cycleBulletSoul(): void {
     const owned = this.ownedBulletSoulIds()
     if (owned.length <= 1) return
@@ -1944,11 +2028,12 @@ export class CampaignScene extends Scene {
     })
   }
 
-  /** Spend MP to cast the equipped Bullet Soul, whose pattern shapes the volley. */
-  private castSoul(): void {
-    if (this.player.isDead || this.soulCooldown > 0 || this.bossIntroTicks > 0) return
+  /** Spend MP to cast the equipped Red (Bullet) Soul, whose pattern shapes the
+   *  volley. Returns true if it actually fired. */
+  private castSoul(): boolean {
+    if (this.player.isDead || this.soulCooldown > 0 || this.bossIntroTicks > 0) return false
     const soul = this.equippedSoulDef()
-    if (this.player.meter < soul.mpCost) return
+    if (this.player.meter < soul.mpCost) return false
     this.player.meter -= soul.mpCost
     this.soulCooldown = SOUL_CAST_COOLDOWN
     const f = this.player.facing
@@ -1974,6 +2059,29 @@ export class CampaignScene extends Scene {
         break
     }
     this.ctx.audio.swing()
+    return true
+  }
+
+  /** Activate the equipped Blue (Guardian) soul: spend MP for a timed self-buff
+   *  on a cooldown. Aegis softens hits, Frenzy boosts attack, Haste boosts speed. */
+  private activateBlueSoul(): void {
+    if (this.player.isDead || this.blueCooldown > 0 || this.blueBuffTicks > 0 || this.bossIntroTicks > 0) return
+    const soul = getBlueSoul(this.save.equippedBlueSoul)
+    if (!soul || this.player.meter < soul.mpCost) return
+    this.player.meter -= soul.mpCost
+    this.blueCooldown = soul.cooldown
+    this.blueBuffEffect = soul.effect
+    this.blueBuffTicks = soul.duration
+    this.blueBuffMax = soul.duration
+    this.refreshLivePlayerStats()
+    this.ctx.audio.hit()
+    this.spawnFloatingText(this.player.position.x, this.player.position.y - 118, soul.name.toUpperCase(), '#7ad6ff')
+  }
+
+  /** Multiplier a live Blue buff applies to the given stat (1 = no effect). */
+  private blueBuffMult(effect: BlueSoulEffect): number {
+    if (this.blueBuffEffect !== effect || this.blueBuffTicks <= 0) return 1
+    return effect === 'aegis' ? 0.4 : effect === 'frenzy' ? 1.45 : 1.4
   }
 
   /** Curve a homing soul bolt toward the nearest live enemy it has not hit. */
@@ -2149,15 +2257,15 @@ export class CampaignScene extends Scene {
   }
 
   private computeDamageMult(): number {
-    return this.runMods.damageMultiplier * this.soulMods.damageMultiplier * this.equipMods.damageMultiplier * (1 + (this.save.level - 1) * 0.04) * (1 + this.save.atkUpgrades * 0.06) * (1 + this.perkStacks('might') * 0.07)
+    return this.runMods.damageMultiplier * this.soulMods.damageMultiplier * this.equipMods.damageMultiplier * (1 + (this.save.level - 1) * 0.04) * (1 + this.save.atkUpgrades * 0.06) * (1 + this.perkStacks('might') * 0.07) * this.blueBuffMult('frenzy')
   }
 
   private computeDamageTakenMult(): number {
-    return Math.max(0.4, (1 - this.save.armorTier * 0.06) * (1 - this.perkStacks('ward') * 0.05) * this.equipMods.damageTakenMultiplier)
+    return Math.max(0.4, (1 - this.save.armorTier * 0.06) * (1 - this.perkStacks('ward') * 0.05) * this.equipMods.damageTakenMultiplier) * this.blueBuffMult('aegis')
   }
 
   private computeMoveSpeedMult(): number {
-    return this.runMods.moveSpeedMultiplier * this.soulMods.moveSpeedMultiplier * this.equipMods.moveSpeedMultiplier * (1 + this.perkStacks('swiftness') * 0.06)
+    return this.runMods.moveSpeedMultiplier * this.soulMods.moveSpeedMultiplier * this.equipMods.moveSpeedMultiplier * (1 + this.perkStacks('swiftness') * 0.06) * this.blueBuffMult('haste')
   }
 
   private computeMeterGainMult(): number {
@@ -2177,6 +2285,7 @@ export class CampaignScene extends Scene {
       if (result.levelsGained > 0) this.onLevelUp(result.levelsGained)
       this.tryDropSoul(enemy, hurt)
       this.tryDropBulletSoul(enemy, hurt)
+      this.tryDropBlueSoul(enemy, hurt)
       this.spawnEnemyDrops(enemy)
     }
   }
@@ -2192,6 +2301,17 @@ export class CampaignScene extends Scene {
     this.ctx.audio.hit()
   }
 
+  private tryDropBlueSoul(enemy: CastleActor, hurt: Rect): void {
+    const soul = blueSoulForEnemy(enemy.def.id)
+    if (!soul || this.save.blueSouls.includes(soul.id)) return
+    if (this.ctx.rng.next() >= soul.dropChance) return
+    this.save = addCampaignBlueSoul(this.save, soul.id)
+    const cx = hurt.x + hurt.width / 2
+    this.spawnFloatingText(cx, hurt.y - 52, 'GUARDIAN SOUL!', '#7ad6ff')
+    this.spawnFloatingText(cx, hurt.y - 34, soul.name.toUpperCase(), '#7ad6ff')
+    this.ctx.audio.hit()
+  }
+
   private tryDropSoul(enemy: CastleActor, hurt: Rect): void {
     const soul = soulForEnemy(enemy.def.id)
     if (!soul || this.save.souls.includes(soul.id)) return
@@ -2204,9 +2324,14 @@ export class CampaignScene extends Scene {
     this.ctx.audio.hit()
   }
 
-  /** Re-apply soul bonuses to the live player when a new soul drops mid-room. */
+  /** Only the equipped Yellow (Enchanted) soul's passive applies (Aria-style). */
+  private yellowSoulMods(): SoulModifiers {
+    return buildSoulModifiers(this.save.equippedYellowSoul ? [this.save.equippedYellowSoul] : [])
+  }
+
+  /** Re-apply soul bonuses to the live player when the passive soul changes. */
   private applySoulMods(): void {
-    this.soulMods = buildSoulModifiers(this.save.souls)
+    this.soulMods = this.yellowSoulMods()
     this.refreshLivePlayerStats()
   }
 
@@ -2914,12 +3039,40 @@ export class CampaignScene extends Scene {
     ctx.font = '7px "Press Start 2P", monospace'
     ctx.fillStyle = '#8a8aa0'
     ctx.fillText(`LV ${this.save.level}`, 30, 70)
-    ctx.fillText(`SUB ${SUBWEAPON_LABELS[this.currentSubweapon()]}`, 92, 70)
-    ctx.fillStyle = '#7ad6ff'
-    ctx.fillText(`◈${this.equippedSoulDef().name.toUpperCase()}`, 214, 70)
+    if (HERO_USES_SOULS) {
+      // Soul-reaver: show the two active-button souls (Red cast / Blue guardian).
+      ctx.fillStyle = '#ff9ad6'
+      ctx.fillText(`R:${this.equippedSoulDef().name.toUpperCase()}`, 84, 70)
+      ctx.fillStyle = '#7ad6ff'
+      ctx.fillText(`B:${(getBlueSoul(this.save.equippedBlueSoul)?.name ?? '').toUpperCase()}`, 230, 70)
+    } else {
+      ctx.fillText(`SUB ${SUBWEAPON_LABELS[this.currentSubweapon()]}`, 92, 70)
+      ctx.fillStyle = '#7ad6ff'
+      ctx.fillText(`◈${this.equippedSoulDef().name.toUpperCase()}`, 214, 70)
+    }
     ctx.textAlign = 'right'
     ctx.fillStyle = '#f6b74a'
     ctx.fillText(`${this.save.gold}G`, barX + barW - 2, 70)
+
+    // Active guardian buff: a small labelled timer bar to the right of the meters.
+    if (this.blueBuffTicks > 0) {
+      const bx = barX + barW + 12
+      const bw = 96
+      const frac = clamp(this.blueBuffTicks / this.blueBuffMax, 0, 1)
+      const label = this.blueBuffEffect === 'aegis' ? 'WARD' : this.blueBuffEffect === 'frenzy' ? 'FRENZY' : 'HASTE'
+      ctx.textAlign = 'left'
+      ctx.textBaseline = 'middle'
+      ctx.font = '7px "Press Start 2P", monospace'
+      ctx.fillStyle = '#7ad6ff'
+      ctx.fillText(label, bx, hpY - 2)
+      ctx.fillStyle = '#0e1a2a'
+      ctx.fillRect(bx, mpY - 5, bw, 9)
+      ctx.fillStyle = '#7ad6ff'
+      ctx.fillRect(bx, mpY - 5, bw * frac, 9)
+      ctx.strokeStyle = '#5a86b0'
+      ctx.lineWidth = 1
+      ctx.strokeRect(bx + 0.5, mpY - 4.5, bw - 1, 8)
+    }
     ctx.restore()
   }
 
@@ -2986,8 +3139,13 @@ export class CampaignScene extends Scene {
     ctx.fillStyle = '#5a567a'
     ctx.font = '8px "Press Start 2P", monospace'
     ctx.textAlign = 'center'
-    ctx.fillText('A/D MOVE   J JUMP   ; DASH   K ATTACK   W+K SUB   U SOUL', this.ctx.width / 2, this.ctx.height - 38)
-    ctx.fillText('L SWITCH SUB   O SWAP SOUL   ENTER MENU   SPACE MAP   ESC PAUSE', this.ctx.width / 2, this.ctx.height - 22)
+    if (HERO_USES_SOULS) {
+      ctx.fillText('A/D MOVE   J JUMP   K ATTACK   W+K RED SOUL   ; BLUE SOUL', this.ctx.width / 2, this.ctx.height - 38)
+      ctx.fillText('O SWAP RED SOUL   ENTER MENU   SPACE MAP   ESC PAUSE', this.ctx.width / 2, this.ctx.height - 22)
+    } else {
+      ctx.fillText('A/D MOVE   J JUMP   ; DASH   K ATTACK   W+K SUB   U SOUL', this.ctx.width / 2, this.ctx.height - 38)
+      ctx.fillText('L SWITCH SUB   O SWAP SOUL   ENTER MENU   SPACE MAP   ESC PAUSE', this.ctx.width / 2, this.ctx.height - 22)
+    }
     ctx.restore()
   }
 
@@ -3384,7 +3542,7 @@ export class CampaignScene extends Scene {
     ctx.save()
     ctx.fillStyle = 'rgba(6, 5, 12, 0.82)'
     ctx.fillRect(0, 0, width, height)
-    const pw = 320, ph = 268
+    const pw = 320, ph = 306
     const px = width / 2 - pw / 2, py = height / 2 - ph / 2
     ctx.fillStyle = 'rgba(16, 24, 43, 0.96)'
     ctx.fillRect(px, py, pw, ph)
@@ -3636,6 +3794,76 @@ export class CampaignScene extends Scene {
         ctx.fillStyle = '#7ad67a'
         ctx.font = '8px "Press Start 2P", monospace'
         ctx.fillText('EQUIPPED', px + pw - 26, ry + 14)
+      }
+    })
+    ctx.restore()
+  }
+
+  private soulRowRect(index: number): { x: number; y: number; w: number; h: number } {
+    const w = 640
+    const h = 76
+    const x = (this.ctx.width - w) / 2
+    const y = 148 + index * (h + 14)
+    return { x, y, w, h }
+  }
+
+  /** The SOULS menu: three colour-coded slots (Red cast / Blue guardian / Yellow
+   *  passive). A/D cycles the equipped soul in the highlighted slot. */
+  private drawSouls(): void {
+    const { ctx } = this.ctx.renderer
+    const { width, height } = this.ctx
+    const red = getBulletSoul(this.save.equippedBulletSoul)
+    const blue = getBlueSoul(this.save.equippedBlueSoul)
+    const yellow = this.save.equippedYellowSoul ? getSoul(this.save.equippedYellowSoul) : undefined
+    const rows = [
+      { color: '#ff9ad6', label: 'RED  ·  SUB-WEAPON BUTTON', name: red?.name, blurb: red?.blurb, meta: `${this.ownedBulletSoulIds().length} OWNED · ${red?.mpCost ?? 0} MP` },
+      { color: '#7ad6ff', label: 'BLUE  ·  ; BUTTON (GUARDIAN)', name: blue?.name, blurb: blue?.blurb, meta: `${this.ownedBlueSoulIds().length} OWNED · ${blue?.mpCost ?? 0} MP` },
+      { color: '#f6d24a', label: 'YELLOW  ·  PASSIVE', name: yellow?.name ?? null, blurb: yellow?.blurb ?? 'No enchant soul equipped.', meta: `${this.save.souls.length} OWNED` },
+    ]
+    ctx.save()
+    ctx.fillStyle = 'rgba(6, 5, 12, 0.94)'
+    ctx.fillRect(0, 0, width, height)
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillStyle = '#e8d4a0'
+    ctx.font = '18px "Press Start 2P", monospace'
+    ctx.fillText('SOULS', width / 2, 84)
+    ctx.fillStyle = '#8a8aa0'
+    ctx.font = '8px "Press Start 2P", monospace'
+    ctx.fillText('W/S SLOT     A/D CHANGE     K CLOSE', width / 2, 116)
+
+    rows.forEach((row, i) => {
+      const r = this.soulRowRect(i)
+      const selected = i === this.soulSlotIndex
+      ctx.fillStyle = selected ? 'rgba(40, 33, 56, 0.96)' : 'rgba(16, 24, 43, 0.82)'
+      ctx.fillRect(r.x, r.y, r.w, r.h)
+      ctx.strokeStyle = selected ? row.color : '#5a567a'
+      ctx.lineWidth = selected ? 3 : 2
+      ctx.strokeRect(r.x, r.y, r.w, r.h)
+      ctx.fillStyle = row.color
+      ctx.fillRect(r.x + 16, r.y + 18, 16, 16)
+
+      ctx.textAlign = 'left'
+      ctx.textBaseline = 'top'
+      ctx.fillStyle = row.color
+      ctx.font = '9px "Press Start 2P", monospace'
+      ctx.fillText(row.label, r.x + 44, r.y + 14)
+      ctx.fillStyle = row.name ? '#e8d4a0' : '#6a6480'
+      ctx.font = '12px "Press Start 2P", monospace'
+      ctx.fillText(row.name ? row.name.toUpperCase() : '— NONE —', r.x + 44, r.y + 32)
+      if (row.blurb) {
+        ctx.fillStyle = '#9aa8c8'
+        ctx.font = '8px "Press Start 2P", monospace'
+        ctx.fillText(row.blurb, r.x + 44, r.y + 56)
+      }
+      ctx.textAlign = 'right'
+      ctx.fillStyle = '#5a567a'
+      ctx.font = '8px "Press Start 2P", monospace'
+      ctx.fillText(row.meta, r.x + r.w - 16, r.y + 16)
+      if (selected) {
+        ctx.fillStyle = row.color
+        ctx.font = '10px "Press Start 2P", monospace'
+        ctx.fillText('‹ A/D ›', r.x + r.w - 16, r.y + r.h - 22)
       }
     })
     ctx.restore()
