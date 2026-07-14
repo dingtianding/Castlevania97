@@ -774,30 +774,30 @@ export const creakingSkull: CharacterDef = {
     archetype: 'CORRIDOR SENTINEL',
     bio: 'A giant of stacked bone that guards the first corridor. Slow, but its sweeping arm is a wall you cannot walk around.',
   },
-  visual: { anchorX: 80, anchorY: 126, scale: 0.95, hurtbox: { width: 72, height: 134 } },
+  visual: { anchorX: 80, anchorY: 126, scale: 0.95, hurtbox: { width: 132, height: 118 } },
   moves: {
     light: {
       id: 'skull-backhand', animKey: 'attack1',
       startup: 22, active: 8, recovery: 30, damage: 15, knockbackX: 10, knockbackY: -6, hitstop: 10,
       hitbox: { forward: 26, top: 150, width: 150, height: 108 },
     },
-    // The huge-range sweep: a slow, telegraphed bone arm that reaches most of the
-    // way across the arena.
+    // The sweep: a slow, telegraphed bone arm raised high then smashed down in
+    // front — the hitbox matches the smash column so the visual fits it.
     heavy: {
       id: 'skull-sweep', animKey: 'attack2',
       startup: 32, active: 16, recovery: 42, damage: 22, knockbackX: 15, knockbackY: -9, hitstop: 13,
-      hitbox: { forward: 30, top: 130, width: 320, height: 150 },
+      hitbox: { forward: 14, top: 168, width: 252, height: 188 },
     },
     special: {
       id: 'skull-sweep-s', animKey: 'attack2',
       startup: 32, active: 16, recovery: 42, damage: 22, knockbackX: 15, knockbackY: -9, hitstop: 13,
-      hitbox: { forward: 30, top: 130, width: 320, height: 150 },
+      hitbox: { forward: 14, top: 168, width: 252, height: 188 },
     },
     super: {
       id: 'skull-sweep-u', animKey: 'attack2',
       startup: 34, active: 18, recovery: 44, damage: 26, knockbackX: 16, knockbackY: -10, hitstop: 14,
       meterCost: 100,
-      hitbox: { forward: 30, top: 128, width: 340, height: 160 },
+      hitbox: { forward: 14, top: 172, width: 272, height: 196 },
     },
   },
 }

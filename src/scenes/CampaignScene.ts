@@ -124,10 +124,14 @@ const SEALED_DOORS: Record<string, Partial<Record<MapDir, string>>> = {
 }
 const GRAVITY = 0.78
 const WALK_SPEED = 3.4
-// Fell Bat: how close (horizontally) the player must get before it dives, and how
-// fast it sweeps across on the dive.
-const BAT_AGGRO_X = 210
-const BAT_DIVE_SPEED = 8.6
+// Fell Bat: how close (horizontally) the player must get before it drops, the
+// height above the player's feet it settles at (their standing-attack level), its
+// slow horizontal cruise speed, and the gentle up/down wave it flies in.
+const BAT_AGGRO_X = 230
+const BAT_ATTACK_HEIGHT = 96
+const BAT_CRUISE_SPEED = 3.2
+const BAT_WAVE_AMP = 22
+const BAT_WAVE_FREQ = 0.13
 // Continuous zombie spawner (zombie rooms): interval between spawns, live cap, and
 // how long a spawned zombie lingers before it sinks away.
 const ZOMBIE_SPAWN_INTERVAL = 130
@@ -467,6 +471,8 @@ class CastleActor {
   /** Bat behaviour: roosting until aggroed, then a committed dive off-screen. */
   batPhase: 'roost' | 'dive' = 'roost'
   private batBob = 0
+  /** The eased baseline height the diving bat undulates around. */
+  private batCenterY = 0
   /** Ticks alive — drives the timed despawn of ambient spawned zombies. */
   ageTicks = 0
   /** Force removal next filter pass (flew off-screen / timed out), no reward. */
@@ -639,26 +645,24 @@ class CastleActor {
     }
     this.batBob += 1
     if (this.batPhase === 'roost') {
-      // Hover with a gentle bob, facing the player; dive once it comes near.
+      // Hover with a gentle bob, facing the player; drop once it comes near.
       this.velocity.x = 0
       this.velocity.y = Math.sin(this.batBob * 0.12) * 0.6
       this.position.y += this.velocity.y
       this.facing = px >= this.position.x ? 1 : -1
       if (Math.abs(px - this.position.x) < BAT_AGGRO_X) {
         this.batPhase = 'dive'
-        const dx = px - this.position.x
-        const dy = py - this.position.y
-        const len = Math.hypot(dx, dy) || 1
-        this.velocity.x = (dx / len) * BAT_DIVE_SPEED
-        this.velocity.y = (dy / len) * BAT_DIVE_SPEED
+        this.batCenterY = this.position.y // ease down from where it roosted
       }
     } else {
-      // Committed dive: hold the heading (slight downward pull for an arc) so it
-      // sweeps past the player and off the far side of the room.
-      this.velocity.y += 0.08
-      this.position.x += this.velocity.x
-      this.position.y += this.velocity.y
-      this.facing = this.velocity.x >= 0 ? 1 : -1
+      // Drop to the player's standing-attack height, then cruise slowly toward
+      // them, flying in a gentle up/down wave.
+      const targetY = py - BAT_ATTACK_HEIGHT
+      this.batCenterY += (targetY - this.batCenterY) * 0.05
+      const dir: Facing = px >= this.position.x ? 1 : -1
+      this.position.x += dir * BAT_CRUISE_SPEED
+      this.position.y = this.batCenterY + Math.sin(this.batBob * BAT_WAVE_FREQ) * BAT_WAVE_AMP
+      this.facing = dir
     }
     this.state = 'idle'
     this.updateAnimator()
@@ -899,7 +903,11 @@ class CastleActor {
     }
 
     if (intent.jumpPressed && !sliding) {
-      if (this.grounded && intent.upHeld && this.hasHighJump) this.highJump()
+      if (this.grounded && intent.downHeld && this.onDroppablePlatform(platforms)) {
+        // Down + jump on a one-way platform drops through it instead of jumping.
+        this.dropTicks = DROP_WINDOW
+        this.grounded = false
+      } else if (this.grounded && intent.upHeld && this.hasHighJump) this.highJump()
       else this.tryJump()
     }
     // Variable jump height: releasing jump while still rising cuts the ascent
@@ -910,8 +918,6 @@ class CastleActor {
     if (!this.grounded && intent.downHeld && this.velocity.y > 0 && this.velocity.y < FAST_FALL_SPEED) {
       this.velocity.y = FAST_FALL_SPEED
     }
-    // Holding Down while grounded opens the drop-through window (used at floor shafts).
-    if (this.grounded && intent.downHeld) this.dropTicks = DROP_WINDOW
 
     this.integrate(platforms)
 
@@ -975,6 +981,17 @@ class CastleActor {
     }
   }
 
+  /** True when standing on a one-way platform you can drop through (the shaft
+   *  cover, or any raised ledge) — used to gate the Down+jump drop. */
+  private onDroppablePlatform(platforms: Platform[]): boolean {
+    for (const p of platforms) {
+      if (p.fallen || !(p.dropThrough || p.y < FLOOR_Y)) continue
+      if (this.position.x < p.x - 2 || this.position.x > p.x + p.width + 2) continue
+      if (Math.abs(this.position.y - p.y) <= 2) return true
+    }
+    return false
+  }
+
   private integrate(platforms: Platform[]): void {
     const wasGrounded = this.grounded
     this.position.x += this.velocity.x
@@ -999,8 +1016,9 @@ class CastleActor {
     let landingY = FLOOR_Y
     for (const platform of platforms) {
       if (platform.fallen) continue
-      // While a drop-through is active, fall straight through shaft platforms.
-      if (platform.dropThrough && this.dropTicks > 0) continue
+      // While a drop-through is active, fall straight through one-way platforms —
+      // the shaft cover and any raised (above-floor) ledge.
+      if (this.dropTicks > 0 && (platform.dropThrough || platform.y < FLOOR_Y)) continue
       if (this.position.x < platform.x - 2 || this.position.x > platform.x + platform.width + 2) continue
       if (this.prevPosition.y <= platform.y && this.position.y >= platform.y && this.velocity.y >= 0) {
         landed = true
@@ -1109,6 +1127,7 @@ class CastleActor {
       ctx.translate(0, -fy)
     }
     if (this.def.id === 'bat') this.drawBat(ctx, fx, fy)
+    else if (this.def.id === 'creakingSkull') this.drawCreakingSkull(ctx, fx, fy)
     else this.drawStick(ctx, fx, fy)
     ctx.restore()
   }
@@ -1149,6 +1168,64 @@ class CastleActor {
     // Eyes — a faint glow so the roost reads as "watching".
     ctx.fillStyle = '#ffd24a'
     ctx.beginPath(); ctx.arc(fx - 3, cy - 1, 1.4, 0, Math.PI * 2); ctx.arc(fx + 3, cy - 1, 1.4, 0, Math.PI * 2); ctx.fill()
+    ctx.restore()
+  }
+
+  /** The Creaking Skull: a huge reclining figure that raises a bone sword high on
+   *  the wind-up and smashes it down in front — so the visual fills its wide sweep
+   *  hitbox. Faces `this.facing`; the sword angle tracks the attack timing. */
+  private drawCreakingSkull(ctx: CanvasRenderingContext2D, fx: number, fy: number): void {
+    const f = this.facing
+    const col = this.bodyColor()
+    ctx.save()
+    ctx.strokeStyle = col
+    ctx.fillStyle = col
+    ctx.lineCap = 'round'
+    ctx.lineJoin = 'round'
+
+    // Reclining body, sprawled behind the shoulder (away from the facing side).
+    ctx.beginPath()
+    ctx.ellipse(fx - f * 34, fy - 22, 50, 24, 0, 0, Math.PI * 2)
+    ctx.fill()
+    // Legs sprawled out behind.
+    ctx.lineWidth = 8
+    ctx.beginPath()
+    ctx.moveTo(fx - f * 60, fy - 20); ctx.lineTo(fx - f * 96, fy - 2)
+    ctx.moveTo(fx - f * 58, fy - 26); ctx.lineTo(fx - f * 84, fy - 2)
+    ctx.stroke()
+    // Skull head at the far back.
+    ctx.beginPath(); ctx.arc(fx - f * 88, fy - 34, 22, 0, Math.PI * 2); ctx.fill()
+    ctx.fillStyle = '#2a1414'
+    ctx.beginPath()
+    ctx.arc(fx - f * 95, fy - 36, 4.5, 0, Math.PI * 2)
+    ctx.arc(fx - f * 82, fy - 36, 4.5, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.fillStyle = col
+
+    // Sword arm from the front shoulder: raised on the wind-up, smashed down on
+    // the active frames (matches the sweep hitbox in front).
+    const shoulder = { x: fx + f * 6, y: fy - 46 }
+    let ang = -0.5 // rest: held slightly up
+    const mv = this.attackMove
+    if (this.state === 'attack' && mv) {
+      if (this.attackTick <= mv.startup) {
+        const p = clamp(this.attackTick / Math.max(1, mv.startup), 0, 1)
+        ang = -0.5 - p * (Math.PI / 2 - 0.5) // raise to straight up
+      } else {
+        const p = clamp((this.attackTick - mv.startup) / Math.max(1, mv.active), 0, 1)
+        ang = -Math.PI / 2 + p * (Math.PI / 2 + 0.4) // smash down and forward
+      }
+    }
+    const reach = 210
+    const tip = { x: shoulder.x + f * Math.cos(ang) * reach, y: shoulder.y + Math.sin(ang) * reach }
+    const grip = { x: shoulder.x + f * Math.cos(ang) * 44, y: shoulder.y + Math.sin(ang) * 44 }
+    // Arm.
+    ctx.lineWidth = 10
+    ctx.beginPath(); ctx.moveTo(shoulder.x, shoulder.y); ctx.lineTo(grip.x, grip.y); ctx.stroke()
+    // Bone blade — thick and pale.
+    ctx.strokeStyle = '#e8dcc0'
+    ctx.lineWidth = 13
+    ctx.beginPath(); ctx.moveTo(grip.x, grip.y); ctx.lineTo(tip.x, tip.y); ctx.stroke()
     ctx.restore()
   }
 
