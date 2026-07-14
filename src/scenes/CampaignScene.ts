@@ -4,7 +4,7 @@ import { ModeSelectScene } from './ModeSelectScene.ts'
 import { PauseScene } from './PauseScene.ts'
 import { AssetManager } from '../assets/AssetManager.ts'
 import { AUDIO_MANIFEST } from '../assets/manifest.ts'
-import { addCampaignAbility, addCampaignBlueSoul, addCampaignBulletSoul, addCampaignEquipment, addCampaignPerk, addCampaignRelic, addCampaignSoul, equipCampaignBlueSoul, equipCampaignBulletSoul, equipCampaignItem, equipCampaignYellowSoul, equippedDefs, getCampaignChapter, getCampaignNode, grantCampaignRewards, hasWorldFlag, loadCampaignSave, markCampaignVisited, MAX_LEVEL, saveCampaignSave, setWorldFlag, unequipCampaignSlot, xpForNextLevel } from '../data/campaign.ts'
+import { addCampaignAbility, addCampaignBlueSoul, addCampaignBulletSoul, addCampaignConsumable, addCampaignEquipment, addCampaignPerk, addCampaignRelic, addCampaignSoul, equipCampaignBlueSoul, equipCampaignBulletSoul, equipCampaignItem, equipCampaignYellowSoul, equippedDefs, getCampaignChapter, getCampaignNode, grantCampaignRewards, hasWorldFlag, loadCampaignSave, markCampaignVisited, MAX_LEVEL, saveCampaignSave, setWorldFlag, unequipCampaignSlot, useCampaignConsumable, xpForNextLevel } from '../data/campaign.ts'
 import { draftPowerUps, powerUpStacks, type PowerUpDef } from '../data/powerups.ts'
 import { BASE_BULLET_SOUL, bulletSoulForEnemy, getBulletSoul, type BulletSoulDef } from '../data/bulletSouls.ts'
 import { BASE_BLUE_SOUL, blueSoulForEnemy, getBlueSoul, type BlueSoulEffect } from '../data/blueSouls.ts'
@@ -15,6 +15,7 @@ import { buildEquipmentModifiers, EQUIP_SLOT_LABELS, EQUIP_SLOTS, equipmentForSl
 import { buildRunModifiers, RELIC_POOL, type RelicDef, type RunModifiers } from '../data/relics.ts'
 import { buildSoulModifiers, getSoul, soulForEnemy, SOUL_POOL, type SoulDef, type SoulModifiers } from '../data/souls.ts'
 import { grey as CAMPAIGN_HERO, zombie } from '../data/characters/castlevaniaCampaign.ts'
+import { CONSUMABLE_POOL, getConsumable } from '../data/consumables.ts'
 import { getStage } from '../data/stages.ts'
 import type { CharacterDef } from '../data/characters/CharacterDef.ts'
 import { KeyboardSource } from '../input/KeyboardSource.ts'
@@ -60,7 +61,7 @@ const MERCHANT_RANGE = 80
 // Beating this room's boss completes the campaign.
 const FINAL_BOSS_NODE = 'fbd-chaos'
 // Navigable pause menu entries (GBA-style).
-const MENU_ITEMS = ['STATUS', 'EQUIP', 'SOULS', 'MAP', 'RESUME'] as const
+const MENU_ITEMS = ['STATUS', 'EQUIP', 'SOULS', 'ITEMS', 'MAP', 'RESUME'] as const
 // The soul-reaver hero (Grey) casts souls with the sub button and activates a
 // guardian on ;; a hunter (Red) uses subweapons instead. Sub-weapons are Red's.
 const HERO_USES_SOULS = CAMPAIGN_HERO.meta.archetype !== 'HUNTER'
@@ -1317,6 +1318,8 @@ export class CampaignScene extends Scene {
   private showEquipment = false
   private showSouls = false
   private soulSlotIndex = 0
+  private showItems = false
+  private itemIndex = 0
   private showMap = false
   private showMenu = false
   private menuIndex = 0
@@ -1481,6 +1484,32 @@ export class CampaignScene extends Scene {
       if (isMenuCancel(e.code) || e.code === 'Escape' || e.code === 'KeyI' || e.code === 'Tab') {
         e.preventDefault()
         this.showSouls = false
+        if (this.menuReturn) this.showMenu = true
+      }
+      return
+    }
+    if (this.showItems) {
+      const items = CONSUMABLE_POOL
+      if (e.code === 'KeyW' || e.code === 'ArrowUp') {
+        e.preventDefault()
+        this.itemIndex = (this.itemIndex - 1 + items.length) % items.length
+        this.ctx.audio.swing()
+        return
+      }
+      if (e.code === 'KeyS' || e.code === 'ArrowDown') {
+        e.preventDefault()
+        this.itemIndex = (this.itemIndex + 1) % items.length
+        this.ctx.audio.swing()
+        return
+      }
+      if (isMenuConfirm(e.code)) {
+        e.preventDefault()
+        this.useConsumable(items[this.itemIndex]?.id ?? '')
+        return
+      }
+      if (isMenuCancel(e.code) || e.code === 'Escape' || e.code === 'KeyI' || e.code === 'Tab') {
+        e.preventDefault()
+        this.showItems = false
         if (this.menuReturn) this.showMenu = true
       }
       return
@@ -1668,7 +1697,7 @@ export class CampaignScene extends Scene {
     if (this.flashTicks > 0) this.flashTicks -= 1
     if (this.contactHitCooldown > 0) this.contactHitCooldown -= 1
     if (this.levelUpTicks > 0) this.levelUpTicks -= 1
-    if (this.ending || this.drafting || this.perkChoosing || this.levelUpScreen || this.shopping || this.showStatus || this.showEquipment || this.showSouls || this.showMap || this.showMenu) return
+    if (this.ending || this.drafting || this.perkChoosing || this.levelUpScreen || this.shopping || this.showStatus || this.showEquipment || this.showSouls || this.showItems || this.showMap || this.showMenu) return
     if (this.defeatTicks > 0) {
       this.defeatTicks += 1
       if (this.defeatTicks > DEFEAT_RETRY_TICKS) this.reloadNode(this.node.id, true)
@@ -1858,6 +1887,7 @@ export class CampaignScene extends Scene {
     else if (this.showMap) this.drawMap()
     else if (this.showEquipment) this.drawEquipment()
     else if (this.showSouls) this.drawSouls()
+    else if (this.showItems) this.drawItems()
     else if (this.showStatus) this.drawStatus()
     else if (this.defeatTicks > 0) this.drawDefeat()
     else {
@@ -1878,7 +1908,7 @@ export class CampaignScene extends Scene {
 
   /** True when the room is in normal play, i.e. no blocking overlay is up. */
   private get canOpenOverlay(): boolean {
-    return !this.ending && !this.drafting && !this.shopping && !this.showStatus && !this.showEquipment && !this.showSouls && !this.showMenu && this.defeatTicks === 0
+    return !this.ending && !this.drafting && !this.shopping && !this.showStatus && !this.showEquipment && !this.showSouls && !this.showItems && !this.showMenu && this.defeatTicks === 0
   }
 
 
@@ -1919,6 +1949,7 @@ export class CampaignScene extends Scene {
     if (item === 'STATUS') this.showStatus = true
     else if (item === 'EQUIP') { this.showEquipment = true; this.equipSlotIndex = 0; this.equipPicking = false }
     else if (item === 'SOULS') { this.showSouls = true; this.soulSlotIndex = 0 }
+    else if (item === 'ITEMS') { this.showItems = true; this.itemIndex = 0 }
     else if (item === 'MAP') this.openMap()
   }
 
@@ -2012,6 +2043,7 @@ export class CampaignScene extends Scene {
     this.showEquipment = false
     this.equipPicking = false
     this.showSouls = false
+    this.showItems = false
     this.perkChoosing = false
     this.perkOptions = []
     this.pendingLevelUps = 0
@@ -2139,6 +2171,25 @@ export class CampaignScene extends Scene {
       this.applySoulMods()
     }
     this.ctx.audio.swing()
+  }
+
+  /** Spend a consumable to restore HP (potion) or MP (elixir). */
+  private useConsumable(id: string): void {
+    const def = getConsumable(id)
+    if (!def) return
+    if ((this.save.consumables[id] ?? 0) <= 0) { this.ctx.audio.swing(); return }
+    // Don't waste one when the relevant bar is already full.
+    if (def.effect === 'heal' && this.player.health >= this.player.maxHealth) { this.ctx.audio.swing(); return }
+    if (def.effect === 'mana' && this.player.meter >= 100) { this.ctx.audio.swing(); return }
+    this.save = useCampaignConsumable(this.save, id)
+    if (def.effect === 'heal') {
+      this.player.health = Math.min(this.player.maxHealth, this.player.health + def.amount)
+      this.spawnFloatingText(this.player.position.x, this.player.position.y - 118, `+${def.amount} HP`, '#7ad67a')
+    } else {
+      this.player.meter = clamp(this.player.meter + def.amount, 0, 100)
+      this.spawnFloatingText(this.player.position.x, this.player.position.y - 118, `+${def.amount} MP`, '#7aa8ff')
+    }
+    this.ctx.audio.hit()
   }
 
   private cycleBulletSoul(): void {
@@ -2964,6 +3015,13 @@ export class CampaignScene extends Scene {
         price: 120,
         available: unownedSouls > 0,
       },
+      ...CONSUMABLE_POOL.map((item) => ({
+        id: `item:${item.id}`,
+        name: item.name.toUpperCase(),
+        desc: `${item.blurb}  (held ${this.save.consumables[item.id] ?? 0})`,
+        price: item.price,
+        available: true,
+      })),
       ...gear,
       { id: 'leave', name: 'LEAVE SHOP', desc: 'Continue the hunt', price: 0, available: true },
     ]
@@ -2988,6 +3046,8 @@ export class CampaignScene extends Scene {
       const unowned = SOUL_POOL.filter((soul) => !this.save.souls.includes(soul.id))
       const pick = unowned[this.ctx.rng.int(0, unowned.length - 1)]
       if (pick) this.save = addCampaignSoul(this.save, pick.id)
+    } else if (item.id.startsWith('item:')) {
+      this.save = addCampaignConsumable(this.save, item.id.slice('item:'.length), 1)
     } else if (item.id.startsWith('equip:')) {
       // Purchased gear lands in the inventory and auto-equips if the slot is open;
       // the loadout screen (from Status) lets the player swap it afterward.
@@ -3726,7 +3786,7 @@ export class CampaignScene extends Scene {
     ctx.save()
     ctx.fillStyle = 'rgba(6, 5, 12, 0.82)'
     ctx.fillRect(0, 0, width, height)
-    const pw = 320, ph = 306
+    const pw = 320, ph = 344
     const px = width / 2 - pw / 2, py = height / 2 - ph / 2
     ctx.fillStyle = 'rgba(16, 24, 43, 0.96)'
     ctx.fillRect(px, py, pw, ph)
@@ -4048,6 +4108,58 @@ export class CampaignScene extends Scene {
         ctx.fillStyle = row.color
         ctx.font = '10px "Press Start 2P", monospace'
         ctx.fillText('‹ A/D ›', r.x + r.w - 16, r.y + r.h - 22)
+      }
+    })
+    ctx.restore()
+  }
+
+  /** The ITEMS menu: consumables (potion / elixir) with counts; J uses the one
+   *  highlighted. */
+  private drawItems(): void {
+    const { ctx } = this.ctx.renderer
+    const { width, height } = this.ctx
+    ctx.save()
+    ctx.fillStyle = 'rgba(6, 5, 12, 0.94)'
+    ctx.fillRect(0, 0, width, height)
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillStyle = '#e8d4a0'
+    ctx.font = '18px "Press Start 2P", monospace'
+    ctx.fillText('ITEMS', width / 2, 84)
+    ctx.fillStyle = '#8a8aa0'
+    ctx.font = '8px "Press Start 2P", monospace'
+    ctx.fillText('W/S SELECT     J USE     K CLOSE', width / 2, 116)
+
+    CONSUMABLE_POOL.forEach((item, i) => {
+      const r = this.soulRowRect(i)
+      const selected = i === this.itemIndex
+      const count = this.save.consumables[item.id] ?? 0
+      const color = item.effect === 'heal' ? '#7ad67a' : '#7aa8ff'
+      ctx.fillStyle = selected ? 'rgba(40, 33, 56, 0.96)' : 'rgba(16, 24, 43, 0.82)'
+      ctx.fillRect(r.x, r.y, r.w, r.h)
+      ctx.strokeStyle = selected ? color : '#5a567a'
+      ctx.lineWidth = selected ? 3 : 2
+      ctx.strokeRect(r.x, r.y, r.w, r.h)
+      ctx.fillStyle = count > 0 ? color : '#4a4660'
+      ctx.fillRect(r.x + 16, r.y + 20, 16, 16)
+
+      ctx.textAlign = 'left'
+      ctx.textBaseline = 'top'
+      ctx.fillStyle = count > 0 ? '#e8d4a0' : '#6a6480'
+      ctx.font = '13px "Press Start 2P", monospace'
+      ctx.fillText(item.name.toUpperCase(), r.x + 44, r.y + 18)
+      ctx.fillStyle = '#9aa8c8'
+      ctx.font = '9px "Press Start 2P", monospace'
+      ctx.fillText(item.blurb, r.x + 44, r.y + 46)
+      ctx.textAlign = 'right'
+      ctx.fillStyle = count > 0 ? '#f6b74a' : '#5a567a'
+      ctx.font = '14px "Press Start 2P", monospace'
+      ctx.fillText(`x${count}`, r.x + r.w - 18, r.y + 30)
+      if (selected && count > 0) {
+        ctx.textAlign = 'right'
+        ctx.fillStyle = color
+        ctx.font = '9px "Press Start 2P", monospace'
+        ctx.fillText('J USE', r.x + r.w - 18, r.y + r.h - 20)
       }
     })
     ctx.restore()

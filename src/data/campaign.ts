@@ -6,6 +6,7 @@ import { SOUL_POOL } from './souls.ts'
 import { POWERUP_POOL, type PowerUpId } from './powerups.ts'
 import { BASE_BULLET_SOUL, BULLET_SOUL_POOL } from './bulletSouls.ts'
 import { BASE_BLUE_SOUL, BLUE_SOUL_POOL } from './blueSouls.ts'
+import { CONSUMABLE_POOL } from './consumables.ts'
 import { EQUIP_SLOTS, EQUIPMENT_POOL, getEquipment, type EquipmentDef, type EquipmentId, type EquipSlot } from './equipment.ts'
 
 const STORAGE_KEY = 'castlevania97.campaign.v1'
@@ -61,6 +62,8 @@ export interface CampaignSave {
   equipment: readonly EquipmentId[]
   /** Currently equipped piece per slot; an absent slot is empty. */
   equipped: Partial<Record<EquipSlot, EquipmentId>>
+  /** Owned consumable items (potion/elixir): id -> count held. */
+  consumables: Readonly<Record<string, number>>
   /** Level-up power-ups, stackable: perkId -> times chosen (see powerups.ts). */
   perks: Readonly<Record<string, number>>
   /** Metroidvania traversal abilities collected (e.g. 'double-jump'). */
@@ -695,6 +698,7 @@ export function initialCampaignSave(): CampaignSave {
     equippedBlueSoul: BASE_BLUE_SOUL,
     equipment: ['dagger', 'longSword', 'broadsword', 'lance', 'elementalSword'],
     equipped: { weapon: 'longSword' },
+    consumables: { potion: 3, elixir: 2 },
     perks: {},
     abilities: [],
     worldFlags: {},
@@ -816,6 +820,25 @@ export function addCampaignEquipment(save: CampaignSave, id: EquipmentId): Campa
   return next
 }
 
+/** Add `n` of a consumable to the inventory. */
+export function addCampaignConsumable(save: CampaignSave, id: string, n = 1): CampaignSave {
+  const next: CampaignSave = { ...save, consumables: { ...save.consumables, [id]: Math.min(99, (save.consumables[id] ?? 0) + n) } }
+  saveCampaignSave(next)
+  return next
+}
+
+/** Spend one of a consumable (no-op if none held). Returns the new save. */
+export function useCampaignConsumable(save: CampaignSave, id: string): CampaignSave {
+  const have = save.consumables[id] ?? 0
+  if (have <= 0) return save
+  const nextConsumables = { ...save.consumables }
+  if (have <= 1) delete nextConsumables[id]
+  else nextConsumables[id] = have - 1
+  const next: CampaignSave = { ...save, consumables: nextConsumables }
+  saveCampaignSave(next)
+  return next
+}
+
 /** Equip an owned piece into its slot (replacing whatever occupied it). */
 export function equipCampaignItem(save: CampaignSave, id: EquipmentId): CampaignSave {
   const def = getEquipment(id)
@@ -927,6 +950,7 @@ export function completeCampaignBattle(save: CampaignSave): CampaignSave {
     equippedBlueSoul: save.equippedBlueSoul,
     equipment: save.equipment,
     equipped: save.equipped,
+    consumables: save.consumables,
     perks: save.perks,
     abilities: save.abilities,
     worldFlags: save.worldFlags,
@@ -1049,6 +1073,7 @@ function sanitizeCampaignSave(value: Partial<CampaignSave>): CampaignSave {
     equippedBlueSoul,
     equipment: filterEquipment(value.equipment),
     equipped: filterEquipped(value.equipped, filterEquipment(value.equipment)),
+    consumables: filterConsumables(value.consumables),
     perks: filterPerks(value.perks),
     abilities: Array.isArray(value.abilities) ? value.abilities.filter((a): a is string => typeof a === 'string') : [],
     worldFlags: parseWorldFlags(value),
@@ -1071,6 +1096,18 @@ function filterRelics(value: readonly RelicId[] | undefined): RelicId[] {
   if (!Array.isArray(value)) return []
   const valid = new Set(RELIC_POOL.map((relic) => relic.id))
   return value.filter((entry): entry is RelicId => valid.has(entry))
+}
+
+function filterConsumables(value: Readonly<Record<string, number>> | undefined): Record<string, number> {
+  const result: Record<string, number> = {}
+  if (!value || typeof value !== 'object') return result
+  const valid = new Set(CONSUMABLE_POOL.map((c) => c.id))
+  for (const [id, count] of Object.entries(value)) {
+    if (valid.has(id as (typeof CONSUMABLE_POOL)[number]['id']) && typeof count === 'number' && Number.isFinite(count) && count > 0) {
+      result[id] = Math.min(99, Math.floor(count))
+    }
+  }
+  return result
 }
 
 function filterPerks(value: Readonly<Record<string, number>> | undefined): Record<string, number> {
