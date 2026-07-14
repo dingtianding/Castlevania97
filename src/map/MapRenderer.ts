@@ -33,21 +33,25 @@ export interface MapDrawOptions {
   fit?: boolean
 }
 
+// Aria-of-Sorrow map palette: royal-blue explored rooms on near-black, red save/
+// warp cells, bright-blue corridors, a white flash on the current room.
 const COLORS = {
-  panel: 'rgba(6, 5, 12, 0.92)',
-  border: '#5a567a',
-  revealedOutline: '#4a4668',
-  discoveredFill: '#243a5a',
-  discoveredBorder: '#3a5a86',
-  visitedFill: '#2f4f7e',
-  visitedBorder: '#6a86b8',
-  currentFill: '#e8d4a0',
-  currentBorder: '#fff2cc',
-  connNormal: '#3a3658',
+  panel: 'rgba(4, 4, 10, 0.96)',
+  border: '#3a4a86',
+  revealedOutline: '#1c2a66', // seen but not entered — faint blue ghost
+  discoveredFill: '#1a2fb0',
+  discoveredBorder: '#4a63e6',
+  visitedFill: '#2340dc',
+  visitedBorder: '#6f8cff',
+  currentFill: '#eaf0ff',
+  currentBorder: '#ffffff',
+  saveFill: '#c81e28', // save/warp rooms read as red squares, as in Aria
+  saveBorder: '#ff6a72',
+  connNormal: '#2f50e0',
   connLocked: '#c8a24a',
   connAbility: '#a06adc',
-  connSecret: '#5a4a7a',
-  save: '#5ac8ff',
+  connSecret: '#3a3a72',
+  save: '#bfe6ff',
   warp: '#c86adc',
   boss: '#e0393a',
   item: '#f6b74a',
@@ -55,7 +59,7 @@ const COLORS = {
 }
 
 export class MapRenderer {
-  private readonly gap = 3 // px inset so adjacent rooms read as separate cells
+  private readonly gap = 2 // px inset so adjacent rooms read as separate cells
 
   draw(ctx: CanvasRenderingContext2D, service: MapService, view: MapView, opts: MapDrawOptions = {}): void {
     ctx.save()
@@ -148,29 +152,47 @@ export class MapRenderer {
     const r = this.roomRect(room, offset, cell)
 
     if (state === 'revealed' && !isCurrent) {
-      // Outline only.
+      // Seen but not entered — a faint blue ghost outline.
+      ctx.fillStyle = 'rgba(20, 34, 110, 0.35)'
+      ctx.fillRect(r.x, r.y, r.w, r.h)
       ctx.strokeStyle = COLORS.revealedOutline
-      ctx.lineWidth = 2
-      ctx.strokeRect(r.x, r.y, r.w, r.h)
+      ctx.lineWidth = 1.5
+      ctx.strokeRect(r.x + 0.5, r.y + 0.5, r.w - 1, r.h - 1)
       return
     }
 
+    // Save/warp rooms are red squares in the Aria map; everything else is blue,
+    // brighter once actually visited. The current room flashes white.
     let fill = COLORS.discoveredFill
     let border = COLORS.discoveredBorder
-    if (isCurrent) {
-      fill = `rgba(232, 212, 160, ${0.5 + 0.4 * pulse})`
-      border = COLORS.currentBorder
+    if (room.hasSave || room.hasWarp) {
+      fill = COLORS.saveFill
+      border = COLORS.saveBorder
     } else if (state === 'visited') {
       fill = COLORS.visitedFill
       border = COLORS.visitedBorder
     }
-    ctx.fillStyle = fill
-    ctx.fillRect(r.x, r.y, r.w, r.h)
+    if (isCurrent) {
+      // Blend the room's own colour toward white so the pulse still reads red on
+      // a save room, blue on a normal one.
+      ctx.fillStyle = fill
+      ctx.fillRect(r.x, r.y, r.w, r.h)
+      ctx.fillStyle = `rgba(255, 255, 255, ${0.45 + 0.35 * pulse})`
+      ctx.fillRect(r.x, r.y, r.w, r.h)
+      border = COLORS.currentBorder
+    } else {
+      ctx.fillStyle = fill
+      ctx.fillRect(r.x, r.y, r.w, r.h)
+    }
     ctx.strokeStyle = border
-    ctx.lineWidth = 2
-    ctx.strokeRect(r.x, r.y, r.w, r.h)
+    ctx.lineWidth = isCurrent ? 2.5 : 1.5
+    ctx.strokeRect(r.x + 0.5, r.y + 0.5, r.w - 1, r.h - 1)
 
-    for (const icon of room.icons) this.drawIcon(ctx, icon, r.x + r.w / 2, r.y + r.h / 2, room, service)
+    // The red cell already signals a save/warp; only draw the non-save icons.
+    for (const icon of room.icons) {
+      if (icon === 'save' || icon === 'warp') continue
+      this.drawIcon(ctx, icon, r.x + r.w / 2, r.y + r.h / 2, room, service)
+    }
   }
 
   /** Corridors bridging the gap between a room and its linked neighbours, drawn
