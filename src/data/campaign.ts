@@ -1,5 +1,5 @@
 import type { CharacterDef } from './characters/CharacterDef.ts'
-import { armoredSkeleton, bigGolem, boneThrower, chaos, creakingSkull, death, ghoul, greatArmor, headhunter, grey, legion, manticore, skeleton, zombie } from './characters/castlevaniaCampaign.ts'
+import { armoredSkeleton, bat, bigGolem, boneThrower, chaos, creakingSkull, death, ghoul, greatArmor, headhunter, grey, legion, manticore, skeleton, zombie } from './characters/castlevaniaCampaign.ts'
 import type { StageId } from './stages.ts'
 import { RELIC_POOL, type RelicId } from './relics.ts'
 import { SOUL_POOL } from './souls.ts'
@@ -285,10 +285,10 @@ export const CAMPAIGN_NODES: readonly CampaignNodeDef[] = [
     title: 'Watch Post',
     blurb: 'A sentry ledge overlooking the sentinel gate, with a drop down to it.',
     story:
-      'The watch-post looks down on the far gate from above. Red thins the guard posted here, then takes the drop that lets him fall on the sentinel from behind.',
+      'The watch-post looks down on the far gate from above. Fell bats roost in the rafters here, still as stone until Red passes beneath them.',
     stage: 'outer_wall',
     enemy: skeleton,
-    extraEnemies: [{ def: zombie, count: 1 }],
+    extraEnemies: [{ def: bat, count: 2 }],
     difficulty: 'normal',
     nextIds: ['cor-skull'],
     position: { x: 340, y: 110 },
@@ -318,7 +318,7 @@ export const CAMPAIGN_NODES: readonly CampaignNodeDef[] = [
       'A shaft in the grand corridor drops into the undercroft below. The dark down here is older than the castle, and it does not like the torchlight Red brings with him.',
     stage: 'outer_wall',
     enemy: skeleton,
-    extraEnemies: [{ def: zombie, count: 1 }],
+    extraEnemies: [{ def: bat, count: 1 }],
     difficulty: 'normal',
     nextIds: ['cor-drain'],
     position: { x: 220, y: 300 },

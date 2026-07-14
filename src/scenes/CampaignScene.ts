@@ -14,7 +14,7 @@ import { castleDoors, castleNeighbor, type MapDir } from '../data/castleMap.ts'
 import { buildEquipmentModifiers, EQUIP_SLOT_LABELS, EQUIP_SLOTS, equipmentForSlot, EQUIPMENT_POOL, getEquipment, type EquipmentDef, type EquipmentModifiers, type EquipSlot, type WeaponProfile } from '../data/equipment.ts'
 import { buildRunModifiers, RELIC_POOL, type RelicDef, type RunModifiers } from '../data/relics.ts'
 import { buildSoulModifiers, getSoul, soulForEnemy, SOUL_POOL, type SoulDef, type SoulModifiers } from '../data/souls.ts'
-import { grey as CAMPAIGN_HERO } from '../data/characters/castlevaniaCampaign.ts'
+import { grey as CAMPAIGN_HERO, zombie } from '../data/characters/castlevaniaCampaign.ts'
 import { getStage } from '../data/stages.ts'
 import type { CharacterDef } from '../data/characters/CharacterDef.ts'
 import { KeyboardSource } from '../input/KeyboardSource.ts'
@@ -123,6 +123,15 @@ const SEALED_DOORS: Record<string, Partial<Record<MapDir, string>>> = {
 }
 const GRAVITY = 0.78
 const WALK_SPEED = 3.4
+// Fell Bat: how close (horizontally) the player must get before it dives, and how
+// fast it sweeps across on the dive.
+const BAT_AGGRO_X = 210
+const BAT_DIVE_SPEED = 8.6
+// Continuous zombie spawner (zombie rooms): interval between spawns, live cap, and
+// how long a spawned zombie lingers before it sinks away.
+const ZOMBIE_SPAWN_INTERVAL = 130
+const ZOMBIE_ROOM_CAP = 6
+const ZOMBIE_LIFETIME = 780
 const AIR_SPEED = 3.0
 const ATTACK_DRIFT_SPEED = 1.6
 const DASH_SPEED = 12
@@ -402,6 +411,7 @@ const ENEMY_REWARD: Record<string, { xp: number; gold: number }> = {
   skeleton: { xp: 6, gold: 4 },
   zombie: { xp: 5, gold: 3 },
   ghoul: { xp: 4, gold: 2 },
+  bat: { xp: 4, gold: 3 },
   armoredSkeleton: { xp: 14, gold: 10 },
   boneThrower: { xp: 10, gold: 7 },
 }
@@ -436,6 +446,15 @@ class CastleActor {
   wanderTicks = 0
   /** Cooldown (ticks) between ranged throws, so the skeleton lobs slowly. */
   throwCooldown = 0
+  /** Flying enemies (bats) ignore gravity and floor collision. */
+  flying = false
+  /** Bat behaviour: roosting until aggroed, then a committed dive off-screen. */
+  batPhase: 'roost' | 'dive' = 'roost'
+  private batBob = 0
+  /** Ticks alive — drives the timed despawn of ambient spawned zombies. */
+  ageTicks = 0
+  /** Force removal next filter pass (flew off-screen / timed out), no reward. */
+  forceGone = false
   private pendingRangedShot: { x: number; y: number; facing: Facing } | null = null
   grounded = true
   facing: Facing
@@ -498,9 +517,9 @@ class CastleActor {
     return this.state === 'death' || this.health <= 0
   }
 
-  /** True once the death animation and fade have fully played out. */
+  /** True once the death animation and fade have fully played out, or forced. */
   get isGone(): boolean {
-    return this.state === 'death' && this.deathTicks >= DEATH_HOLD_TICKS + DEATH_FADE_TICKS
+    return this.forceGone || (this.state === 'death' && this.deathTicks >= DEATH_HOLD_TICKS + DEATH_FADE_TICKS)
   }
 
   get currentMove(): AttackMove | null {
@@ -581,6 +600,60 @@ class CastleActor {
 
     this.updateLocomotion(intent, opponentX, platforms)
     this.updateAnimator()
+  }
+
+  /** Flight update for the Fell Bat: hover in place until the player draws near,
+   *  then commit to a single dive toward them that carries on off the far side. */
+  updateBat(px: number, py: number): void {
+    this.prevPosition.x = this.position.x
+    this.prevPosition.y = this.position.y
+    if (this.invulnerableTicks > 0) this.invulnerableTicks -= 1
+    if (this.state === 'death') { this.deathTicks += 1; this.updateAnimator(); return }
+    if (this.state === 'hurt') {
+      this.hurtTick += 1
+      this.position.x += this.velocity.x * 0.5
+      this.position.y += this.velocity.y * 0.5
+      this.velocity.x *= 0.86
+      this.velocity.y *= 0.86
+      if (this.hurtTick >= HURT_TICKS) this.state = 'idle'
+      this.updateAnimator()
+      return
+    }
+    this.batBob += 1
+    if (this.batPhase === 'roost') {
+      // Hover with a gentle bob, facing the player; dive once it comes near.
+      this.velocity.x = 0
+      this.velocity.y = Math.sin(this.batBob * 0.12) * 0.6
+      this.position.y += this.velocity.y
+      this.facing = px >= this.position.x ? 1 : -1
+      if (Math.abs(px - this.position.x) < BAT_AGGRO_X) {
+        this.batPhase = 'dive'
+        const dx = px - this.position.x
+        const dy = py - this.position.y
+        const len = Math.hypot(dx, dy) || 1
+        this.velocity.x = (dx / len) * BAT_DIVE_SPEED
+        this.velocity.y = (dy / len) * BAT_DIVE_SPEED
+      }
+    } else {
+      // Committed dive: hold the heading (slight downward pull for an arc) so it
+      // sweeps past the player and off the far side of the room.
+      this.velocity.y += 0.08
+      this.position.x += this.velocity.x
+      this.position.y += this.velocity.y
+      this.facing = this.velocity.x >= 0 ? 1 : -1
+    }
+    this.state = 'idle'
+    this.updateAnimator()
+  }
+
+  /** Remove without a death (no reward): used for timed-out ambient spawns. Plays
+   *  the crumble/fade so it doesn't just blink out. */
+  despawnQuietly(): void {
+    if (this.state === 'death') return
+    this.state = 'death'
+    this.deathTicks = 0
+    this.velocity.x = 0
+    this.velocity.y = 0
   }
 
   activeAttack(): { box: Rect; spec: AttackMove } | null {
@@ -969,7 +1042,47 @@ class CastleActor {
       ctx.scale(1, 0.5)
       ctx.translate(0, -fy)
     }
-    this.drawStick(ctx, fx, fy)
+    if (this.def.id === 'bat') this.drawBat(ctx, fx, fy)
+    else this.drawStick(ctx, fx, fy)
+    ctx.restore()
+  }
+
+  /** A small flapping bat: body, ears, and two wings whose spread animates. */
+  private drawBat(ctx: CanvasRenderingContext2D, fx: number, fy: number): void {
+    const col = this.def.color ?? '#8a6ab0'
+    const cy = fy - this.def.visual.hurtbox.height * 0.5
+    const bodyR = 8
+    // Wing flap: fast during a dive, slow gentle beat while roosting.
+    const speed = this.batPhase === 'dive' ? 0.5 : 0.14
+    const flap = Math.sin(this.batBob * speed)
+    const span = 22
+    const rise = flap * 12
+    ctx.save()
+    ctx.fillStyle = col
+    ctx.strokeStyle = col
+    ctx.lineJoin = 'round'
+    // Wings — a swept membrane each side that rises/falls with the flap.
+    for (const s of [-1, 1]) {
+      ctx.beginPath()
+      ctx.moveTo(fx, cy)
+      ctx.quadraticCurveTo(fx + s * span * 0.6, cy - 10 - rise, fx + s * span, cy - rise)
+      ctx.quadraticCurveTo(fx + s * span * 0.7, cy + 4 - rise * 0.4, fx + s * span * 0.5, cy + 8)
+      ctx.quadraticCurveTo(fx + s * span * 0.3, cy + 3, fx, cy)
+      ctx.closePath()
+      ctx.fill()
+    }
+    // Body.
+    ctx.beginPath()
+    ctx.ellipse(fx, cy, bodyR, bodyR * 1.1, 0, 0, Math.PI * 2)
+    ctx.fill()
+    // Ears.
+    ctx.beginPath()
+    ctx.moveTo(fx - 4, cy - bodyR + 1); ctx.lineTo(fx - 6, cy - bodyR - 6); ctx.lineTo(fx - 1, cy - bodyR)
+    ctx.moveTo(fx + 4, cy - bodyR + 1); ctx.lineTo(fx + 6, cy - bodyR - 6); ctx.lineTo(fx + 1, cy - bodyR)
+    ctx.fill()
+    // Eyes — a faint glow so the roost reads as "watching".
+    ctx.fillStyle = '#ffd24a'
+    ctx.beginPath(); ctx.arc(fx - 3, cy - 1, 1.4, 0, Math.PI * 2); ctx.arc(fx + 3, cy - 1, 1.4, 0, Math.PI * 2); ctx.fill()
     ctx.restore()
   }
 
@@ -1161,6 +1274,9 @@ export class CampaignScene extends Scene {
   private abilityGetSub = ''
   private selectedSubweaponIndex = 0
   private enemyFreezeTicks = 0
+  // Continuous zombie spawner (active only in zombie rooms).
+  private zombieSpawner = false
+  private zombieSpawnTimer = ZOMBIE_SPAWN_INTERVAL
   private runMods: RunModifiers = buildRunModifiers([])
   private soulMods: SoulModifiers = buildSoulModifiers([])
   // Blue (Guardian) soul buff: the active effect, how long it lasts, and the
@@ -1592,10 +1708,17 @@ export class CampaignScene extends Scene {
       if (this.blueBuffTicks === 0) { this.blueBuffEffect = null; this.refreshLivePlayerStats() }
     }
 
+    this.updateZombieSpawner()
     for (const enemy of this.enemies) {
       if (enemy.isDead) continue
       if (enemy.riseTicks > 0) { enemy.riseTicks -= 1; continue } // still emerging from the floor
       if (this.enemyFreezeTicks > 0) continue
+      if (enemy.flying) {
+        enemy.updateBat(this.player.position.x, this.player.position.y)
+        // Once it has dived clear off the visible screen, it's gone for good.
+        if (enemy.batPhase === 'dive' && this.isOffScreen(enemy)) enemy.forceGone = true
+        continue
+      }
       const ai = enemyIntent(enemy, this.player, this.node, this.ctx.rng)
       enemy.update(ai, this.player.position.x, this.layout.platforms)
       const shot = enemy.consumeRangedShot()
@@ -1857,6 +1980,9 @@ export class CampaignScene extends Scene {
     this.applyAbilities()
     this.enemies = buildEnemies(this.node, this.ctx.assets, this.layout)
     for (const enemy of this.enemies) { enemy.roomWidth = this.layout.width; enemy.roomTop = this.layout.top }
+    // Zombie rooms (non-boss) breed an endless capped trickle of shamblers.
+    this.zombieSpawner = !this.node.isBoss && this.node.enemy.id === 'zombie'
+    this.zombieSpawnTimer = ZOMBIE_SPAWN_INTERVAL
     this.projectiles = []
     this.subweapons = []
     this.enemyBones = []
@@ -2299,6 +2425,50 @@ export class CampaignScene extends Scene {
     this.spawnFloatingText(cx, hurt.y - 40, 'BULLET SOUL!', '#ff9ad6')
     this.spawnFloatingText(cx, hurt.y - 22, soul.name.toUpperCase(), '#ff9ad6')
     this.ctx.audio.hit()
+  }
+
+  /** True when an actor has moved well outside the visible viewport. */
+  private isOffScreen(actor: CastleActor): boolean {
+    const sx = actor.position.x - this.cameraX
+    const sy = actor.position.y - this.cameraY
+    return sx < -120 || sx > this.ctx.width + 120 || sy < -120 || sy > this.ctx.height + 120
+  }
+
+  /** Zombie rooms breed an endless trickle of shamblers, capped so the room never
+   *  clogs: each spawned zombie sinks away after a while, and fresh ones rise to
+   *  replace them up to a live cap. */
+  private updateZombieSpawner(): void {
+    if (!this.zombieSpawner) return
+    let live = 0
+    for (const e of this.enemies) {
+      if (e.def.id !== 'zombie' || e.isDead) continue
+      live += 1
+      e.ageTicks += 1
+      if (e.ageTicks > ZOMBIE_LIFETIME && !this.rewardedDeaths.has(e)) {
+        this.rewardedDeaths.add(e) // no reward for a timed-out spawn
+        e.despawnQuietly()
+        live -= 1
+      }
+    }
+    this.zombieSpawnTimer -= 1
+    if (this.zombieSpawnTimer <= 0) {
+      this.zombieSpawnTimer = ZOMBIE_SPAWN_INTERVAL
+      if (live < ZOMBIE_ROOM_CAP) this.spawnWanderingZombie()
+    }
+  }
+
+  private spawnWanderingZombie(): void {
+    const min = WALL_MARGIN + 140
+    const max = this.layout.width - WALL_MARGIN - 140
+    const x = min + this.ctx.rng.next() * Math.max(1, max - min)
+    const facing: Facing = this.ctx.rng.next() < 0.5 ? -1 : 1
+    const z = new CastleActor(zombie, this.ctx.assets, x, this.layout.checkpointY, facing, campaignEnemySpeed('zombie'))
+    z.setMaxHealth(campaignEnemyHealth('zombie', this.node.difficulty))
+    z.roomWidth = this.layout.width
+    z.roomTop = this.layout.top
+    z.riseTicks = 26
+    z.riseMax = 26
+    this.enemies.push(z)
   }
 
   private tryDropBlueSoul(enemy: CastleActor, hurt: Rect): void {
@@ -3903,15 +4073,28 @@ function buildEnemies(node: ReturnType<typeof getCampaignNode>, assets: AssetMan
   ]
   const total = Math.max(1, groups.reduce((sum, group) => sum + group.count, 0))
   const slots = spread(layout.checkpointX + 360, layout.doorX - 160, total)
+  const batCount = groups.filter((g) => g.def.id === 'bat').reduce((n, g) => n + g.count, 0)
+  const batXs = spread(layout.checkpointX + 300, layout.doorX - 220, Math.max(1, batCount))
   const enemies: CastleActor[] = []
   let slot = 0
+  let batIndex = 0
   for (const group of groups) {
     for (let i = 0; i < group.count; i += 1) {
-      const x = slots[slot] ?? layout.doorX - 200
+      const isBat = group.def.id === 'bat'
+      // Bats get their own spread across the room (so some roost near the player);
+      // everyone else uses the ground slots.
+      const x = isBat ? batXs[batIndex] ?? layout.doorX - 300 : slots[slot] ?? layout.doorX - 200
       const enemy = new CastleActor(group.def, assets, x, layout.checkpointY, -1, campaignEnemySpeed(group.def.id))
       enemy.setMaxHealth(campaignEnemyHealth(group.def.id, node.difficulty))
       if (group.def.id === 'boneThrower' || group.def.id === 'skeleton') enemy.rangedAttacker = true
       if (group.def.id === 'zombie') { enemy.riseTicks = 20 + slot * 12; enemy.riseMax = enemy.riseTicks }
+      if (isBat) {
+        // Roost up in the air at a staggered height; it dives when the player nears.
+        enemy.flying = true
+        enemy.position.y = FLOOR_Y - (228 + (batIndex % 3) * 54)
+        enemy.prevPosition.y = enemy.position.y
+        batIndex += 1
+      }
       enemies.push(enemy)
       slot += 1
     }
@@ -3958,6 +4141,7 @@ function campaignEnemyCount(enemyId: string, difficulty: 'easy' | 'normal' | 'ha
 function campaignEnemyHealth(enemyId: string, difficulty: 'easy' | 'normal' | 'hard'): number {
   if (enemyId === 'skeleton') return 21
   if (enemyId === 'zombie') return 6
+  if (enemyId === 'bat') return 12
   if (enemyId === 'ghoul') return 16
   if (enemyId === 'boneThrower') return 18
   if (enemyId === 'armoredSkeleton') return difficulty === 'hard' ? 96 : 78

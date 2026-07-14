@@ -422,6 +422,38 @@ export const ghoul: CharacterDef = {
   },
 }
 
+// Fell Bat — roosts in the air until the player draws near, then dives across
+// the room and flaps off the far side. Flies (no gravity); drawn as a custom bat
+// shape by CampaignScene. Its only threat is the contact of its dive (moves.light).
+export const bat: CharacterDef = {
+  id: 'bat',
+  name: 'FELL BAT',
+  color: '#8a6ab0',
+  meta: {
+    archetype: 'ROOSTING FLYER',
+    bio: 'A leathery castle bat. Still as a stone until something warm passes below, then a single screaming dive.',
+    stats: { power: 2, speed: 5, range: 1, technique: 1 },
+    moveNames: { light: 'Dive', heavy: 'Dive', special: 'Dive', super: 'Dive' },
+  },
+  sprites: {
+    idle: { key: 'zombie.idle', frames: 5 },
+    run: { key: 'zombie.run', frames: 8 },
+    jump: { key: 'zombie.roam', frames: 6 },
+    fall: { key: 'zombie.roam', frames: 6 },
+    attack1: { key: 'zombie.attack', frames: 5 },
+    attack2: { key: 'zombie.attack', frames: 5 },
+    takeHit: { key: 'zombie.hurt', frames: 4 },
+    death: { key: 'zombie.death', frames: 6 },
+  },
+  visual: { anchorX: 54, anchorY: 124, scale: 0.5, hurtbox: { width: 46, height: 40 } },
+  moves: {
+    light: { id: 'bat-dive', animKey: 'attack1', startup: 4, active: 4, recovery: 8, damage: 7, knockbackX: 6, knockbackY: -5, hitstop: 5, hitbox: { forward: 8, top: 40, width: 52, height: 46 } },
+    heavy: { id: 'bat-dive-h', animKey: 'attack1', startup: 4, active: 4, recovery: 8, damage: 7, knockbackX: 6, knockbackY: -5, hitstop: 5, hitbox: { forward: 8, top: 40, width: 52, height: 46 } },
+    special: { id: 'bat-dive-s', animKey: 'attack1', startup: 4, active: 4, recovery: 8, damage: 7, knockbackX: 6, knockbackY: -5, hitstop: 5, hitbox: { forward: 8, top: 40, width: 52, height: 46 } },
+    super: { id: 'bat-dive-u', animKey: 'attack1', startup: 4, active: 4, recovery: 8, damage: 7, knockbackX: 6, knockbackY: -5, hitstop: 5, meterCost: 100, hitbox: { forward: 8, top: 40, width: 52, height: 46 } },
+  },
+}
+
 // Bone Thrower — a ranged skeleton that keeps its distance and lobs bones
 // (spawned procedurally by CampaignScene when its light "throw" goes active).
 // Reuses the skeleton sheets with a violet aura; its melee is deliberately weak.
