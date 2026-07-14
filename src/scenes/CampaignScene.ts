@@ -61,7 +61,7 @@ const MERCHANT_RANGE = 80
 // Beating this room's boss completes the campaign.
 const FINAL_BOSS_NODE = 'fbd-chaos'
 // Navigable pause menu entries (GBA-style).
-const MENU_ITEMS = ['STATUS', 'EQUIP', 'SOULS', 'ITEMS', 'MAP', 'RESUME'] as const
+const MENU_ITEMS = ['STATUS', 'EQUIP', 'SOULS', 'ITEMS', 'MAP', 'TITLE', 'RESUME'] as const
 // The soul-reaver hero (Grey) casts souls with the sub button and activates a
 // guardian on ;; a hunter (Red) uses subweapons instead. Sub-weapons are Red's.
 const HERO_USES_SOULS = CAMPAIGN_HERO.meta.archetype !== 'HUNTER'
@@ -387,7 +387,7 @@ interface EnemyBone {
   ticksLeft: number
   hasHit: boolean
   /** Which projectile this is (drives the drawing and damage). */
-  kind: 'bone' | 'axe'
+  kind: 'bone' | 'axe' | 'fire'
   damage: number
 }
 
@@ -419,6 +419,8 @@ const SOUL_CAST_COOLDOWN = 22
 
 const BONE_DAMAGE = 8
 const AXE_DAMAGE = 12
+const FIRE_DAMAGE = 16
+const FIRE_SPEED = 6.4
 const BONE_SPEED = 8
 const BONE_GRAVITY = 0.2
 // Skeletons throw sparingly — ~one bone every 5s (300 ticks) plus a little jitter.
@@ -983,8 +985,9 @@ class CastleActor {
     this.velocity.x = intent.moveX * ATTACK_DRIFT_SPEED
     if (intent.moveX > 0) this.facing = 1
     else if (intent.moveX < 0) this.facing = -1
-    // Ranged enemies (bone throwers) release a projectile once as the swing goes active.
-    if (this.rangedAttacker && this.attackMove && this.attackTick === this.attackMove.startup + 1) {
+    // Ranged enemies release a projectile once as their light (throw/charge) move
+    // goes active — not on melee moves like a heavy chop or sweep.
+    if (this.rangedAttacker && this.attackMove === this.def.moves.light && this.attackTick === this.attackMove.startup + 1) {
       this.pendingRangedShot = { x: this.position.x + this.facing * 30, y: this.position.y - 66, facing: this.facing }
     }
     if (this.attackMove?.projectile && !this.projectileSpawned) {
@@ -1530,6 +1533,9 @@ export class CampaignScene extends Scene {
   private showMenu = false
   private menuIndex = 0
   private menuReturn = false
+  // "Return to title" confirmation popup (over the pause menu). YES defaults off.
+  private confirmTitle = false
+  private confirmTitleYes = false
   private equipSlotIndex = 0
   // Item-picker sub-screen: selecting a slot opens the list of pieces you own.
   private equipPicking = false
@@ -1742,6 +1748,30 @@ export class CampaignScene extends Scene {
         e.preventDefault()
         this.showMap = false
         if (this.menuReturn) this.showMenu = true
+      }
+      return
+    }
+    if (this.confirmTitle) {
+      if (e.code === 'KeyA' || e.code === 'ArrowLeft' || e.code === 'KeyD' || e.code === 'ArrowRight') {
+        e.preventDefault()
+        this.confirmTitleYes = !this.confirmTitleYes
+        this.ctx.audio.swing()
+        return
+      }
+      if (isMenuConfirm(e.code)) {
+        e.preventDefault()
+        if (this.confirmTitleYes) {
+          saveCampaignSave(this.save)
+          this.ctx.audio.hit()
+          this.ctx.scenes.replace(new TitleScene(this.ctx))
+        } else {
+          this.confirmTitle = false // back to the menu
+        }
+        return
+      }
+      if (isMenuCancel(e.code) || e.code === 'Escape') {
+        e.preventDefault()
+        this.confirmTitle = false
       }
       return
     }
@@ -1966,7 +1996,7 @@ export class CampaignScene extends Scene {
       const ai = enemyIntent(enemy, this.player, this.node, this.ctx.rng)
       enemy.update(ai, this.player.position.x, this.layout.platforms)
       const shot = enemy.consumeRangedShot()
-      if (shot) this.spawnBone(shot, enemy.def.id === 'axeArmor' ? 'axe' : 'bone')
+      if (shot) this.spawnBone(shot, enemy.def.id === 'creakingSkull' ? 'fire' : enemy.def.id === 'axeArmor' ? 'axe' : 'bone')
     }
     this.playSwingSfx()
     this.updateCrumblePlatforms()
@@ -1988,10 +2018,10 @@ export class CampaignScene extends Scene {
       subweapon.ticksLeft -= 1
     }
     for (const bone of this.enemyBones) {
-      bone.velocity.y += BONE_GRAVITY
+      if (bone.kind !== 'fire') bone.velocity.y += BONE_GRAVITY // the fireball flies level
       bone.position.x += bone.velocity.x
       bone.position.y += bone.velocity.y
-      bone.spin += 0.5
+      bone.spin += bone.kind === 'fire' ? 0.28 : 0.5
       bone.ticksLeft -= 1
     }
     for (const bolt of this.soulBolts) {
@@ -2090,7 +2120,7 @@ export class CampaignScene extends Scene {
     else if (this.levelUpScreen) this.drawLevelUpScreen()
     else if (this.drafting) this.drawDraft()
     else if (this.shopping) this.drawShop()
-    else if (this.showMenu) this.drawMenu()
+    else if (this.showMenu) { this.drawMenu(); if (this.confirmTitle) this.drawTitleConfirm() }
     else if (this.showMap) this.drawMap()
     else if (this.showEquipment) this.drawEquipment()
     else if (this.showSouls) this.drawSouls()
@@ -2150,6 +2180,12 @@ export class CampaignScene extends Scene {
   private selectMenu(): void {
     const item = MENU_ITEMS[this.menuIndex]
     this.ctx.audio.hit()
+    if (item === 'TITLE') {
+      // Open the confirmation popup over the menu; don't leave the menu yet.
+      this.confirmTitle = true
+      this.confirmTitleYes = false
+      return
+    }
     this.showMenu = false
     if (item === 'RESUME') { this.menuReturn = false; return }
     this.menuReturn = true
@@ -2261,6 +2297,7 @@ export class CampaignScene extends Scene {
     this.attackingLastTick.clear()
     this.showMap = false
     this.showMenu = false
+    this.confirmTitle = false
     this.menuReturn = false
     this.ending = false
     this.save = { ...this.save, currentNodeId: nodeId, finished: false }
@@ -2620,18 +2657,18 @@ export class CampaignScene extends Scene {
     }
   }
 
-  private spawnBone(shot: { x: number; y: number; facing: Facing }, kind: 'bone' | 'axe' = 'bone'): void {
+  private spawnBone(shot: { x: number; y: number; facing: Facing }, kind: 'bone' | 'axe' | 'fire' = 'bone'): void {
     const axe = kind === 'axe'
+    const fire = kind === 'fire'
     this.enemyBones.push({
       position: { x: shot.x, y: shot.y },
-      // Lobbed high: mostly upward with a little drift, so it arcs up and rains
-      // down. The axe is thrown flatter and faster than a bone.
-      velocity: { x: shot.facing * BONE_SPEED * (axe ? 0.85 : 0.55), y: axe ? -7.2 : -8.6 },
+      // Bones and axes are lobbed in an arc; the fireball flies dead level.
+      velocity: fire ? { x: shot.facing * FIRE_SPEED, y: 0 } : { x: shot.facing * BONE_SPEED * (axe ? 0.85 : 0.55), y: axe ? -7.2 : -8.6 },
       spin: 0,
-      ticksLeft: 150,
+      ticksLeft: fire ? 220 : 150,
       hasHit: false,
       kind,
-      damage: axe ? AXE_DAMAGE : BONE_DAMAGE,
+      damage: fire ? FIRE_DAMAGE : axe ? AXE_DAMAGE : BONE_DAMAGE,
     })
     this.ctx.audio.swing()
   }
@@ -4009,7 +4046,7 @@ export class CampaignScene extends Scene {
     ctx.save()
     ctx.fillStyle = 'rgba(6, 5, 12, 0.82)'
     ctx.fillRect(0, 0, width, height)
-    const pw = 320, ph = 344
+    const pw = 320, ph = 382
     const px = width / 2 - pw / 2, py = height / 2 - ph / 2
     ctx.fillStyle = 'rgba(16, 24, 43, 0.96)'
     ctx.fillRect(px, py, pw, ph)
@@ -4038,6 +4075,54 @@ export class CampaignScene extends Scene {
     ctx.fillStyle = '#5a567a'
     ctx.font = '8px "Press Start 2P", monospace'
     ctx.fillText('W/S MOVE   J SELECT   ESC CLOSE', width / 2, py + ph - 20)
+    ctx.restore()
+  }
+
+  /** Confirmation popup for "Return to Title", drawn over the pause menu. */
+  private drawTitleConfirm(): void {
+    const { ctx } = this.ctx.renderer
+    const { width, height } = this.ctx
+    ctx.save()
+    ctx.fillStyle = 'rgba(4, 4, 10, 0.78)'
+    ctx.fillRect(0, 0, width, height)
+    const pw = 400, ph = 176
+    const px = (width - pw) / 2
+    const py = (height - ph) / 2
+    ctx.fillStyle = 'rgba(20, 16, 28, 0.98)'
+    ctx.fillRect(px, py, pw, ph)
+    ctx.strokeStyle = '#e0393a'
+    ctx.lineWidth = 3
+    ctx.strokeRect(px, py, pw, ph)
+
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillStyle = '#e8d4a0'
+    ctx.font = '14px "Press Start 2P", monospace'
+    ctx.fillText('RETURN TO TITLE?', width / 2, py + 42)
+    ctx.fillStyle = '#8a8aa0'
+    ctx.font = '8px "Press Start 2P", monospace'
+    ctx.fillText('YOUR PROGRESS IS SAVED', width / 2, py + 72)
+
+    const opts = ['NO', 'YES'] as const
+    const oy = py + 118
+    opts.forEach((label, i) => {
+      const isYes = i === 1
+      const sel = isYes === this.confirmTitleYes
+      const ox = width / 2 + (isYes ? 70 : -70)
+      if (sel) {
+        ctx.fillStyle = isYes ? 'rgba(224, 57, 58, 0.28)' : 'rgba(246, 183, 74, 0.2)'
+        ctx.fillRect(ox - 52, oy - 16, 104, 32)
+        ctx.strokeStyle = isYes ? '#e0393a' : '#f6b74a'
+        ctx.lineWidth = 2
+        ctx.strokeRect(ox - 52, oy - 16, 104, 32)
+      }
+      ctx.fillStyle = sel ? (isYes ? '#ff7a6a' : '#f6b74a') : '#7a7a92'
+      ctx.font = '13px "Press Start 2P", monospace'
+      ctx.fillText(label, ox, oy)
+    })
+    ctx.fillStyle = '#5a567a'
+    ctx.font = '8px "Press Start 2P", monospace'
+    ctx.fillText('A/D CHOOSE   J OK   ESC CANCEL', width / 2, py + ph - 18)
     ctx.restore()
   }
 
@@ -4410,10 +4495,11 @@ function relicSummary(relic: RelicDef): string {
 function buildEnemies(node: ReturnType<typeof getCampaignNode>, assets: AssetManager, layout: RoomLayout): CastleActor[] {
   if (SAVE_POINTS[node.id] !== undefined) return [] // save rooms are safe
   if (node.isBoss) {
-    const boss = new CastleActor(node.enemy, assets, layout.doorX - 180, layout.checkpointY, -1, 0.78)
+    const boss = new CastleActor(node.enemy, assets, layout.doorX - 180, layout.checkpointY, -1, campaignEnemySpeed(node.enemy.id))
     boss.setMaxHealth(campaignBossHealth(node.id))
     boss.meter = 100
     boss.isBoss = true
+    if (node.enemy.id === 'creakingSkull') boss.rangedAttacker = true // fires charged fireballs
     return [boss]
   }
   const groups = [
@@ -4459,7 +4545,7 @@ function campaignEnemyReward(enemy: CastleActor): { xp: number; gold: number } {
 function campaignEnemySpeed(enemyId: string): number {
   if (enemyId === 'armoredSkeleton') return 0.58
   if (enemyId === 'axeArmor') return 0.5
-  if (enemyId === 'creakingSkull') return 0.4 // a ponderous colossus
+  if (enemyId === 'creakingSkull') return 0.3 // a ponderous colossus
   if (enemyId === 'ghoul') return 1.02
   if (enemyId === 'boneThrower') return 0.72
   return 0.78
@@ -4584,14 +4670,17 @@ function enemyIntent(enemy: CastleActor, player: CastleActor, node: ReturnType<t
   }
 
   if (kind === 'creakingSkull') {
-    // Ponderous colossus: shuffles toward the player and, on a long cadence,
-    // unleashes one enormous bone sweep with huge reach. No supers, no rushing.
+    // Ponderous colossus: plants itself to attack (no drift while swinging). Up
+    // close it smashes; from range it charges a horizontal fireball. Shuffles in
+    // only between attacks.
     if (enemy.throwCooldown > 0) enemy.throwCooldown -= 1
-    if (enemy.currentMove === null && enemy.throwCooldown <= 0 && dist < 300) {
-      intent.heavyPressed = true // the huge-range sweep
+    if (enemy.currentMove !== null) return intent // stop moving while attacking
+    if (enemy.throwCooldown <= 0) {
+      if (dist < 220) intent.heavyPressed = true // the huge-range sweep
+      else intent.lightPressed = true // charge + fire a horizontal fireball
       enemy.throwCooldown = CREAKING_SKULL_ATTACK_CD
-    } else if (dist > 140) {
-      intent.moveX = dir // close the gap slowly between sweeps
+    } else if (dist > 170) {
+      intent.moveX = dir // close the gap slowly between attacks
     }
     return intent
   }
@@ -4782,6 +4871,22 @@ function boneBox(bone: EnemyBone): Rect {
 
 function drawBone(bone: EnemyBone, renderer: Renderer, cameraX: number): void {
   const { ctx } = renderer
+  if (bone.kind === 'fire') {
+    const x = bone.position.x - cameraX
+    const y = bone.position.y
+    ctx.save()
+    const aura = ctx.createRadialGradient(x, y, 0, x, y, 22)
+    aura.addColorStop(0, 'rgba(255, 170, 60, 0.7)')
+    aura.addColorStop(1, 'rgba(255, 90, 30, 0)')
+    ctx.fillStyle = aura
+    ctx.beginPath(); ctx.arc(x, y, 22, 0, Math.PI * 2); ctx.fill()
+    ctx.fillStyle = '#ffd24a'
+    ctx.beginPath(); ctx.arc(x, y, 8, 0, Math.PI * 2); ctx.fill()
+    ctx.fillStyle = '#ff7a2a'
+    ctx.beginPath(); ctx.arc(x, y, 5, 0, Math.PI * 2); ctx.fill()
+    ctx.restore()
+    return
+  }
   ctx.save()
   ctx.translate(bone.position.x - cameraX, bone.position.y)
   ctx.rotate(bone.spin)

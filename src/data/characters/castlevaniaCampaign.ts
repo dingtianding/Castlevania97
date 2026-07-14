@@ -776,10 +776,12 @@ export const creakingSkull: CharacterDef = {
   },
   visual: { anchorX: 80, anchorY: 126, scale: 0.95, hurtbox: { width: 132, height: 118 } },
   moves: {
+    // A long charge, then a horizontal fireball is released (spawned by the scene
+    // at startup+1). The melee hitbox is small — the fireball is the real threat.
     light: {
-      id: 'skull-backhand', animKey: 'attack1',
-      startup: 22, active: 8, recovery: 30, damage: 15, knockbackX: 10, knockbackY: -6, hitstop: 10,
-      hitbox: { forward: 26, top: 150, width: 150, height: 108 },
+      id: 'skull-fireball', animKey: 'attack1',
+      startup: 40, active: 10, recovery: 34, damage: 12, knockbackX: 8, knockbackY: -5, hitstop: 8,
+      hitbox: { forward: 20, top: 150, width: 96, height: 96 },
     },
     // The sweep: a slow, telegraphed bone arm raised high then smashed down in
     // front — the hitbox matches the smash column so the visual fits it.
