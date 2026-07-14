@@ -732,13 +732,45 @@ function cloneBoss(
   return { ...base, id, name, meta: { ...base.meta, archetype, bio } }
 }
 
-export const creakingSkull = cloneBoss(
-  armoredSkeleton,
-  'creakingSkull',
-  'CREAKING SKULL',
-  'CORRIDOR SENTINEL',
-  'A giant of stacked bone that guards the first corridor. Slow, but every swing is a wall.',
-)
+// Creaking Skull — a lumbering colossus of stacked bone. It shuffles in slowly
+// and attacks on a long cadence, but its signature swing is an enormous bone
+// sweep with huge reach. Custom (not a plain clone) so its moves are its own.
+export const creakingSkull: CharacterDef = {
+  ...armoredSkeleton,
+  id: 'creakingSkull',
+  name: 'CREAKING SKULL',
+  meta: {
+    ...armoredSkeleton.meta,
+    archetype: 'CORRIDOR SENTINEL',
+    bio: 'A giant of stacked bone that guards the first corridor. Slow, but its sweeping arm is a wall you cannot walk around.',
+  },
+  visual: { anchorX: 80, anchorY: 126, scale: 0.95, hurtbox: { width: 72, height: 134 } },
+  moves: {
+    light: {
+      id: 'skull-backhand', animKey: 'attack1',
+      startup: 22, active: 8, recovery: 30, damage: 15, knockbackX: 10, knockbackY: -6, hitstop: 10,
+      hitbox: { forward: 26, top: 150, width: 150, height: 108 },
+    },
+    // The huge-range sweep: a slow, telegraphed bone arm that reaches most of the
+    // way across the arena.
+    heavy: {
+      id: 'skull-sweep', animKey: 'attack2',
+      startup: 32, active: 16, recovery: 42, damage: 22, knockbackX: 15, knockbackY: -9, hitstop: 13,
+      hitbox: { forward: 30, top: 130, width: 320, height: 150 },
+    },
+    special: {
+      id: 'skull-sweep-s', animKey: 'attack2',
+      startup: 32, active: 16, recovery: 42, damage: 22, knockbackX: 15, knockbackY: -9, hitstop: 13,
+      hitbox: { forward: 30, top: 130, width: 320, height: 150 },
+    },
+    super: {
+      id: 'skull-sweep-u', animKey: 'attack2',
+      startup: 34, active: 18, recovery: 44, damage: 26, knockbackX: 16, knockbackY: -10, hitstop: 14,
+      meterCost: 100,
+      hitbox: { forward: 30, top: 128, width: 340, height: 160 },
+    },
+  },
+}
 
 export const bigGolem = cloneBoss(
   sealGuardian,

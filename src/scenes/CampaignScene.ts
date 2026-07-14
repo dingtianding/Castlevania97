@@ -404,6 +404,8 @@ const BONE_SPEED = 8
 const BONE_GRAVITY = 0.2
 // Skeletons throw sparingly — ~one bone every 5s (300 ticks) plus a little jitter.
 const SKELETON_THROW_COOLDOWN = 300
+// Creaking Skull: a long pause between its big sweeps (~2.5s on top of the swing).
+const CREAKING_SKULL_ATTACK_CD = 150
 
 // XP and gold granted when each enemy type is defeated. Bosses use a fixed
 // bounty (see campaignEnemyReward) rather than this table.
@@ -4109,6 +4111,7 @@ function campaignEnemyReward(enemy: CastleActor): { xp: number; gold: number } {
 
 function campaignEnemySpeed(enemyId: string): number {
   if (enemyId === 'armoredSkeleton') return 0.58
+  if (enemyId === 'creakingSkull') return 0.4 // a ponderous colossus
   if (enemyId === 'ghoul') return 1.02
   if (enemyId === 'boneThrower') return 0.72
   return 0.78
@@ -4210,6 +4213,19 @@ function enemyIntent(enemy: CastleActor, player: CastleActor, node: ReturnType<t
     if (enemy.currentMove === null && enemy.throwCooldown <= 0 && dist < 560) {
       intent.lightPressed = true
       enemy.throwCooldown = SKELETON_THROW_COOLDOWN + Math.floor(rng.next() * 90)
+    }
+    return intent
+  }
+
+  if (kind === 'creakingSkull') {
+    // Ponderous colossus: shuffles toward the player and, on a long cadence,
+    // unleashes one enormous bone sweep with huge reach. No supers, no rushing.
+    if (enemy.throwCooldown > 0) enemy.throwCooldown -= 1
+    if (enemy.currentMove === null && enemy.throwCooldown <= 0 && dist < 300) {
+      intent.heavyPressed = true // the huge-range sweep
+      enemy.throwCooldown = CREAKING_SKULL_ATTACK_CD
+    } else if (dist > 140) {
+      intent.moveX = dir // close the gap slowly between sweeps
     }
     return intent
   }
