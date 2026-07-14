@@ -62,6 +62,16 @@ const MERCHANT_RANGE = 80
 const FINAL_BOSS_NODE = 'fbd-chaos'
 // Navigable pause menu entries (GBA-style).
 const MENU_ITEMS = ['STATUS', 'EQUIP', 'SOULS', 'ITEMS', 'MAP', 'TITLE', 'RESUME'] as const
+// One-line help shown in the menu's description box for the highlighted entry.
+const MENU_DESC: Record<(typeof MENU_ITEMS)[number], string> = {
+  STATUS: 'View your full stats and loadout.',
+  EQUIP: "Change your weapon and armor.",
+  SOULS: 'Set your Red, Blue and Yellow souls.',
+  ITEMS: 'Use a potion or an elixir.',
+  MAP: 'Open the castle map.',
+  TITLE: 'Save and return to the title screen.',
+  RESUME: 'Close the menu and keep playing.',
+}
 // The soul-reaver hero (Grey) casts souls with the sub button and activates a
 // guardian on ;; a hunter (Red) uses subweapons instead. Sub-weapons are Red's.
 const HERO_USES_SOULS = CAMPAIGN_HERO.meta.archetype !== 'HUNTER'
@@ -4043,38 +4053,119 @@ export class CampaignScene extends Scene {
   private drawMenu(): void {
     const { ctx } = this.ctx.renderer
     const { width, height } = this.ctx
+    const p = this.player
     ctx.save()
-    ctx.fillStyle = 'rgba(6, 5, 12, 0.82)'
+    ctx.fillStyle = 'rgba(5, 5, 11, 0.92)'
     ctx.fillRect(0, 0, width, height)
-    const pw = 320, ph = 382
-    const px = width / 2 - pw / 2, py = height / 2 - ph / 2
-    ctx.fillStyle = 'rgba(16, 24, 43, 0.96)'
-    ctx.fillRect(px, py, pw, ph)
-    ctx.strokeStyle = '#e8d4a0'
-    ctx.lineWidth = 2
-    ctx.strokeRect(px, py, pw, ph)
-    ctx.textAlign = 'center'
+
+    const panel = (x: number, y: number, w: number, h: number, fill = 'rgba(14, 20, 36, 0.97)', border = '#4a5a86'): void => {
+      ctx.fillStyle = fill
+      ctx.fillRect(x, y, w, h)
+      ctx.strokeStyle = border
+      ctx.lineWidth = 2
+      ctx.strokeRect(x + 1, y + 1, w - 2, h - 2)
+    }
+
+    // ---- Portrait (top-left) ----
+    const pX = 28, pY = 28, pW = 196, pH = 150
+    panel(pX, pY, pW, pH, 'rgba(9, 12, 22, 0.98)')
+    const cx = pX + pW / 2
+    const col = CAMPAIGN_HERO.color ?? '#aab2bd'
+    ctx.save()
+    ctx.beginPath(); ctx.rect(pX + 3, pY + 3, pW - 6, pH - 6); ctx.clip()
+    ctx.fillStyle = col
+    ctx.beginPath(); ctx.arc(cx, pY + 66, 40, 0, Math.PI * 2); ctx.fill() // head
+    ctx.beginPath() // shoulders
+    ctx.moveTo(cx - 80, pY + pH)
+    ctx.quadraticCurveTo(cx - 64, pY + 116, cx, pY + 116)
+    ctx.quadraticCurveTo(cx + 64, pY + 116, cx + 80, pY + pH)
+    ctx.closePath(); ctx.fill()
+    ctx.fillStyle = 'rgba(18, 18, 28, 0.5)' // eyes
+    ctx.beginPath(); ctx.arc(cx - 14, pY + 62, 5, 0, Math.PI * 2); ctx.arc(cx + 14, pY + 62, 5, 0, Math.PI * 2); ctx.fill()
+    ctx.restore()
+
+    // Name + level banner under the portrait.
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+    ctx.fillStyle = '#e8d4a0'; ctx.font = '16px "Press Start 2P", monospace'
+    ctx.fillText(CAMPAIGN_HERO.name, cx, pY + pH + 22)
+    const lvY = pY + pH + 52
+    ctx.fillStyle = '#b91d2b'; ctx.fillRect(pX + 16, lvY - 16, pW - 32, 32)
+    ctx.strokeStyle = '#ff6a72'; ctx.lineWidth = 2; ctx.strokeRect(pX + 16.5, lvY - 15.5, pW - 33, 31)
+    ctx.fillStyle = '#ffe0b0'; ctx.font = '14px "Press Start 2P", monospace'
+    ctx.fillText(`LV ${this.save.level}`, cx, lvY)
+
+    // ---- Stats panel (top-right) ----
+    const sX = 244, sY = 28, sW = width - sX - 28, sH = 224
+    panel(sX, sY, sW, sH)
+    const barX = sX + 250, barW = sW - 250 - 24
     ctx.textBaseline = 'middle'
-    ctx.fillStyle = '#e8d4a0'
-    ctx.font = '16px "Press Start 2P", monospace'
-    ctx.fillText('MENU', width / 2, py + 32)
-    ctx.fillStyle = '#8a8aa0'
-    ctx.font = '8px "Press Start 2P", monospace'
-    ctx.fillText(`${CAMPAIGN_HERO.name}   LV ${this.save.level}   ${this.save.gold}G`, width / 2, py + 58)
-    ctx.font = '13px "Press Start 2P", monospace'
+    ctx.font = '11px "Press Start 2P", monospace'
+    // HP
+    ctx.textAlign = 'left'; ctx.fillStyle = '#e8963a'; ctx.fillText('HP', sX + 22, sY + 34)
+    ctx.fillStyle = '#f4ece0'; ctx.fillText(`${Math.ceil(p.health)} / ${p.maxHealth}`, sX + 64, sY + 34)
+    const hpF = clamp(p.health / p.maxHealth, 0, 1)
+    ctx.fillStyle = '#2a1810'; ctx.fillRect(barX, sY + 28, barW, 13)
+    ctx.fillStyle = '#e8963a'; ctx.fillRect(barX, sY + 28, barW * hpF, 13)
+    ctx.strokeStyle = '#6a5a4a'; ctx.lineWidth = 1; ctx.strokeRect(barX + 0.5, sY + 28.5, barW - 1, 12)
+    // MP
+    ctx.textAlign = 'left'; ctx.fillStyle = '#7aa8d6'; ctx.fillText('MP', sX + 22, sY + 66)
+    ctx.fillStyle = '#f4ece0'; ctx.fillText(`${Math.floor(p.meter)} / 100`, sX + 64, sY + 66)
+    const mpF = clamp(p.meter / 100, 0, 1)
+    ctx.fillStyle = '#12203a'; ctx.fillRect(barX, sY + 60, barW, 11)
+    ctx.fillStyle = '#5aa8e0'; ctx.fillRect(barX, sY + 60, barW * mpF, 11)
+    ctx.strokeStyle = '#3a6a9a'; ctx.strokeRect(barX + 0.5, sY + 60.5, barW - 1, 10)
+    // Stat grid (two columns).
+    ctx.font = '10px "Press Start 2P", monospace'
+    const stat = (label: string, val: string, valCol: string, x: number, y: number): void => {
+      ctx.textAlign = 'left'; ctx.fillStyle = '#8a8aa0'; ctx.fillText(label, x, y)
+      ctx.textAlign = 'right'; ctx.fillStyle = valCol; ctx.fillText(val, x + 168, y)
+    }
+    const gY = sY + 110, rx = sX + sW / 2 + 8
+    stat('ATK', `x${this.computeDamageMult().toFixed(2)}`, '#f6b74a', sX + 22, gY)
+    stat('DEF', `-${Math.round((1 - this.computeDamageTakenMult()) * 100)}%`, '#7ad6ff', sX + 22, gY + 30)
+    stat('SPD', `x${this.computeMoveSpeedMult().toFixed(2)}`, '#b7c7e6', sX + 22, gY + 60)
+    stat('MAX HP', `${this.computeMaxHealth()}`, '#f4ece0', rx, gY)
+    stat('GOLD', `${this.save.gold}`, '#f6b74a', rx, gY + 30)
+    stat('STATUS', 'GOOD', '#7ad67a', rx, gY + 60)
+
+    // ---- Menu list (lower-left, red rail) ----
+    const mX = 28, mY = 262, mW = 196, mH = height - mY - 28
+    const grad = ctx.createLinearGradient(mX, 0, mX + mW, 0)
+    grad.addColorStop(0, 'rgba(122, 22, 30, 0.97)')
+    grad.addColorStop(1, 'rgba(40, 10, 14, 0.97)')
+    ctx.fillStyle = grad; ctx.fillRect(mX, mY, mW, mH)
+    ctx.strokeStyle = '#c8323a'; ctx.lineWidth = 2; ctx.strokeRect(mX + 1, mY + 1, mW - 2, mH - 2)
+    ctx.textBaseline = 'middle'; ctx.font = '13px "Press Start 2P", monospace'
     MENU_ITEMS.forEach((item, i) => {
-      const iy = py + 104 + i * 38
+      const iy = mY + 32 + i * 34
       const sel = i === this.menuIndex
       if (sel) {
-        ctx.fillStyle = 'rgba(246, 183, 74, 0.16)'
-        ctx.fillRect(px + 24, iy - 15, pw - 48, 30)
+        ctx.fillStyle = 'rgba(255, 220, 120, 0.16)'
+        ctx.fillRect(mX + 6, iy - 15, mW - 12, 30)
+        ctx.textAlign = 'left'; ctx.fillStyle = '#ffd24a'; ctx.fillText('▶', mX + 10, iy)
       }
-      ctx.fillStyle = sel ? '#f6b74a' : '#b7c7e6'
-      ctx.fillText((sel ? '▶ ' : '   ') + item, width / 2, iy)
+      ctx.textAlign = 'left'; ctx.fillStyle = sel ? '#ffe6b0' : '#dfa0a4'
+      ctx.fillText(item, mX + 36, iy)
     })
-    ctx.fillStyle = '#5a567a'
-    ctx.font = '8px "Press Start 2P", monospace'
-    ctx.fillText('W/S MOVE   J SELECT   ESC CLOSE', width / 2, py + ph - 20)
+
+    // ---- EXP strip + description (lower-right) ----
+    const rX = 244, rW = width - rX - 28
+    const eY = 262, eH = 52
+    panel(rX, eY, rW, eH, 'rgba(20, 28, 60, 0.97)', '#4a5a9a')
+    ctx.font = '11px "Press Start 2P", monospace'
+    ctx.textAlign = 'left'; ctx.fillStyle = '#8a9ad0'; ctx.fillText('EXP', rX + 22, eY + eH / 2)
+    ctx.textAlign = 'right'; ctx.fillStyle = '#f4ece0'; ctx.fillText(`${this.save.xp}`, rX + rW / 2 - 24, eY + eH / 2)
+    ctx.textAlign = 'left'; ctx.fillStyle = '#8a9ad0'; ctx.fillText('NEXT', rX + rW / 2 + 24, eY + eH / 2)
+    const next = Math.max(0, xpForNextLevel(this.save.level) - this.save.xp)
+    ctx.textAlign = 'right'; ctx.fillStyle = '#f4ece0'; ctx.fillText(`${next}`, rX + rW - 22, eY + eH / 2)
+
+    const dY = eY + eH + 12, dH = height - 28 - dY
+    panel(rX, dY, rW, dH)
+    ctx.textAlign = 'left'; ctx.textBaseline = 'top'; ctx.fillStyle = '#e8d4a0'; ctx.font = '11px "Press Start 2P", monospace'
+    wrapText(ctx, MENU_DESC[MENU_ITEMS[this.menuIndex]!], rX + 22, dY + 24, rW - 44, 22)
+    ctx.fillStyle = '#5a567a'; ctx.font = '8px "Press Start 2P", monospace'
+    ctx.fillText('W/S MOVE   J SELECT   ESC CLOSE', rX + 22, dY + dH - 26)
+
     ctx.restore()
   }
 
