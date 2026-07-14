@@ -389,12 +389,18 @@ interface SoulBolt {
   spin: number
   damage: number
   homing: boolean
+  /** Arcing spear: pulled down by gravity and drawn as a spear along its heading. */
+  arc: boolean
   hitTargets: Set<CastleActor>
 }
 
 const MP_REGEN = 0.18
 const SOUL_SPEED = 13
 const SOUL_LIFETIME = 66
+// Downward pull on the arcing spear cast (the default soul's curved shot), and
+// how long the spear stays in flight before it fades.
+const SOUL_ARC_GRAVITY = 0.4
+const SOUL_ARC_LIFETIME = 96
 const SOUL_HOMING_LIFETIME = 100
 const SOUL_HIT_LIMIT = 3
 const SOUL_CAST_COOLDOWN = 22
@@ -1754,6 +1760,7 @@ export class CampaignScene extends Scene {
     }
     for (const bolt of this.soulBolts) {
       if (bolt.homing) this.steerHomingBolt(bolt)
+      if (bolt.arc) bolt.velocity.y += SOUL_ARC_GRAVITY // curved spear falls as it flies
       bolt.position.x += bolt.velocity.x
       bolt.position.y += bolt.velocity.y
       bolt.spin += 0.4
@@ -2143,15 +2150,16 @@ export class CampaignScene extends Scene {
     this.ctx.audio.swing()
   }
 
-  private spawnSoulBolt(vx: number, vy: number, damage: number, homing: boolean, x: number, y: number): void {
+  private spawnSoulBolt(vx: number, vy: number, damage: number, homing: boolean, x: number, y: number, arc = false): void {
     this.soulBolts.push({
       position: { x, y },
       velocity: { x: vx, y: vy },
       facing: this.player.facing,
-      ticksLeft: homing ? SOUL_HOMING_LIFETIME : SOUL_LIFETIME,
+      ticksLeft: arc ? SOUL_ARC_LIFETIME : homing ? SOUL_HOMING_LIFETIME : SOUL_LIFETIME,
       spin: 0,
       damage,
       homing,
+      arc,
       hitTargets: new Set<CastleActor>(),
     })
   }
@@ -2170,6 +2178,10 @@ export class CampaignScene extends Scene {
     const cx = this.player.position.x
     const cy = this.player.position.y - 46
     switch (soul.pattern) {
+      case 'spear':
+        // A curved spear-cast: launched forward and up, it arcs down as it flies.
+        this.spawnSoulBolt(f * SOUL_SPEED * 0.82, -5.4, 22, false, ox, oy - 6, true)
+        break
       case 'bolt':
         this.spawnSoulBolt(f * SOUL_SPEED, 0, 24, false, ox, oy)
         break
@@ -4474,6 +4486,7 @@ function drawSoulBolt(bolt: SoulBolt, renderer: Renderer, cameraX: number): void
   const x = bolt.position.x - cameraX
   const y = bolt.position.y
   const fade = clamp(bolt.ticksLeft / 12, 0, 1)
+  if (bolt.arc) { drawSoulSpear(bolt, ctx, x, y, fade); return }
   ctx.save()
   // Soft outer aura.
   const aura = ctx.createRadialGradient(x, y, 0, x, y, 22)
@@ -4502,6 +4515,34 @@ function drawSoulBolt(bolt: SoulBolt, renderer: Renderer, cameraX: number): void
   ctx.closePath()
   ctx.fill()
   ctx.stroke()
+  ctx.restore()
+}
+
+/** The default soul: a spirit spear that points along its arcing flight path. */
+function drawSoulSpear(bolt: SoulBolt, ctx: CanvasRenderingContext2D, x: number, y: number, fade: number): void {
+  const angle = Math.atan2(bolt.velocity.y, bolt.velocity.x)
+  ctx.save()
+  ctx.translate(x, y)
+  ctx.rotate(angle)
+  ctx.globalAlpha = fade
+  // Trailing glow behind the head.
+  const aura = ctx.createRadialGradient(0, 0, 0, 0, 0, 26)
+  aura.addColorStop(0, `rgba(120, 200, 255, ${0.45 * fade})`)
+  aura.addColorStop(1, 'rgba(120, 200, 255, 0)')
+  ctx.fillStyle = aura
+  ctx.beginPath(); ctx.arc(0, 0, 26, 0, Math.PI * 2); ctx.fill()
+  // Shaft.
+  ctx.strokeStyle = '#bfe6ff'
+  ctx.lineWidth = 3
+  ctx.lineCap = 'round'
+  ctx.beginPath(); ctx.moveTo(-20, 0); ctx.lineTo(9, 0); ctx.stroke()
+  // Spearhead.
+  ctx.fillStyle = '#eaf6ff'
+  ctx.strokeStyle = '#3aa0e0'
+  ctx.lineWidth = 1.5
+  ctx.beginPath()
+  ctx.moveTo(22, 0); ctx.lineTo(8, -6); ctx.lineTo(11, 0); ctx.lineTo(8, 6)
+  ctx.closePath(); ctx.fill(); ctx.stroke()
   ctx.restore()
 }
 
@@ -4922,16 +4963,19 @@ function buildLayout(stage: string): RoomLayout {
   const base = { width: ROOM_WIDTH, top: 0, doorX: ROOM_WIDTH - 128, doorY: FLOOR_Y, checkpointX: 120, checkpointY: FLOOR_Y, stairs: [] as Stair[], barriers: [] as Barrier[], floorGap: null as { x: number; width: number } | null }
   switch (stage) {
     case 'outer_wall':
+      // The first region is a long, gently-rising corridor stair (low elevation)
+      // up to a landing, rather than a scatter of floating platforms.
       return {
         ...base,
         backdrop: '#111221',
         doorX: ROOM_WIDTH - 132,
         platforms: [
           { x: 0, y: FLOOR_Y, width: ROOM_WIDTH, height: 22 },
-          { x: 180, y: 414, width: 190, height: 12 },
-          { x: 460, y: 356, width: 180, height: 12 },
-          { x: 760, y: 304, width: 210, height: 12, crumble: true },
-          { x: 1120, y: 344, width: 180, height: 12 },
+          // Landing at the top of the stair; the floor runs on to the far door.
+          { x: 1120, y: FLOOR_Y - 78, width: 320, height: 12 },
+        ],
+        stairs: [
+          { x: 300, y: FLOOR_Y, dir: 1, steps: 13, run: 66, rise: 6 },
         ],
         hazards: [],
       }

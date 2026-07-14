@@ -4,7 +4,7 @@
  * alternative souls that change the cast pattern. Owned souls live on the save
  * and are cycled with the swap key; each costs MP per cast.
  */
-export type SoulPattern = 'bolt' | 'spread' | 'homing' | 'nova'
+export type SoulPattern = 'spear' | 'bolt' | 'spread' | 'homing' | 'nova'
 
 export interface BulletSoulDef {
   id: string
@@ -24,11 +24,11 @@ export const BASE_BULLET_SOUL = 'soul-bolt'
 export const BULLET_SOUL_POOL: readonly BulletSoulDef[] = [
   {
     id: 'soul-bolt',
-    name: 'Soul Bolt',
+    name: 'Soul Spear',
     dropChance: 0,
     mpCost: 35,
-    pattern: 'bolt',
-    blurb: 'A single piercing bolt of spirit energy.',
+    pattern: 'spear',
+    blurb: 'A spirit spear thrown in a forward arc.',
     base: true,
   },
   {
