@@ -1020,13 +1020,23 @@ class CastleActor {
       armR = { x: fx + H * 0.2, y: shoulderY + up }
     } else if (st === 'attack') {
       lean = f * H * 0.05
-      armR = { x: fx + f * H * 0.3, y: shoulderY + H * 0.06 }
       armL = { x: fx - f * H * 0.1, y: hipY }
-      const wp = this.weaponProfile
-      const wlen = wp ? (wp.reach + wp.width) * 0.5 : H * 0.36
-      weapon = { x: armR.x + f * wlen, y: shoulderY + H * 0.1 }
       legL = { x: fx - f * H * 0.16, y: fy }
       legR = { x: fx + f * H * 0.08, y: fy }
+      const wp = this.weaponProfile
+      const wlen = wp ? (wp.reach + wp.width) * 0.5 : H * 0.36
+      if (wp?.swing === 'chop') {
+        // Overhead cleave: the blade sweeps from raised-up-front down to in front,
+        // animated across the swing so it reads as a real up-to-down chop.
+        const total = this.attackMove ? totalFrames(this.attackMove) : 24
+        const p = clamp(this.attackTick / total, 0, 1)
+        const a = ((-82 + 128 * p) * Math.PI) / 180 // -82° (up) → +46° (down/front)
+        armR = { x: fx + f * H * 0.14, y: shoulderY - H * 0.04 }
+        weapon = { x: armR.x + f * Math.cos(a) * wlen, y: armR.y + Math.sin(a) * wlen }
+      } else {
+        armR = { x: fx + f * H * 0.3, y: shoulderY + H * 0.06 }
+        weapon = { x: armR.x + f * wlen, y: shoulderY + H * 0.1 }
+      }
     } else if (st === 'hurt') {
       lean = -f * H * 0.11
       armL = { x: fx - H * 0.23, y: shoulderY }

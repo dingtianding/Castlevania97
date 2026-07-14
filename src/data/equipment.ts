@@ -51,6 +51,9 @@ export interface WeaponProfile {
   knockbackY: number
   /** Blade colour for the stick-figure swing. */
   color: string
+  /** How the swing is drawn: a horizontal slash/thrust (default) or an overhead
+   *  chop that sweeps from raised to down-in-front. */
+  swing?: 'slash' | 'chop'
 }
 
 export interface EquipmentDef {
@@ -95,8 +98,8 @@ export const EQUIPMENT_POOL: readonly EquipmentDef[] = [
     weapon: { reach: 12, width: 66, height: 62, top: 148, startup: 3, active: 4, recovery: 7, damage: 5, knockbackX: 4, knockbackY: -3, color: '#cdd2dc' } },
   { ...base, id: 'longSword', name: 'Long Sword', slot: 'weapon', price: 90, blurb: 'Balanced reach and speed. A dependable blade.',
     weapon: { reach: 22, width: 108, height: 74, top: 150, startup: 6, active: 5, recovery: 13, damage: 10, knockbackX: 7, knockbackY: -4, color: '#dfe6ef' } },
-  { ...base, id: 'broadsword', name: 'Broadsword', slot: 'weapon', price: 160, blurb: 'Wide, heavy cleave. Slow but hits hard.',
-    weapon: { reach: 18, width: 130, height: 104, top: 150, startup: 12, active: 7, recovery: 22, damage: 18, knockbackX: 11, knockbackY: -6, color: '#e8dcc0' } },
+  { ...base, id: 'broadsword', name: 'Broadsword', slot: 'weapon', price: 160, blurb: 'Wide, heavy overhead cleave. Slow but hits hard.',
+    weapon: { reach: 18, width: 130, height: 104, top: 150, startup: 12, active: 7, recovery: 22, damage: 18, knockbackX: 11, knockbackY: -6, color: '#e8dcc0', swing: 'chop' } },
   { ...base, id: 'lance', name: 'Lance', slot: 'weapon', price: 150, blurb: 'Long thrust — great reach, narrow arc.',
     weapon: { reach: 40, width: 158, height: 56, top: 138, startup: 8, active: 6, recovery: 17, damage: 12, knockbackX: 9, knockbackY: -3, color: '#cfd8e0' } },
   { ...base, id: 'elementalSword', name: 'Elemental Sword', slot: 'weapon', price: 260, blurb: 'A blade wreathed in flame — strong, wide swings.',
