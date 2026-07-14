@@ -467,7 +467,7 @@ class CastleActor {
   private pendingRangedShot: { x: number; y: number; facing: Facing } | null = null
   grounded = true
   facing: Facing
-  state: 'idle' | 'run' | 'jump' | 'fall' | 'attack' | 'dash' | 'hurt' | 'death' = 'idle'
+  state: 'idle' | 'run' | 'jump' | 'fall' | 'attack' | 'dash' | 'hurt' | 'death' | 'crouch' = 'idle'
   private glowPhase = 0
   private deathTicks = 0
   private readonly sheets: SpriteSet
@@ -505,6 +505,8 @@ class CastleActor {
   private dropTicks = 0
   private dashTicks = 0
   private dashCooldown = 0
+  /** Movement direction of the current dash (a backdash moves opposite facing). */
+  private dashDir: Facing = 1
 
   constructor(
     readonly def: CharacterDef,
@@ -655,6 +657,14 @@ class CastleActor {
     this.updateAnimator()
   }
 
+  /** Advance the death crumble/fade for a dead enemy so it disappears (the main
+   *  update loop skips dead actors, so their fade must be ticked here). */
+  advanceDeath(): void {
+    if (this.state !== 'death') { this.state = 'death'; this.deathTicks = 0 }
+    else this.deathTicks += 1
+    this.updateAnimator()
+  }
+
   /** Remove without a death (no reward): used for timed-out ambient spawns. Plays
    *  the crumble/fade so it doesn't just blink out. */
   despawnQuietly(): void {
@@ -762,6 +772,21 @@ class CastleActor {
   tryDash(direction: Facing): void {
     if (this.state === 'death' || this.state === 'hurt' || this.dashCooldown > 0) return
     this.facing = direction
+    this.dashDir = direction
+    this.dashTicks = DASH_TICKS
+    this.dashCooldown = DASH_COOLDOWN_TICKS
+    this.attackMove = null
+    this.attackConnected = false
+    this.projectileSpawned = false
+    this.pendingProjectileSpawn = null
+    this.state = 'dash'
+    this.animator.play(this.sheets.run, 3, true)
+  }
+
+  /** A backdash: dash backward (opposite the way you're facing) without turning. */
+  tryBackdash(): void {
+    if (this.state === 'death' || this.state === 'hurt' || this.dashCooldown > 0 || !this.grounded) return
+    this.dashDir = (this.facing === 1 ? -1 : 1) as Facing
     this.dashTicks = DASH_TICKS
     this.dashCooldown = DASH_COOLDOWN_TICKS
     this.attackMove = null
@@ -796,9 +821,11 @@ class CastleActor {
             ? this.def.moves.light
             : null
     if (!move) return false
+    // A light attack while crouching is a low crouch slash near the ground.
+    if (move === this.def.moves.light && this.grounded && intent.downHeld && intent.moveX === 0) move = this.crouchMove()
     // The light attack is the weapon swing — take its reach/speed/damage from
     // the equipped weapon so each weapon type plays differently.
-    if (move === this.def.moves.light && this.weaponProfile) move = this.weaponMove(this.weaponProfile)
+    else if (move === this.def.moves.light && this.weaponProfile) move = this.weaponMove(this.weaponProfile)
     if (move.meterCost) this.meter = Math.max(0, this.meter - move.meterCost)
     this.attackMove = move
     this.attackTick = 0
@@ -826,6 +853,24 @@ class CastleActor {
     }
   }
 
+  /** A quick low sweep along the ground, used when attacking from a crouch. */
+  private crouchMove(): AttackMove {
+    const w = this.weaponProfile
+    const reach = w ? w.reach : 16
+    const width = w ? Math.max(88, w.width * 0.78) : 96
+    return {
+      ...this.def.moves.light,
+      id: 'crouch-slash',
+      startup: 5,
+      active: 5,
+      recovery: 13,
+      damage: w ? w.damage : this.def.moves.light.damage,
+      knockbackX: 6,
+      knockbackY: -2,
+      hitbox: { forward: reach, top: 58, width, height: 48 },
+    }
+  }
+
   private updateLocomotion(intent: IntentState, opponentX: number, platforms: Platform[]): void {
     const moveSpeed = (this.grounded ? WALK_SPEED : AIR_SPEED) * this.moveSpeedMultiplier
     const sliding = this.slideTicks > 0
@@ -835,7 +880,7 @@ class CastleActor {
       this.velocity.x = this.facing * SLIDE_SPEED
     } else if (this.dashTicks > 0) {
       this.dashTicks -= 1
-      this.velocity.x = this.facing * DASH_SPEED
+      this.velocity.x = this.dashDir * DASH_SPEED
     } else {
       this.velocity.x = intent.moveX * moveSpeed
     }
@@ -867,7 +912,9 @@ class CastleActor {
       this.state = 'dash'
       return
     }
-    const next = !this.grounded ? (this.velocity.y < 0 ? 'jump' : 'fall') : intent.moveX === 0 ? 'idle' : 'run'
+    // Holding Down while standing still on the ground is a crouch (duck low).
+    const crouching = this.grounded && intent.downHeld && intent.moveX === 0
+    const next = !this.grounded ? (this.velocity.y < 0 ? 'jump' : 'fall') : crouching ? 'crouch' : intent.moveX === 0 ? 'idle' : 'run'
     this.setMotion(next)
   }
 
@@ -1002,6 +1049,9 @@ class CastleActor {
       case 'fall':
         this.animator.play(s.fall, 8, true)
         break
+      case 'crouch':
+        this.animator.play(s.idle, 8, true)
+        break
       case 'attack':
       case 'dash':
       case 'hurt':
@@ -1040,9 +1090,9 @@ class CastleActor {
     ctx.globalAlpha = alpha
     if (this.state === 'dash') {
       ctx.globalAlpha = alpha * 0.22
-      this.drawStick(ctx, fx - this.facing * 26, fy)
+      this.drawStick(ctx, fx - this.dashDir * 26, fy)
       ctx.globalAlpha = alpha * 0.44
-      this.drawStick(ctx, fx - this.facing * 13, fy)
+      this.drawStick(ctx, fx - this.dashDir * 13, fy)
       ctx.globalAlpha = alpha
     }
     if (this.isSliding) {
@@ -1123,10 +1173,12 @@ class CastleActor {
       return
     }
 
-    const headCy = fy - H + headR
-    const shoulderY = fy - H * 0.70
-    const hipY = fy - H * 0.42
     const st = this.state
+    // Crouching (and the crouch slash) compresses the figure toward the floor.
+    const crouched = st === 'crouch' || this.attackMove?.id === 'crouch-slash'
+    const headCy = crouched ? fy - H * 0.52 : fy - H + headR
+    const shoulderY = crouched ? fy - H * 0.44 : fy - H * 0.70
+    const hipY = crouched ? fy - H * 0.26 : fy - H * 0.42
     let legL = { x: fx - H * 0.12, y: fy }
     let legR = { x: fx + H * 0.12, y: fy }
     let armL = { x: fx - H * 0.17, y: hipY - H * 0.02 }
@@ -1147,22 +1199,37 @@ class CastleActor {
       const up = st === 'jump' ? -H * 0.12 : H * 0.04
       armL = { x: fx - H * 0.2, y: shoulderY + up }
       armR = { x: fx + H * 0.2, y: shoulderY + up }
+    } else if (st === 'crouch') {
+      // Ducked low, arms drawn in over bent legs.
+      legL = { x: fx - H * 0.22, y: fy }
+      legR = { x: fx + H * 0.22, y: fy }
+      armL = { x: fx - H * 0.14, y: hipY + H * 0.03 }
+      armR = { x: fx + H * 0.14, y: hipY + H * 0.03 }
     } else if (st === 'attack') {
+      const crouchSlash = this.attackMove?.id === 'crouch-slash'
       lean = f * H * 0.05
       armL = { x: fx - f * H * 0.1, y: hipY }
-      legL = { x: fx - f * H * 0.16, y: fy }
-      legR = { x: fx + f * H * 0.08, y: fy }
       const wp = this.weaponProfile
       const wlen = wp ? (wp.reach + wp.width) * 0.5 : H * 0.36
-      if (wp?.swing === 'chop') {
+      if (crouchSlash) {
+        // A low sweep skimming the ground.
+        legL = { x: fx - H * 0.22, y: fy }
+        legR = { x: fx + H * 0.22, y: fy }
+        armR = { x: fx + f * H * 0.16, y: hipY + H * 0.04 }
+        weapon = { x: armR.x + f * wlen, y: fy - H * 0.06 }
+      } else if (wp?.swing === 'chop') {
         // Overhead cleave: the blade sweeps from raised-up-front down to in front,
         // animated across the swing so it reads as a real up-to-down chop.
+        legL = { x: fx - f * H * 0.16, y: fy }
+        legR = { x: fx + f * H * 0.08, y: fy }
         const total = this.attackMove ? totalFrames(this.attackMove) : 24
         const p = clamp(this.attackTick / total, 0, 1)
         const a = ((-82 + 128 * p) * Math.PI) / 180 // -82° (up) → +46° (down/front)
         armR = { x: fx + f * H * 0.14, y: shoulderY - H * 0.04 }
         weapon = { x: armR.x + f * Math.cos(a) * wlen, y: armR.y + Math.sin(a) * wlen }
       } else {
+        legL = { x: fx - f * H * 0.16, y: fy }
+        legR = { x: fx + f * H * 0.08, y: fy }
         armR = { x: fx + f * H * 0.3, y: shoulderY + H * 0.06 }
         weapon = { x: armR.x + f * wlen, y: shoulderY + H * 0.1 }
       }
@@ -1219,7 +1286,9 @@ class CastleActor {
 
   hurtbox(): Rect {
     const width = this.def.visual.hurtbox.width * ACTOR_SCALE
-    const height = this.def.visual.hurtbox.height * ACTOR_SCALE
+    let height = this.def.visual.hurtbox.height * ACTOR_SCALE
+    // Crouching shrinks the body so it can duck under high attacks.
+    if (this.state === 'crouch' || this.attackMove?.id === 'crouch-slash') height *= 0.55
     return { x: this.position.x - width / 2, y: this.position.y - height, width, height }
   }
 
@@ -1726,7 +1795,8 @@ export class CampaignScene extends Scene {
       else this.activateBlueSoul()
     }
     if (intent.heavyPressed) {
-      this.cycleSubweapon()
+      // L is a backdash: a quick hop backward without turning around.
+      this.player.tryBackdash()
       intent.heavyPressed = false
     }
     // The sub button (Up + attack): a soul-reaver hero casts the Red soul here;
@@ -1747,7 +1817,7 @@ export class CampaignScene extends Scene {
 
     this.updateZombieSpawner()
     for (const enemy of this.enemies) {
-      if (enemy.isDead) continue
+      if (enemy.isDead) { enemy.advanceDeath(); continue } // tick the fade so corpses vanish
       if (enemy.riseTicks > 0) { enemy.riseTicks -= 1; continue } // still emerging from the floor
       if (this.enemyFreezeTicks > 0) continue
       if (enemy.flying) {
@@ -2349,10 +2419,6 @@ export class CampaignScene extends Scene {
     this.subweapons.push(spawn)
     this.ctx.audio.swing()
     return true
-  }
-
-  private cycleSubweapon(): void {
-    this.selectedSubweaponIndex = (this.selectedSubweaponIndex + 1) % SUBWEAPON_ORDER.length
   }
 
   private currentSubweapon(): SubweaponKind {
