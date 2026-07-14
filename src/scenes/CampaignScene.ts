@@ -386,6 +386,8 @@ const SOUL_CAST_COOLDOWN = 22
 const BONE_DAMAGE = 8
 const BONE_SPEED = 8
 const BONE_GRAVITY = 0.2
+// Skeletons throw sparingly — ~one bone every 5s (300 ticks) plus a little jitter.
+const SKELETON_THROW_COOLDOWN = 300
 
 // XP and gold granted when each enemy type is defeated. Bosses use a fixed
 // bounty (see campaignEnemyReward) rather than this table.
@@ -425,6 +427,8 @@ class CastleActor {
   /** Wander AI state (shambling enemies): current move (-1/0/1) and its timer. */
   wanderMove: -1 | 0 | 1 = 0
   wanderTicks = 0
+  /** Cooldown (ticks) between ranged throws, so the skeleton lobs slowly. */
+  throwCooldown = 0
   private pendingRangedShot: { x: number; y: number; facing: Facing } | null = null
   grounded = true
   facing: Facing
@@ -643,6 +647,9 @@ class CastleActor {
     if (!this.grounded && this.jumpCount >= this.maxJumps) return
     this.velocity.y = JUMP_VELOCITY
     this.grounded = false
+    // Jumping is a clear "go up" intent: cancel any pending drop-through window so
+    // a Down-then-jump near a floor shaft launches instead of falling through.
+    this.dropTicks = 0
     this.jumpCount += 1
     this.state = 'jump'
     this.attackMove = null
@@ -655,6 +662,7 @@ class CastleActor {
   private highJump(): void {
     this.velocity.y = JUMP_VELOCITY * HIGH_JUMP_MULT
     this.grounded = false
+    this.dropTicks = 0
     this.jumpCount = 1
     this.state = 'jump'
     this.attackMove = null
@@ -3772,9 +3780,15 @@ function enemyIntent(enemy: CastleActor, player: CastleActor, node: ReturnType<t
   }
 
   if (kind === 'skeleton') {
-    // Bone Soldier: holds its ground and lobs bones in a high arc — no chasing.
+    // Bone Soldier: holds its ground and lobs a bone in a high arc — no chasing.
+    // Throws are deliberately sparse: roughly one every 5s (+ jitter so a pack
+    // doesn't fire in unison), not a continuous barrage.
     intent.moveX = 0
-    if (enemy.currentMove === null && dist < 560) intent.lightPressed = true
+    if (enemy.throwCooldown > 0) enemy.throwCooldown -= 1
+    if (enemy.currentMove === null && enemy.throwCooldown <= 0 && dist < 560) {
+      intent.lightPressed = true
+      enemy.throwCooldown = SKELETON_THROW_COOLDOWN + Math.floor(rng.next() * 90)
+    }
     return intent
   }
 
