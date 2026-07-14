@@ -1140,6 +1140,10 @@ export class CampaignScene extends Scene {
   private playerDamageMult = 1
   private playerDamageTakenMult = 1
   private levelUpTicks = 0
+  private levelUpScreen = false
+  private levelUpFrom = 1
+  private levelUpHpBefore = 0
+  private levelUpHpAfter = 0
   private readonly rewardedDeaths = new Set<CastleActor>()
   private floatingTexts: FloatingText[] = []
   private particles: Particle[] = []
@@ -1187,6 +1191,14 @@ export class CampaignScene extends Scene {
       if (isMenuConfirm(e.code)) {
         e.preventDefault()
         this.pickDraft()
+      }
+      return
+    }
+    if (this.levelUpScreen) {
+      if (this.levelUpTicks > 0) return // let the entrance settle before it can be dismissed
+      if (isMenuConfirm(e.code) || isMenuCancel(e.code)) {
+        e.preventDefault()
+        this.dismissLevelUp()
       }
       return
     }
@@ -1466,7 +1478,8 @@ export class CampaignScene extends Scene {
     this.blink += 1
     if (this.flashTicks > 0) this.flashTicks -= 1
     if (this.contactHitCooldown > 0) this.contactHitCooldown -= 1
-    if (this.ending || this.drafting || this.perkChoosing || this.shopping || this.showStatus || this.showEquipment || this.showMap || this.showMenu) return
+    if (this.levelUpTicks > 0) this.levelUpTicks -= 1
+    if (this.ending || this.drafting || this.perkChoosing || this.levelUpScreen || this.shopping || this.showStatus || this.showEquipment || this.showMap || this.showMenu) return
     if (this.defeatTicks > 0) {
       this.defeatTicks += 1
       if (this.defeatTicks > DEFEAT_RETRY_TICKS) this.reloadNode(this.node.id, true)
@@ -1570,7 +1583,6 @@ export class CampaignScene extends Scene {
     this.enemies = this.enemies.filter((enemy) => !enemy.isGone) // despawn defeated enemies
     this.updateFloatingTexts()
     this.updateParticles()
-    if (this.levelUpTicks > 0) this.levelUpTicks -= 1
 
     if (this.player.isDead && this.player.hurtbox().y > 0) {
       this.defeatTicks = 1
@@ -1630,6 +1642,7 @@ export class CampaignScene extends Scene {
     this.drawHud()
     if (this.ending) this.drawEnding()
     else if (this.perkChoosing) this.drawPerkChoice()
+    else if (this.levelUpScreen) this.drawLevelUpScreen()
     else if (this.drafting) this.drawDraft()
     else if (this.shopping) this.drawShop()
     else if (this.showMenu) this.drawMenu()
@@ -1642,7 +1655,6 @@ export class CampaignScene extends Scene {
       this.drawMinimap()
       if (Math.floor(this.blink / 30) % 2 === 0) this.drawPrompt()
     }
-    if (this.levelUpTicks > 0 && !this.ending && !this.drafting && !this.perkChoosing) this.drawLevelUp()
     if (this.bossIntroTicks > 0) this.drawBossIntro()
     if (this.sealMessageTicks > 0) this.drawSealMessage()
     if (this.abilityGetTicks > 0) this.drawAbilityGet()
@@ -1781,6 +1793,7 @@ export class CampaignScene extends Scene {
     this.bossIntroTicks = this.node.isBoss ? BOSS_INTRO_TICKS : 0
     this.enemyFreezeTicks = 0
     this.levelUpTicks = 0
+    this.levelUpScreen = false
     this.showStatus = false
     this.showEquipment = false
     this.equipPicking = false
@@ -2193,24 +2206,33 @@ export class CampaignScene extends Scene {
 
   private onLevelUp(levelsGained: number): void {
     // Every level auto-boosts stats (max HP + attack scale with level in the
-    // compute* methods) and restores health.
-    this.levelUpTicks = 150
+    // compute* methods) and restores health. Freeze the game and show a
+    // level-up screen the player dismisses with a key.
+    const hpBefore = this.player.maxHealth
     this.playerDamageMult = this.computeDamageMult()
     this.player.setMaxHealth(this.computeMaxHealth())
-    this.spawnFloatingText(this.player.position.x, this.player.position.y - 118, `LEVEL ${this.save.level}`, '#f6b74a')
-    this.spawnFloatingText(this.player.position.x, this.player.position.y - 100, 'STATS UP', '#b7c7e6')
+    this.levelUpFrom = Math.max(1, this.save.level - levelsGained)
+    this.levelUpHpBefore = hpBefore
+    this.levelUpHpAfter = this.player.maxHealth
+    this.levelUpScreen = true
+    this.levelUpTicks = 18 // entrance fade
     this.ctx.audio.hit()
     // A power-up pick is earned only on every 5th level. Count how many level-5
-    // milestones the gain crossed and queue a choice for each.
+    // milestones the gain crossed and queue a choice for each — offered after
+    // the player dismisses the level-up screen.
     const top = this.save.level
     let milestones = 0
     for (let lvl = top - levelsGained + 1; lvl <= top; lvl += 1) {
       if (lvl % 5 === 0) milestones += 1
     }
-    if (milestones > 0) {
-      this.pendingLevelUps += milestones
-      if (!this.perkChoosing) this.openPerkChoice()
-    }
+    this.pendingLevelUps += milestones
+  }
+
+  /** Dismiss the level-up screen. If milestone perk picks are queued, roll into
+   *  the perk-choice screen; otherwise resume play. */
+  private dismissLevelUp(): void {
+    this.levelUpScreen = false
+    if (this.pendingLevelUps > 0 && !this.perkChoosing) this.openPerkChoice()
   }
 
   private openPerkChoice(): void {
@@ -2881,19 +2903,60 @@ export class CampaignScene extends Scene {
     ctx.restore()
   }
 
-  private drawLevelUp(): void {
+  private drawLevelUpScreen(): void {
     const { ctx } = this.ctx.renderer
-    const alpha = Math.min(1, this.levelUpTicks / 30)
+    const { width, height } = this.ctx
+    // Brief entrance: the panel slides/fades in over the first frames.
+    const t = 1 - Math.min(1, this.levelUpTicks / 18)
+    const ease = t * (2 - t)
     ctx.save()
-    ctx.globalAlpha = alpha
+    ctx.fillStyle = `rgba(8, 6, 14, ${0.82 * ease})`
+    ctx.fillRect(0, 0, width, height)
+
+    const panelW = 420
+    const panelH = 236
+    const px = (width - panelW) / 2
+    const py = (height - panelH) / 2 + (1 - ease) * 16
+    ctx.globalAlpha = ease
+    ctx.fillStyle = 'rgba(20, 16, 28, 0.96)'
+    ctx.fillRect(px, py, panelW, panelH)
+    ctx.strokeStyle = '#f6b74a'
+    ctx.lineWidth = 3
+    ctx.strokeRect(px, py, panelW, panelH)
+
+    const cx = width / 2
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
     ctx.fillStyle = '#f6b74a'
-    ctx.font = '18px "Press Start 2P", monospace'
-    ctx.fillText('LEVEL UP', this.ctx.width / 2, 150)
-    ctx.fillStyle = '#e8d4a0'
+    ctx.font = '20px "Press Start 2P", monospace'
+    ctx.fillText('LEVEL UP!', cx, py + 40)
+
+    ctx.fillStyle = '#ffffff'
+    ctx.font = '16px "Press Start 2P", monospace'
+    ctx.fillText(`LV ${this.levelUpFrom}  →  ${this.save.level}`, cx, py + 82)
+
+    // Stat rows.
+    const hpDelta = Math.round(this.levelUpHpAfter - this.levelUpHpBefore)
+    const atkPct = Math.round((this.playerDamageMult - 1) * 100)
     ctx.font = '9px "Press Start 2P", monospace'
-    ctx.fillText(`${CAMPAIGN_HERO.name} REACHES LEVEL ${this.save.level}`, this.ctx.width / 2, 176)
+    ctx.fillStyle = '#b7c7e6'
+    ctx.fillText(`MAX HP  ${Math.round(this.levelUpHpAfter)}${hpDelta > 0 ? `  (+${hpDelta})` : ''}`, cx, py + 120)
+    ctx.fillStyle = '#b7c7e6'
+    ctx.fillText(`ATTACK  +${atkPct}%`, cx, py + 142)
+    ctx.fillStyle = '#7ad07a'
+    ctx.fillText('HP FULLY RESTORED', cx, py + 164)
+
+    if (this.pendingLevelUps > 0) {
+      ctx.fillStyle = '#c86adc'
+      ctx.font = '9px "Press Start 2P", monospace'
+      ctx.fillText('◈ POWER-UP READY', cx, py + 190)
+    }
+
+    if (this.levelUpTicks <= 0 && Math.floor(this.blink / 30) % 2 === 0) {
+      ctx.fillStyle = '#e8d4a0'
+      ctx.font = '8px "Press Start 2P", monospace'
+      ctx.fillText('J CONTINUE', cx, py + panelH - 18)
+    }
     ctx.restore()
   }
 
