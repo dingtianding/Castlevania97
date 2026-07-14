@@ -2783,10 +2783,13 @@ export class CampaignScene extends Scene {
     if (sx === undefined || this.player.isDead) return
     if (!intent.upHeld || this.savedFlashTicks > 0) return
     if (Math.abs(this.player.position.x - sx) > SAVE_RANGE) return
+    // Resting at a save point fully restores HP and MP.
     this.player.health = this.player.maxHealth
+    this.player.meter = 100
     saveCampaignSave(this.save)
     this.savedFlashTicks = 90
     this.spawnFloatingText(this.player.position.x, this.player.position.y - 118, 'GAME SAVED', '#8fd4ff')
+    this.spawnFloatingText(this.player.position.x, this.player.position.y - 100, 'HP / MP RESTORED', '#7ad67a')
     this.ctx.audio.hit()
   }
 
