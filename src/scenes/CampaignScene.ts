@@ -204,6 +204,13 @@ const DEATH_HOLD_TICKS = 4 // brief crumple, then a quick fade so kills despawn 
 const DEATH_FADE_TICKS = 10
 const DEFEAT_RETRY_TICKS = 120
 const BOSS_INTRO_TICKS = 120 // cinematic name-reveal pause when a boss room starts
+const ZONE_INTRO_TICKS = 150 // ~2.5s title card shown on entering a new zone
+// Display name for each chapter/zone, shown on the zone title card (falls back to
+// the chapter title for any not listed here).
+const ZONE_NAMES: Record<string, string> = {
+  'castle-corridor': 'ENTRANCE',
+  'underground-reservoir': 'UNDERGROUND',
+}
 // Global shrink applied uniformly to every campaign actor's on-screen size and
 // hit target (Julius, enemies, and bosses) for a tighter classic-Castlevania read.
 // Feet stay planted because anchorY is scaled at draw time; attack reach is data
@@ -1547,6 +1554,11 @@ export class CampaignScene extends Scene {
   private contactHitCooldown = 0
   private defeatTicks = 0
   private bossIntroTicks = 0
+  // Zone title card: the zone the player is currently in, and the freeze timer +
+  // name for the "entering a new zone" banner.
+  private currentZone: string | null = null
+  private zoneIntroTicks = 0
+  private zoneName = ''
   private savedFlashTicks = 0
   private roomCooldown = 0
   private victoryTicks = 0
@@ -1612,6 +1624,13 @@ export class CampaignScene extends Scene {
   private readonly minimap = new MinimapRenderer()
   private readonly onKeyDown = (e: KeyboardEvent): void => {
     if (this.ctx.scenes.current !== this) return
+    // Any confirm/jump key skips the rest of the zone title card (keep a short
+    // fade-out).
+    if (this.zoneIntroTicks > 18 && (isMenuConfirm(e.code) || e.code === 'Enter')) {
+      e.preventDefault()
+      this.zoneIntroTicks = 18
+      return
+    }
     if (this.drafting) {
       if (this.draftOptions.length === 0) return
       if (e.code === 'KeyA' || e.code === 'ArrowLeft') {
@@ -2009,6 +2028,11 @@ export class CampaignScene extends Scene {
       this.transitionTicks -= 1
       return
     }
+    if (this.zoneIntroTicks > 0) {
+      // Freeze on the zone title card until it plays out (or a key skips it).
+      this.zoneIntroTicks -= 1
+      return
+    }
     if (this.bossIntroTicks > 0) {
       this.bossIntroTicks -= 1
       return
@@ -2185,9 +2209,40 @@ export class CampaignScene extends Scene {
       if (Math.floor(this.blink / 30) % 2 === 0) this.drawPrompt()
     }
     if (this.bossIntroTicks > 0) this.drawBossIntro()
+    if (this.zoneIntroTicks > 0) this.drawZoneIntro()
     if (this.sealMessageTicks > 0) this.drawSealMessage()
     if (this.abilityGetTicks > 0) this.drawAbilityGet()
     this.drawFlash()
+  }
+
+  /** Full-screen zone title card shown (frozen) on entering a new zone. */
+  private drawZoneIntro(): void {
+    const { ctx } = this.ctx.renderer
+    const { width, height } = this.ctx
+    // Ease the card in and back out at the edges of its lifetime.
+    const t = ZONE_INTRO_TICKS - this.zoneIntroTicks
+    const fadeIn = clamp(t / 18, 0, 1)
+    const fadeOut = clamp(this.zoneIntroTicks / 18, 0, 1)
+    const a = Math.min(fadeIn, fadeOut)
+    ctx.save()
+    ctx.globalAlpha = a
+    ctx.fillStyle = 'rgba(4, 4, 10, 0.86)'
+    ctx.fillRect(0, 0, width, height)
+    // Framing rules above and below the name.
+    ctx.strokeStyle = '#8a7a4a'
+    ctx.lineWidth = 2
+    const cy = height / 2
+    ctx.beginPath(); ctx.moveTo(width / 2 - 220, cy - 44); ctx.lineTo(width / 2 + 220, cy - 44); ctx.stroke()
+    ctx.beginPath(); ctx.moveTo(width / 2 - 220, cy + 44); ctx.lineTo(width / 2 + 220, cy + 44); ctx.stroke()
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillStyle = '#8a8aa0'
+    ctx.font = '10px "Press Start 2P", monospace'
+    ctx.fillText('NOW ENTERING', width / 2, cy - 24)
+    ctx.fillStyle = '#e8d4a0'
+    ctx.font = '26px "Press Start 2P", monospace'
+    ctx.fillText(this.zoneName, width / 2, cy + 8)
+    ctx.restore()
   }
 
   private get bossActor(): CastleActor | null {
@@ -2280,6 +2335,13 @@ export class CampaignScene extends Scene {
   private reloadNode(nodeId: string, fromReset = false): void {
     this.node = getCampaignNode(nodeId)
     this.chapter = getCampaignChapter(this.node.chapterId)
+    // Entering a new zone (chapter) shows a title card and freezes briefly. Not on
+    // a death-retry of the same room.
+    if (!fromReset && this.node.chapterId !== this.currentZone) {
+      this.currentZone = this.node.chapterId
+      this.zoneName = ZONE_NAMES[this.node.chapterId] ?? this.chapter.title.toUpperCase()
+      this.zoneIntroTicks = ZONE_INTRO_TICKS
+    }
     this.layout = buildLayout(this.node.stage)
     enlargeRoom(this.layout, BIG_ROOMS[this.node.id])
     addVerticalPassages(this.layout, castleDoors(this.node.id))
