@@ -918,6 +918,7 @@ class CastleActor {
       damage: w.damage,
       knockbackX: w.knockbackX,
       knockbackY: w.knockbackY,
+      planted: w.planted === true,
       hitbox: { forward: w.reach, top: w.top, width: w.width, height: w.height },
     }
   }
@@ -996,7 +997,9 @@ class CastleActor {
 
   private updateAttack(intent: IntentState, platforms: Platform[]): void {
     this.attackTick += 1
-    this.velocity.x = intent.moveX * ATTACK_DRIFT_SPEED
+    // A "planted" swing (e.g. the broadsword) roots the fighter for the swing;
+    // otherwise the attacker keeps a little drift.
+    this.velocity.x = this.attackMove?.planted ? 0 : intent.moveX * ATTACK_DRIFT_SPEED
     if (intent.moveX > 0) this.facing = 1
     else if (intent.moveX < 0) this.facing = -1
     // Ranged enemies release a projectile once as their light (throw/charge) move

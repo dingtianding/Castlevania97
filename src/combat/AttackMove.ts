@@ -56,6 +56,8 @@ export interface AttackMove {
   jumpCancelableOnHit?: boolean
   /** Meter (0–100) spent to perform the move; supers cost, others don't. */
   meterCost?: number
+  /** Plant the attacker in place for the swing (no attack-drift movement). */
+  planted?: boolean
   projectile?: ProjectileSpec
 }
 
