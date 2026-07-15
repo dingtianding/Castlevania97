@@ -13,7 +13,7 @@ import { MapService, MapRenderer, MinimapRenderer } from '../map/index.ts'
 import { castleDoors, castleNeighbor, type MapDir } from '../data/castleMap.ts'
 import { buildEquipmentModifiers, EQUIP_SLOT_LABELS, EQUIP_SLOTS, equipmentForSlot, EQUIPMENT_POOL, getEquipment, type EquipmentDef, type EquipmentModifiers, type EquipSlot, type WeaponProfile } from '../data/equipment.ts'
 import { buildRunModifiers, RELIC_POOL, type RelicDef, type RunModifiers } from '../data/relics.ts'
-import { buildSoulModifiers, getSoul, soulForEnemy, SOUL_POOL, type SoulDef, type SoulModifiers } from '../data/souls.ts'
+import { buildSoulModifiers, getSoul, soulForEnemy, type SoulDef, type SoulModifiers } from '../data/souls.ts'
 import { grey as CAMPAIGN_HERO, zombie } from '../data/characters/castlevaniaCampaign.ts'
 import { CONSUMABLE_POOL, getConsumable } from '../data/consumables.ts'
 import { getStage } from '../data/stages.ts'
@@ -3242,13 +3242,11 @@ export class CampaignScene extends Scene {
   }
 
   private shopItems(): { id: string; name: string; desc: string; price: number; available: boolean }[] {
-    const unownedSouls = SOUL_POOL.filter((soul) => !this.save.souls.includes(soul.id)).length
-    // Offer up to three not-yet-owned equipment pieces so the shelf stays fresh
-    // without becoming an overwhelming wall of gear.
+    // Equippable gear you don't own yet (weapons + armor + gear), cheapest first.
     const gear = EQUIPMENT_POOL.filter((item) => !this.save.equipment.includes(item.id))
       .slice()
       .sort((a, b) => a.price - b.price)
-      .slice(0, 3)
+      .slice(0, 5)
       .map((item) => ({
         id: `equip:${item.id}`,
         name: item.name.toUpperCase(),
@@ -3256,43 +3254,17 @@ export class CampaignScene extends Scene {
         price: item.price,
         available: true,
       }))
+    // Usable consumables (potion / elixir).
+    const consumables = CONSUMABLE_POOL.map((item) => ({
+      id: `item:${item.id}`,
+      name: item.name.toUpperCase(),
+      desc: `${item.blurb}  (held ${this.save.consumables[item.id] ?? 0})`,
+      price: item.price,
+      available: true,
+    }))
     return [
-      {
-        id: 'hp',
-        name: 'LIFE CRYSTAL',
-        desc: `+20 MAX HEALTH  (owned ${this.save.hpUpgrades})`,
-        price: 40 + this.save.hpUpgrades * 30,
-        available: true,
-      },
-      {
-        id: 'atk',
-        name: 'POWER SHARD',
-        desc: `+6% ATTACK  (owned ${this.save.atkUpgrades})`,
-        price: 50 + this.save.atkUpgrades * 40,
-        available: true,
-      },
-      {
-        id: 'armor',
-        name: 'ARMOR PLATE',
-        desc: this.save.armorTier < 7 ? `-6% DAMAGE TAKEN  (owned ${this.save.armorTier})` : 'Armor maxed out',
-        price: 45 + this.save.armorTier * 35,
-        available: this.save.armorTier < 7,
-      },
-      {
-        id: 'soul',
-        name: 'SOUL SHARD',
-        desc: unownedSouls > 0 ? `A random enemy soul  (${unownedSouls} left)` : 'All souls collected',
-        price: 120,
-        available: unownedSouls > 0,
-      },
-      ...CONSUMABLE_POOL.map((item) => ({
-        id: `item:${item.id}`,
-        name: item.name.toUpperCase(),
-        desc: `${item.blurb}  (held ${this.save.consumables[item.id] ?? 0})`,
-        price: item.price,
-        available: true,
-      })),
       ...gear,
+      ...consumables,
       { id: 'leave', name: 'LEAVE SHOP', desc: 'Continue the hunt', price: 0, available: true },
     ]
   }
@@ -3309,14 +3281,7 @@ export class CampaignScene extends Scene {
       return
     }
     this.save = { ...this.save, gold: this.save.gold - item.price }
-    if (item.id === 'hp') this.save = { ...this.save, hpUpgrades: this.save.hpUpgrades + 1 }
-    else if (item.id === 'atk') this.save = { ...this.save, atkUpgrades: this.save.atkUpgrades + 1 }
-    else if (item.id === 'armor') this.save = { ...this.save, armorTier: this.save.armorTier + 1 }
-    else if (item.id === 'soul') {
-      const unowned = SOUL_POOL.filter((soul) => !this.save.souls.includes(soul.id))
-      const pick = unowned[this.ctx.rng.int(0, unowned.length - 1)]
-      if (pick) this.save = addCampaignSoul(this.save, pick.id)
-    } else if (item.id.startsWith('item:')) {
+    if (item.id.startsWith('item:')) {
       this.save = addCampaignConsumable(this.save, item.id.slice('item:'.length), 1)
     } else if (item.id.startsWith('equip:')) {
       // Purchased gear lands in the inventory and auto-equips if the slot is open;
