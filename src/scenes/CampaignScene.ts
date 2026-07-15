@@ -159,6 +159,8 @@ const SLIDE_COOLDOWN_TICKS = 20
 // Dive attack: a fast downward plunge (Down+jump after your jumps are spent) that
 // damages anything it drops onto.
 const DIVE_SPEED = 15
+// A 45° air slide (Down + a direction while airborne): equal x/y speed.
+const DIVE_DIAG_SPEED = 9.5
 const DIVE_DAMAGE = 16
 // A low tunnel's floor gap — a standing player is blocked, a sliding one fits.
 const CRAWL_GAP = 46
@@ -501,6 +503,8 @@ class CastleActor {
   state: 'idle' | 'run' | 'jump' | 'fall' | 'attack' | 'dash' | 'hurt' | 'death' | 'crouch' | 'dive' = 'idle'
   /** Enemies already struck by the current dive attack (so each is hit once). */
   readonly diveHits = new Set<CastleActor>()
+  /** Horizontal direction of the current dive (0 straight down, ±1 for a 45° slide). */
+  private diveDirX: -1 | 0 | 1 = 0
   private glowPhase = 0
   private deathTicks = 0
   private readonly sheets: SpriteSet
@@ -849,11 +853,13 @@ class CastleActor {
   }
 
   /** Diving slam: plunge straight down fast; the scene damages whatever it hits. */
-  private tryDiveAttack(): void {
+  private tryDiveAttack(dir: -1 | 0 | 1 = 0): void {
     if (this.state === 'death' || this.state === 'hurt') return
     this.state = 'dive'
-    this.velocity.x = 0
-    this.velocity.y = DIVE_SPEED
+    this.diveDirX = dir
+    if (dir !== 0) this.facing = dir
+    this.velocity.x = dir * DIVE_DIAG_SPEED
+    this.velocity.y = dir !== 0 ? DIVE_DIAG_SPEED : DIVE_SPEED
     this.attackMove = null
     this.attackConnected = false
     this.diveHits.clear()
@@ -861,8 +867,9 @@ class CastleActor {
   }
 
   private updateDive(platforms: Platform[]): void {
-    this.velocity.x = 0
-    this.velocity.y = DIVE_SPEED // hold the plunge speed
+    // Straight plunge, or a 45° slide toward the ground when a direction was held.
+    this.velocity.x = this.diveDirX * DIVE_DIAG_SPEED
+    this.velocity.y = this.diveDirX !== 0 ? DIVE_DIAG_SPEED : DIVE_SPEED
     this.integrate(platforms)
     if (this.grounded) this.setMotion('idle') // landed — dive ends
   }
@@ -919,7 +926,9 @@ class CastleActor {
       knockbackX: w.knockbackX,
       knockbackY: w.knockbackY,
       planted: w.planted === true,
-      hitbox: { forward: w.reach, top: w.top, width: w.width, height: w.height },
+      // Extend the swing down to near the floor so short grounded enemies (the
+      // zombie is only ~82px tall) still get hit, not just the chest-high band.
+      hitbox: { forward: w.reach, top: w.top, width: w.width, height: Math.max(w.height, w.top - 8) },
     }
   }
 
@@ -973,6 +982,8 @@ class CastleActor {
       } else if (this.grounded && intent.upHeld && this.hasHighJump) this.highJump()
       else this.tryJump()
     }
+    // In the air, holding Down + a direction slides down toward the ground at 45°.
+    if (!this.grounded && intent.downHeld && intent.moveX !== 0) this.tryDiveAttack(intent.moveX)
     if (this.state === 'dive') return // the dive takes over from here
     // Variable jump height: releasing jump while still rising cuts the ascent
     // short, so a light tap is a mini-hop and holding gives the full jump.
@@ -1516,12 +1527,9 @@ export class CampaignScene extends Scene {
   private zombieSpawnTimer = ZOMBIE_SPAWN_INTERVAL
   private runMods: RunModifiers = buildRunModifiers([])
   private soulMods: SoulModifiers = buildSoulModifiers([])
-  // Blue (Guardian) soul buff: the active effect, how long it lasts, and the
-  // cooldown before it can be re-cast.
+  // Blue (Guardian) soul: the effect active while the ; button is held (it drains
+  // MP each tick), or null when not held / out of MP.
   private blueBuffEffect: BlueSoulEffect | null = null
-  private blueBuffTicks = 0
-  private blueBuffMax = 1
-  private blueCooldown = 0
   private equipMods: EquipmentModifiers = buildEquipmentModifiers([])
   private playerDamageMult = 1
   private playerDamageTakenMult = 1
@@ -1973,13 +1981,6 @@ export class CampaignScene extends Scene {
     if (this.enemyFreezeTicks > 0) this.enemyFreezeTicks -= 1
 
     const intent = this.input.poll()
-    if (intent.dashPressed) {
-      // The ; button activates the Blue (Guardian) soul. Down + ; still slides,
-      // since the slide is a traversal tool for low tunnels.
-      const dir = intent.moveX === 0 ? this.player.facing : (intent.moveX as Facing)
-      if (intent.downHeld && this.player.hasSlide && this.player.grounded) this.player.trySlide(dir)
-      else this.activateBlueSoul()
-    }
     if (intent.heavyPressed) {
       // L is a backdash: a quick hop backward without turning around.
       this.player.tryBackdash()
@@ -1991,16 +1992,12 @@ export class CampaignScene extends Scene {
       const used = HERO_USES_SOULS ? this.castSoul() : this.tryUseSubweapon()
       if (used) intent.lightPressed = false
     }
-    this.player.gliding = this.blueBuffEffect === 'glide' && this.blueBuffTicks > 0
+    // Blue guardian soul: active (draining MP) for as long as ; is held.
+    this.updateBlueGuardian(intent.dashHeld)
     this.player.update(intent, this.player.position.x + this.player.facing * 80, this.layout.platforms)
     // MP passively refills so soul magic is always coming back (Aria-style).
     this.player.meter = clamp(this.player.meter + MP_REGEN, 0, 100)
     if (this.soulCooldown > 0) this.soulCooldown -= 1
-    if (this.blueCooldown > 0) this.blueCooldown -= 1
-    if (this.blueBuffTicks > 0) {
-      this.blueBuffTicks -= 1
-      if (this.blueBuffTicks === 0) { this.blueBuffEffect = null; this.refreshLivePlayerStats() }
-    }
 
     this.updateZombieSpawner()
     for (const enemy of this.enemies) {
@@ -2530,25 +2527,24 @@ export class CampaignScene extends Scene {
     return true
   }
 
-  /** Activate the equipped Blue (Guardian) soul: spend MP for a timed self-buff
-   *  on a cooldown. Aegis softens hits, Frenzy boosts attack, Haste boosts speed. */
-  private activateBlueSoul(): void {
-    if (this.player.isDead || this.blueCooldown > 0 || this.blueBuffTicks > 0 || this.bossIntroTicks > 0) return
+  /** Hold-to-sustain Blue (Guardian) soul: while ; is held it drains MP and keeps
+   *  its effect active (Glide slows falls, Aegis softens hits, Frenzy/Haste boost
+   *  attack/speed); releasing ; or running out of MP ends it. */
+  private updateBlueGuardian(held: boolean): void {
     const soul = getBlueSoul(this.save.equippedBlueSoul)
-    if (!soul || this.player.meter < soul.mpCost) return
-    this.player.meter -= soul.mpCost
-    this.blueCooldown = soul.cooldown
-    this.blueBuffEffect = soul.effect
-    this.blueBuffTicks = soul.duration
-    this.blueBuffMax = soul.duration
-    this.refreshLivePlayerStats()
-    this.ctx.audio.hit()
-    this.spawnFloatingText(this.player.position.x, this.player.position.y - 118, soul.name.toUpperCase(), '#7ad6ff')
+    const active = held && soul !== undefined && !this.player.isDead && this.bossIntroTicks <= 0 && this.player.meter > 0
+    if (active && soul) this.player.meter = Math.max(0, this.player.meter - soul.mpCost / 60)
+    const effect: BlueSoulEffect | null = active && soul ? soul.effect : null
+    if (effect !== this.blueBuffEffect) {
+      this.blueBuffEffect = effect
+      this.refreshLivePlayerStats() // frenzy/haste/aegis stat mults toggled
+    }
+    this.player.gliding = this.blueBuffEffect === 'glide'
   }
 
   /** Multiplier a live Blue buff applies to the given stat (1 = no effect). */
   private blueBuffMult(effect: BlueSoulEffect): number {
-    if (this.blueBuffEffect !== effect || this.blueBuffTicks <= 0) return 1
+    if (this.blueBuffEffect !== effect) return 1
     return effect === 'aegis' ? 0.4 : effect === 'frenzy' ? 1.45 : 1.4
   }
 
@@ -3543,24 +3539,15 @@ export class CampaignScene extends Scene {
     ctx.fillStyle = '#f6b74a'
     ctx.fillText(`${this.save.gold}G`, barX + barW - 2, 70)
 
-    // Active guardian buff: a small labelled timer bar to the right of the meters.
-    if (this.blueBuffTicks > 0) {
-      const bx = barX + barW + 12
-      const bw = 96
-      const frac = clamp(this.blueBuffTicks / this.blueBuffMax, 0, 1)
+    // Active guardian buff: its label pulses to the right of the meters while the
+    // ; button is held (MP itself is the draining resource, shown by the MP bar).
+    if (this.blueBuffEffect !== null) {
       const label = this.blueBuffEffect === 'glide' ? 'GLIDE' : this.blueBuffEffect === 'aegis' ? 'WARD' : this.blueBuffEffect === 'frenzy' ? 'FRENZY' : 'HASTE'
       ctx.textAlign = 'left'
       ctx.textBaseline = 'middle'
-      ctx.font = '7px "Press Start 2P", monospace'
-      ctx.fillStyle = '#7ad6ff'
-      ctx.fillText(label, bx, hpY - 2)
-      ctx.fillStyle = '#0e1a2a'
-      ctx.fillRect(bx, mpY - 5, bw, 9)
-      ctx.fillStyle = '#7ad6ff'
-      ctx.fillRect(bx, mpY - 5, bw * frac, 9)
-      ctx.strokeStyle = '#5a86b0'
-      ctx.lineWidth = 1
-      ctx.strokeRect(bx + 0.5, mpY - 4.5, bw - 1, 8)
+      ctx.font = '8px "Press Start 2P", monospace'
+      ctx.fillStyle = Math.floor(this.blink / 12) % 2 === 0 ? '#7ad6ff' : '#bfe6ff'
+      ctx.fillText(`◈ ${label}`, barX + barW + 14, mpY - 1)
     }
     ctx.restore()
   }

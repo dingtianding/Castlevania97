@@ -43,6 +43,7 @@ export class GamepadSource implements InputSource {
       heavyPressed: heavy && !this.prevHeavy,
       specialPressed: special && !this.prevSpecial,
       dashPressed: dash && !this.prevDash,
+      dashHeld: dash,
     }
     this.prevJump = jump
     this.prevLight = light

@@ -21,6 +21,7 @@ export interface IntentState {
   heavyPressed: boolean
   specialPressed: boolean
   dashPressed: boolean
+  dashHeld: boolean
 }
 
 export interface InputSource {
@@ -41,5 +42,6 @@ export function neutralIntent(): IntentState {
     heavyPressed: false,
     specialPressed: false,
     dashPressed: false,
+    dashHeld: false,
   }
 }

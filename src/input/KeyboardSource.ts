@@ -66,6 +66,7 @@ export class KeyboardSource implements InputSource {
       heavyPressed: this.anyPressed(this.keys.heavy),
       specialPressed: this.anyPressed(this.keys.special),
       dashPressed: this.anyPressed(this.keys.dash),
+      dashHeld: this.anyHeld(this.keys.dash),
     }
     this.pressed.clear()
     return intent
