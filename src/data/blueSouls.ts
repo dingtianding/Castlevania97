@@ -1,10 +1,10 @@
 /**
  * Blue (Guardian) Souls — the Aria "guardian" slot, activated with the ; button.
- * Each spends MP to grant a short self-buff on a cooldown; the base Stone Bulwark
+ * Each spends MP to grant a short self-buff on a cooldown; the base Flying Armor
  * is always owned, and stronger guardians drop from certain enemies. Owned blue
  * souls live on the campaign save; only the equipped one is castable.
  */
-export type BlueSoulEffect = 'aegis' | 'frenzy' | 'haste'
+export type BlueSoulEffect = 'glide' | 'aegis' | 'frenzy' | 'haste'
 
 export interface BlueSoulDef {
   id: string
@@ -23,19 +23,30 @@ export interface BlueSoulDef {
   base?: boolean
 }
 
-export const BASE_BLUE_SOUL = 'guard-bulwark'
+export const BASE_BLUE_SOUL = 'guard-flight'
 
 export const BLUE_SOUL_POOL: readonly BlueSoulDef[] = [
   {
+    id: 'guard-flight',
+    name: 'Flying Armor',
+    dropChance: 0,
+    mpCost: 28,
+    cooldown: 120,
+    duration: 260,
+    effect: 'glide',
+    blurb: 'Ride the air — greatly slow your fall for a while.',
+    base: true,
+  },
+  {
     id: 'guard-bulwark',
     name: 'Stone Bulwark',
-    dropChance: 0,
+    enemyId: 'armoredSkeleton',
+    dropChance: 0.22,
     mpCost: 40,
     cooldown: 180,
     duration: 150,
     effect: 'aegis',
     blurb: 'Raise a stone ward — take 60% less damage for a few seconds.',
-    base: true,
   },
   {
     id: 'guard-frenzy',

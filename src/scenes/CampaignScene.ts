@@ -169,6 +169,8 @@ const JUMP_CUTOFF = -8.5
 // Griffon Wing high-jump strength, relative to a normal jump.
 const HIGH_JUMP_MULT = 1.7
 const FAST_FALL_SPEED = 12
+// Fall speed cap while the Flying Armor guardian (glide) is active.
+const GLIDE_FALL_SPEED = 2.4
 const WALL_MARGIN = 48
 // Vertical reach for snapping onto a staircase surface while walking it.
 const STAIR_GRAB = 22
@@ -516,6 +518,8 @@ class CastleActor {
   lastDamageTaken = 0
   /** Whether the high-jump relic (Griffon Wing) is owned. */
   hasHighJump = false
+  /** Flying Armor guardian active: caps fall speed for a gentle descent. */
+  gliding = false
   /** Whether the slide relic (Fleet Greaves) is owned. */
   hasSlide = false
   private slideTicks = 0
@@ -1069,6 +1073,8 @@ class CastleActor {
       }
     }
     this.velocity.y += GRAVITY
+    // Flying Armor: cap the descent to a gentle glide (but never during a dive).
+    if (this.gliding && this.state !== 'dive' && this.velocity.y > GLIDE_FALL_SPEED) this.velocity.y = GLIDE_FALL_SPEED
     this.position.y += this.velocity.y
     if (this.position.y < this.roomTop) { this.position.y = this.roomTop; if (this.velocity.y < 0) this.velocity.y = 0 }
 
@@ -1982,6 +1988,7 @@ export class CampaignScene extends Scene {
       const used = HERO_USES_SOULS ? this.castSoul() : this.tryUseSubweapon()
       if (used) intent.lightPressed = false
     }
+    this.player.gliding = this.blueBuffEffect === 'glide' && this.blueBuffTicks > 0
     this.player.update(intent, this.player.position.x + this.player.facing * 80, this.layout.platforms)
     // MP passively refills so soul magic is always coming back (Aria-style).
     this.player.meter = clamp(this.player.meter + MP_REGEN, 0, 100)
@@ -3538,7 +3545,7 @@ export class CampaignScene extends Scene {
       const bx = barX + barW + 12
       const bw = 96
       const frac = clamp(this.blueBuffTicks / this.blueBuffMax, 0, 1)
-      const label = this.blueBuffEffect === 'aegis' ? 'WARD' : this.blueBuffEffect === 'frenzy' ? 'FRENZY' : 'HASTE'
+      const label = this.blueBuffEffect === 'glide' ? 'GLIDE' : this.blueBuffEffect === 'aegis' ? 'WARD' : this.blueBuffEffect === 'frenzy' ? 'FRENZY' : 'HASTE'
       ctx.textAlign = 'left'
       ctx.textBaseline = 'middle'
       ctx.font = '7px "Press Start 2P", monospace'
