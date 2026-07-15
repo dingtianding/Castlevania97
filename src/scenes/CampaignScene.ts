@@ -1554,9 +1554,7 @@ export class CampaignScene extends Scene {
   private contactHitCooldown = 0
   private defeatTicks = 0
   private bossIntroTicks = 0
-  // Zone title card: the zone the player is currently in, and the freeze timer +
-  // name for the "entering a new zone" banner.
-  private currentZone: string | null = null
+  // Zone title card: freeze timer + name for the "first time entering a zone" banner.
   private zoneIntroTicks = 0
   private zoneName = ''
   private savedFlashTicks = 0
@@ -2232,16 +2230,13 @@ export class CampaignScene extends Scene {
     ctx.strokeStyle = '#8a7a4a'
     ctx.lineWidth = 2
     const cy = height / 2
-    ctx.beginPath(); ctx.moveTo(width / 2 - 220, cy - 44); ctx.lineTo(width / 2 + 220, cy - 44); ctx.stroke()
-    ctx.beginPath(); ctx.moveTo(width / 2 - 220, cy + 44); ctx.lineTo(width / 2 + 220, cy + 44); ctx.stroke()
+    ctx.beginPath(); ctx.moveTo(width / 2 - 230, cy - 34); ctx.lineTo(width / 2 + 230, cy - 34); ctx.stroke()
+    ctx.beginPath(); ctx.moveTo(width / 2 - 230, cy + 34); ctx.lineTo(width / 2 + 230, cy + 34); ctx.stroke()
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
-    ctx.fillStyle = '#8a8aa0'
-    ctx.font = '10px "Press Start 2P", monospace'
-    ctx.fillText('NOW ENTERING', width / 2, cy - 24)
     ctx.fillStyle = '#e8d4a0'
-    ctx.font = '26px "Press Start 2P", monospace'
-    ctx.fillText(this.zoneName, width / 2, cy + 8)
+    ctx.font = '28px "Press Start 2P", monospace'
+    ctx.fillText(this.zoneName, width / 2, cy + 2)
     ctx.restore()
   }
 
@@ -2335,10 +2330,11 @@ export class CampaignScene extends Scene {
   private reloadNode(nodeId: string, fromReset = false): void {
     this.node = getCampaignNode(nodeId)
     this.chapter = getCampaignChapter(this.node.chapterId)
-    // Entering a new zone (chapter) shows a title card and freezes briefly. Not on
-    // a death-retry of the same room.
-    if (!fromReset && this.node.chapterId !== this.currentZone) {
-      this.currentZone = this.node.chapterId
+    // The first time the player ever enters a zone (chapter), freeze and show its
+    // name. Persisted via a world flag, so it never repeats. Not on death-retries.
+    const zf = `zone:${this.node.chapterId}`
+    if (!fromReset && !hasWorldFlag(this.save, zf)) {
+      this.save = setWorldFlag(this.save, zf)
       this.zoneName = ZONE_NAMES[this.node.chapterId] ?? this.chapter.title.toUpperCase()
       this.zoneIntroTicks = ZONE_INTRO_TICKS
     }
