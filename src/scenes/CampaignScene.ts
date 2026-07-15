@@ -108,6 +108,12 @@ const CHEST_ROOMS: Record<string, { x: number; gold: number }> = {
   'inr-servants': { x: 1300, gold: 320 },
 }
 const CHEST_RANGE = 46
+// Rooms with a body of water: [x, x+width] filled down from surfaceY to the floor.
+// You float on the surface unless the Drowned Soul lets you sink and breathe.
+const WATER_ROOMS: Record<string, { x: number; width: number; surfaceY: number }> = {
+  'res-descent': { x: 360, width: 1160, surfaceY: FLOOR_Y - 150 },
+  'res-cistern': { x: 300, width: 1300, surfaceY: FLOOR_Y - 170 },
+}
 // A permanent Life Max Up's position in its room. `high` ones perch on a raised
 // ledge only the high-jump relic reaches — grabbing it needs matching height.
 const HIGH_LEDGE_Y = 150
@@ -173,6 +179,12 @@ const HIGH_JUMP_MULT = 1.7
 const FAST_FALL_SPEED = 12
 // Fall speed cap while the Flying Armor guardian (glide) is active.
 const GLIDE_FALL_SPEED = 2.4
+// Water: buoyancy that floats a non-diver up to the surface, the slow sink speed
+// for a diver, and the horizontal drag applied to anyone in the water.
+const WATER_BUOYANCY = 1.35
+const WATER_RISE_CAP = 3.2
+const WATER_SINK_SPEED = 1.8
+const WATER_DRAG = 0.82
 const WALL_MARGIN = 48
 // Vertical reach for snapping onto a staircase surface while walking it.
 const STAIR_GRAB = 22
@@ -324,6 +336,9 @@ interface RoomLayout {
   top: number
   /** Open shaft in the floor (drop-through passage down), or null for a solid floor. */
   floorGap: { x: number; width: number } | null
+  /** A body of water: fills [x, x+width] from surfaceY down to the floor. You float
+   *  on the surface unless a "breathe underwater" soul lets you sink. */
+  water: { x: number; width: number; surfaceY: number } | null
   doorX: number
   doorY: number
   checkpointX: number
@@ -537,6 +552,10 @@ class CastleActor {
   barriers: Barrier[] = []
   /** Open shaft in the floor at this x-span — no floor there (drop-through down). */
   floorGap: { x: number; width: number } | null = null
+  /** Water body in the room (player only); null elsewhere. */
+  water: { x: number; width: number; surfaceY: number } | null = null
+  /** Can breathe/sink underwater (has the Drowned Soul); otherwise floats. */
+  canDive = false
   /** Current room bounds (for clamps). The floor stays at FLOOR_Y. */
   roomWidth = ROOM_WIDTH
   roomTop = 0
@@ -1089,6 +1108,17 @@ class CastleActor {
     this.velocity.y += GRAVITY
     // Flying Armor: cap the descent to a gentle glide (but never during a dive).
     if (this.gliding && this.state !== 'dive' && this.velocity.y > GLIDE_FALL_SPEED) this.velocity.y = GLIDE_FALL_SPEED
+    // Water: buoyancy floats a non-diver up to the surface; a diver sinks slowly.
+    // Both get horizontal drag while submerged.
+    const wtr = this.water
+    if (wtr && this.position.x > wtr.x && this.position.x < wtr.x + wtr.width && this.position.y > wtr.surfaceY) {
+      this.velocity.x *= WATER_DRAG
+      if (this.canDive) {
+        if (this.velocity.y > WATER_SINK_SPEED) this.velocity.y = WATER_SINK_SPEED
+      } else {
+        this.velocity.y = Math.max(this.velocity.y - WATER_BUOYANCY, -WATER_RISE_CAP)
+      }
+    }
     this.position.y += this.velocity.y
     if (this.position.y < this.roomTop) { this.position.y = this.roomTop; if (this.velocity.y < 0) this.velocity.y = 0 }
 
@@ -1118,6 +1148,11 @@ class CastleActor {
       }
     }
 
+    // Without a diving soul, the water surface is solid footing — you float on it.
+    if (wtr && !this.canDive && this.position.x > wtr.x && this.position.x < wtr.x + wtr.width && this.position.y >= wtr.surfaceY) {
+      landed = true
+      landingY = Math.min(landingY, wtr.surfaceY)
+    }
     // The room's base floor catches everyone, except over an open shaft, where the
     // only footing is the drop-through platform handled above.
     const overGap = this.floorGap !== null && this.position.x > this.floorGap.x && this.position.x < this.floorGap.x + this.floorGap.width
@@ -2248,6 +2283,7 @@ export class CampaignScene extends Scene {
     this.layout = buildLayout(this.node.stage)
     enlargeRoom(this.layout, BIG_ROOMS[this.node.id])
     addVerticalPassages(this.layout, castleDoors(this.node.id))
+    this.layout.water = WATER_ROOMS[this.node.id] ?? null
     // A high-jump-gated Life Max Up perches on a ledge above double-jump range.
     // The room becomes a clean column (floor + ledge) so it can't be cheesed by
     // double-jumping off a decorative platform.
@@ -2270,6 +2306,8 @@ export class CampaignScene extends Scene {
     this.player.stairs = this.layout.stairs
     this.player.barriers = this.layout.barriers
     this.player.floorGap = this.layout.floorGap
+    this.player.water = this.layout.water
+    this.player.canDive = this.hasUnderwaterSoul()
     this.player.roomWidth = this.layout.width
     this.player.roomTop = this.layout.top
     this.player.weaponProfile = this.equippedWeaponProfile()
@@ -2837,9 +2875,16 @@ export class CampaignScene extends Scene {
     return buildSoulModifiers(this.save.equippedYellowSoul ? [this.save.equippedYellowSoul] : [])
   }
 
+  /** Whether the equipped Yellow soul grants underwater breathing (sink, not float). */
+  private hasUnderwaterSoul(): boolean {
+    const soul = this.save.equippedYellowSoul ? getSoul(this.save.equippedYellowSoul) : undefined
+    return soul?.underwater === true
+  }
+
   /** Re-apply soul bonuses to the live player when the passive soul changes. */
   private applySoulMods(): void {
     this.soulMods = this.yellowSoulMods()
+    this.player.canDive = this.hasUnderwaterSoul()
     this.refreshLivePlayerStats()
   }
 
@@ -3327,6 +3372,31 @@ export class CampaignScene extends Scene {
     this.refreshLivePlayerStats()
   }
 
+  /** Translucent water body drawn over the actors so submerged parts read as
+   *  underwater, with a rippling surface line. */
+  private drawWater(): void {
+    const w = this.layout.water
+    if (!w) return
+    const { ctx } = this.ctx.renderer
+    const x = w.x - this.cameraX
+    const top = w.surfaceY
+    ctx.save()
+    ctx.fillStyle = 'rgba(38, 108, 186, 0.34)'
+    ctx.fillRect(x, top, w.width, FLOOR_Y - top)
+    ctx.fillStyle = 'rgba(120, 190, 240, 0.45)'
+    ctx.fillRect(x, top, w.width, 4)
+    ctx.strokeStyle = 'rgba(190, 235, 255, 0.6)'
+    ctx.lineWidth = 2
+    ctx.beginPath()
+    for (let i = 0; i <= w.width; i += 16) {
+      const yy = top + Math.sin((i + this.blink * 2.5) * 0.05) * 3
+      if (i === 0) ctx.moveTo(x + i, yy)
+      else ctx.lineTo(x + i, yy)
+    }
+    ctx.stroke()
+    ctx.restore()
+  }
+
   private drawWorld(): void {
     const { ctx } = this.ctx.renderer
     ctx.save()
@@ -3387,6 +3457,7 @@ export class CampaignScene extends Scene {
     for (const subweapon of this.subweapons) renderSubweapon(subweapon, this.ctx.renderer, this.cameraX)
     for (const bolt of this.soulBolts) drawSoulBolt(bolt, this.ctx.renderer, this.cameraX)
     for (const bone of this.enemyBones) drawBone(bone, this.ctx.renderer, this.cameraX)
+    this.drawWater()
     this.drawEnemyHealthBars()
     this.drawFloatingTexts()
     if (DEBUG_HITBOXES) this.drawDebugBoxes()
@@ -5481,7 +5552,7 @@ function addVerticalPassages(layout: RoomLayout, doors: Record<MapDir, boolean>)
 }
 
 function buildLayout(stage: string): RoomLayout {
-  const base = { width: ROOM_WIDTH, top: 0, doorX: ROOM_WIDTH - 128, doorY: FLOOR_Y, checkpointX: 120, checkpointY: FLOOR_Y, stairs: [] as Stair[], barriers: [] as Barrier[], floorGap: null as { x: number; width: number } | null }
+  const base = { width: ROOM_WIDTH, top: 0, doorX: ROOM_WIDTH - 128, doorY: FLOOR_Y, checkpointX: 120, checkpointY: FLOOR_Y, stairs: [] as Stair[], barriers: [] as Barrier[], floorGap: null as { x: number; width: number } | null, water: null as { x: number; width: number; surfaceY: number } | null }
   switch (stage) {
     case 'outer_wall':
       // Stairs removed for now — flat floor with a few one-way ledges.
@@ -5504,7 +5575,9 @@ function buildLayout(stage: string): RoomLayout {
     case 'clock_tower':
       return { ...base, backdrop: '#1a120b', platforms: [{ x: 0, y: FLOOR_Y, width: ROOM_WIDTH, height: 22 }, { x: 160, y: 404, width: 170, height: 12 }, { x: 390, y: 350, width: 160, height: 12, crumble: true }, { x: 640, y: 292, width: 160, height: 12 }, { x: 890, y: 238, width: 160, height: 12, crumble: true }, { x: 1140, y: 304, width: 170, height: 12 }, { x: 1380, y: 246, width: 170, height: 12, crumble: true }], hazards: [] }
     case 'catacombs':
-      return { ...base, backdrop: '#081018', platforms: [{ x: 0, y: FLOOR_Y, width: ROOM_WIDTH, height: 22 }, { x: 260, y: 378, width: 220, height: 12 }, { x: 620, y: 346, width: 220, height: 12, crumble: true }, { x: 1020, y: 378, width: 200, height: 12 }], hazards: [] }
+      // The Underground Reservoir. Water bodies are attached per-room (WATER_ROOMS)
+      // so the boss room stays dry.
+      return { ...base, backdrop: '#081018', platforms: [{ x: 0, y: FLOOR_Y, width: ROOM_WIDTH, height: 22 }, { x: 150, y: 384, width: 170, height: 12 }, { x: 1560, y: 384, width: 200, height: 12 }], hazards: [] }
     case 'throne_room':
       return { ...base, backdrop: '#13080c', platforms: [{ x: 0, y: FLOOR_Y, width: ROOM_WIDTH, height: 22 }, { x: 360, y: 340, width: 200, height: 12 }, { x: 980, y: 340, width: 200, height: 12 }], hazards: [] }
     default:

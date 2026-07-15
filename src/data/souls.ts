@@ -16,6 +16,8 @@ export interface SoulDef {
   damageMultiplier?: number
   moveSpeedMultiplier?: number
   meterGainMultiplier?: number
+  /** Passive traversal: lets you breathe and sink underwater instead of floating. */
+  underwater?: boolean
 }
 
 export interface SoulModifiers {
@@ -57,6 +59,14 @@ export const SOUL_POOL: readonly SoulDef[] = [
     dropChance: 0.34,
     blurb: 'War-plate endurance settles into your bones. +18 max health.',
     maxHealthBonus: 18,
+  },
+  {
+    id: 'drowned-soul',
+    name: 'Drowned Soul',
+    enemyId: 'bigGolem',
+    dropChance: 1,
+    blurb: 'The lungs of the drowned. Breathe underwater and sink to the depths instead of floating.',
+    underwater: true,
   },
   {
     id: 'bone-thrower-soul',
