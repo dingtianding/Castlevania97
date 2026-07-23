@@ -166,7 +166,7 @@ export const CAMPAIGN_CHAPTERS: readonly CampaignChapterDef[] = [
       'A ballroom for a court that never arrives. The music plays anyway, and the armor along the walls remembers how to move.',
     outro:
       'The last dancer is broken plate on the marble. Red crosses the empty floor to the far door.',
-    nodeIds: ['dnc-ballroom', 'dnc-greatarmor'],
+    nodeIds: ['dnc-ballroom', 'dnc-greatarmor', 'dnc-tower'],
   },
   {
     id: 'inner-quarters',
@@ -477,8 +477,23 @@ export const CAMPAIGN_NODES: readonly CampaignNodeDef[] = [
     enemy: axeArmor,
     extraEnemies: [{ def: ghoul, count: 2 }],
     difficulty: 'hard',
-    nextIds: ['dnc-greatarmor'],
+    nextIds: ['dnc-greatarmor', 'dnc-tower'],
     position: { x: 360, y: 200 },
+  },
+  {
+    id: 'dnc-tower',
+    chapterId: 'dance-hall',
+    year: 1997,
+    title: 'West Tower',
+    blurb: 'A sealed three-storey shaft up the west wall; only a griffon-winged leap opens the climb.',
+    story:
+      'Behind a door the castle keeps for its swiftest, the west tower climbs three storeys of cold air. Bats nest in the dark above, and something the castle hoarded waits at the very top.',
+    stage: 'throne_room',
+    enemy: axeArmor,
+    extraEnemies: [{ def: bat, count: 2 }],
+    difficulty: 'hard',
+    nextIds: ['cor-larder'],
+    position: { x: 300, y: 200 },
   },
   {
     id: 'dnc-greatarmor',

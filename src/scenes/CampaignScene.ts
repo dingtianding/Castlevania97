@@ -122,6 +122,10 @@ const HIGH_LEDGE_Y = 150
 const LIFE_UP_ROOMS: Record<string, { x: number; y: number; high: boolean }> = Object.fromEntries(
   CASTLE_LIFEUP_ROOMS.map((r) => [r.id, { x: r.x, y: r.high ? HIGH_LEDGE_Y : FLOOR_Y, high: r.high }]),
 )
+// The West Tower's Life Max Up sits on the TOPMOST ladder ledge of the 3-tall
+// shaft: enlargeRoom's height ladder for h=3 (top = -2*ROOM_HEIGHT) ends at
+// {x: 1080, y: -958, width: 220}, so the pickup centres on it.
+LIFE_UP_ROOMS['dnc-tower'] = { x: 1190, y: -958, high: false }
 const LIFE_UP_RANGE = 48
 // Low tunnels per room (only a slide passes). Gates the cistern's Life Max Up.
 const SLIDE_BARRIERS: Record<string, { x: number; width: number }> = {
@@ -136,9 +140,12 @@ const BIG_ROOMS: Record<string, { width: number; top: number }> = Object.fromEnt
     .map(([id, c]) => [id, { width: c.w * ROOM_WIDTH, top: (1 - c.h) * ROOM_HEIGHT }]),
 )
 // Doors sealed until an ability/key is owned: nodeId -> direction -> required id.
-// The Chapel's bell-loft branch is barred until you find the Silver Key.
+// The Chapel's bell-loft branch is barred until you find the Silver Key; the
+// West Tower (both approaches) opens only to the high jump.
 const SEALED_DOORS: Record<string, Partial<Record<MapDir, string>>> = {
   'chp-nave': { e: 'silver-key' },
+  'dnc-ballroom': { w: 'high-jump' },
+  'cor-larder': { n: 'high-jump' },
 }
 const GRAVITY = 0.78
 const WALK_SPEED = 3.4
@@ -2349,6 +2356,8 @@ export class CampaignScene extends Scene {
       if (overlay) this.touchControls = new TouchControls(overlay, state)
     }
     this.input = new CompositeSource(sources)
+    // Dev-only inspection hook for debugging scene state from the console.
+    if (import.meta.env.DEV) (window as unknown as { __cv?: unknown }).__cv = this
   }
 
   private reloadFromSave(): void {

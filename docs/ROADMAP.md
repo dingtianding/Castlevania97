@@ -52,8 +52,13 @@ Make the castle actually walkable instead of isolated arenas.
 - **Backtracking payoffs:** early dead-ends open up later — ✅ demonstrated
   (find the key deeper in the Study, backtrack to the Chapel).
 - Three gate flavors now exist: keyed door, height gate, low-tunnel gate.
-- Still to do: grapple/other abilities, colored-door tiers, more gated branches,
-  warp network to ease backtracking.
+- **Warp network ✅** — three warp rooms (entrance alcove, chapel nave, garden
+  hanging walk); Up at a pad opens a map-based warp select; any discovered warp
+  teleports to any other. Eases backtracking across the gates.
+- **West Tower ✅** — a 2-wide × 3-tall high-jump-gated shaft off the Ballroom
+  (sealed doors both sides: "needs Griffon Wing"), bats + a Life Max Up on the
+  top ledge. First room taller than two screens; proves big-room h>2 works.
+- Still to do: grapple/other abilities, colored-door tiers, more gated branches.
 - *Effort: M. Depends on Phase 1.*
 
 ## Phase 3 — Combat identity & build depth  *(can interleave)*

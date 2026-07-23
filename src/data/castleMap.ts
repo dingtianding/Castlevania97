@@ -44,6 +44,9 @@ export const CASTLE_CELLS: Readonly<Record<string, CastleCell>> = {
   // Dance Hall — turns up on the left.
   'dnc-ballroom': { col: 1, row: 4 },
   'dnc-greatarmor': { col: 1, row: 3 },
+  // West Tower — a 2-wide, 3-tall high-jump-gated shaft on the west wall,
+  // between the ballroom (east door) and the corridor larder (south door).
+  'dnc-tower': { col: 0, row: 4 },
   // Inner Quarters — cuts back right.
   'inr-servants': { col: 2, row: 3 },
   'inr-headhunter': { col: 3, row: 3 },

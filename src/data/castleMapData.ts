@@ -44,6 +44,9 @@ export const CASTLE_LIFEUP_ROOMS = [
   { id: 'chp-loft', x: 840, high: false },
   { id: 'grd-skybridge', x: 840, high: true },
   { id: 'res-cistern', x: 1400, high: false },
+  // West Tower: on the topmost ladder ledge, three storeys up (the scene
+  // overrides this one's y to the tower's top platform).
+  { id: 'dnc-tower', x: 1190, high: false },
 ] as const
 
 const DIR_OF: Record<MapDir, Direction> = { n: 'up', s: 'down', e: 'right', w: 'left' }
@@ -60,6 +63,7 @@ export const ROOM_CELLS: Record<string, { w: number; h: number }> = {
   'cor-grand': { w: 2, h: 2 },
   'std-reading': { w: 2, h: 1 },
   'inr-servants': { w: 2, h: 1 },
+  'dnc-tower': { w: 2, h: 3 },
 }
 /** Grid positions are scaled by this so multi-cell rooms have room to expand
  *  without overlapping neighbours (footprints are <= this). */
