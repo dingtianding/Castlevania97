@@ -19,6 +19,17 @@ export const CASTLE_SAVE_ROOMS = [
 /** Rooms with a wandering merchant, and the merchant's x-position. */
 export const CASTLE_MERCHANT_ROOMS = [{ id: 'cor-entrance', x: 1180 }] as const
 
+/** Warp rooms (Aria-style teleport network) keyed to the warp pad's x-position.
+ *  Entering one discovers it; any discovered warp can teleport to any other.
+ *  Spread across the castle: entrance cluster, chapel (east), gardens (top). */
+export const CASTLE_WARP_ROOMS = [
+  // x stays clear of the room-centre vertical-passage column (VERT_PASSAGE_X),
+  // where Up means "climb", and of the door edges.
+  { id: 'cor-alcove', x: 520 },
+  { id: 'chp-nave', x: 520 },
+  { id: 'grd-hanging', x: 520 },
+] as const
+
 /** Rooms holding an ability relic: x-position + the ability it grants. */
 export const CASTLE_ITEM_ROOMS = [
   { id: 'cor-entrance', x: 320, ability: 'double-jump' },
@@ -39,6 +50,7 @@ const DIR_OF: Record<MapDir, Direction> = { n: 'up', s: 'down', e: 'right', w: '
 
 const saveIds = new Set<string>(CASTLE_SAVE_ROOMS.map((r) => r.id))
 const shopIds = new Set<string>(CASTLE_MERCHANT_ROOMS.map((r) => r.id))
+const warpIds = new Set<string>(CASTLE_WARP_ROOMS.map((r) => r.id))
 const itemIds = new Set<string>([...CASTLE_ITEM_ROOMS.map((r) => r.id), ...CASTLE_LIFEUP_ROOMS.map((r) => r.id)])
 
 /** Room footprint in standard cells. A standard room is 1x1; a bigger room spans
@@ -71,6 +83,7 @@ function buildRoom(node: (typeof CAMPAIGN_NODES)[number]): Room | null {
   const icons: RoomIcon[] = []
   if (node.isBoss) icons.push('boss')
   if (saveIds.has(node.id)) icons.push('save')
+  if (warpIds.has(node.id)) icons.push('warp')
   if (shopIds.has(node.id)) icons.push('shop')
   if (itemIds.has(node.id)) icons.push('item')
   return {
@@ -80,12 +93,12 @@ function buildRoom(node: (typeof CAMPAIGN_NODES)[number]): Room | null {
     mapY: cell.row * MAP_CELL_SCALE - (fp.h - 1),
     width: fp.w,
     height: fp.h,
-    type: node.isBoss ? 'boss' : saveIds.has(node.id) ? 'save' : 'normal',
+    type: node.isBoss ? 'boss' : saveIds.has(node.id) ? 'save' : warpIds.has(node.id) ? 'warp' : 'normal',
     icons,
     hasBoss: node.isBoss ?? false,
     hasSave: saveIds.has(node.id),
     hasItem: itemIds.has(node.id),
-    hasWarp: shopIds.has(node.id),
+    hasWarp: warpIds.has(node.id),
     connections,
   }
 }

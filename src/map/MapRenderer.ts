@@ -31,6 +31,8 @@ export interface MapDrawOptions {
   /** Fit all visible rooms into the view (pause map) instead of centring on the
    *  current room at a fixed cell size (minimap). */
   fit?: boolean
+  /** Draw a pulsing gold selection ring around this room (warp-select UI). */
+  highlightRoomId?: string | undefined
 }
 
 // Aria-of-Sorrow map palette: royal-blue explored rooms on near-black, red save/
@@ -77,6 +79,18 @@ export class MapRenderer {
       for (const room of rooms) this.drawConnections(ctx, service, room, offset, cellSize)
     }
     for (const room of rooms) this.drawRoom(ctx, service, room, offset, cellSize, opts.pulse ?? 0)
+
+    // Selection ring (drawn last so it sits above neighbouring cells).
+    if (opts.highlightRoomId) {
+      const room = service.data.rooms[opts.highlightRoomId]
+      if (room && this.isVisible(service, room)) {
+        const r = this.roomRect(room, offset, cellSize)
+        const pulse = opts.pulse ?? 0
+        ctx.strokeStyle = `rgba(246, 202, 74, ${0.55 + 0.45 * pulse})`
+        ctx.lineWidth = 3
+        ctx.strokeRect(r.x - 3.5, r.y - 3.5, r.w + 7, r.h + 7)
+      }
+    }
     ctx.restore()
   }
 

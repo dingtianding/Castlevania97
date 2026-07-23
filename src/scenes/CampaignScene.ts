@@ -8,7 +8,7 @@ import { addCampaignAbility, addCampaignBlueSoul, addCampaignBulletSoul, addCamp
 import { draftPowerUps, powerUpStacks, type PowerUpDef } from '../data/powerups.ts'
 import { BASE_BULLET_SOUL, bulletSoulForEnemy, getBulletSoul, type BulletSoulDef } from '../data/bulletSouls.ts'
 import { BASE_BLUE_SOUL, blueSoulForEnemy, getBlueSoul, type BlueSoulEffect } from '../data/blueSouls.ts'
-import { CASTLE_ITEM_ROOMS, CASTLE_LIFEUP_ROOMS, CASTLE_MAP_DATA, CASTLE_MERCHANT_ROOMS, CASTLE_SAVE_ROOMS, ROOM_CELLS } from '../data/castleMapData.ts'
+import { CASTLE_ITEM_ROOMS, CASTLE_LIFEUP_ROOMS, CASTLE_MAP_DATA, CASTLE_MERCHANT_ROOMS, CASTLE_SAVE_ROOMS, CASTLE_WARP_ROOMS, ROOM_CELLS } from '../data/castleMapData.ts'
 import { MapService, MapRenderer, MinimapRenderer } from '../map/index.ts'
 import { castleDoors, castleNeighbor, type MapDir } from '../data/castleMap.ts'
 import { buildEquipmentModifiers, EQUIP_SLOT_LABELS, EQUIP_SLOTS, equipmentForSlot, EQUIPMENT_POOL, getEquipment, type EquipmentDef, type EquipmentModifiers, type EquipSlot, type WeaponProfile } from '../data/equipment.ts'
@@ -58,6 +58,8 @@ const SAVE_POINTS: Record<string, number> = Object.fromEntries(CASTLE_SAVE_ROOMS
 const SAVE_RANGE = 72
 const MERCHANT_ROOMS: Record<string, number> = Object.fromEntries(CASTLE_MERCHANT_ROOMS.map((r) => [r.id, r.x]))
 const MERCHANT_RANGE = 80
+const WARP_POINTS: Record<string, number> = Object.fromEntries(CASTLE_WARP_ROOMS.map((r) => [r.id, r.x]))
+const WARP_RANGE = 72
 // Beating this room's boss completes the campaign.
 const FINAL_BOSS_NODE = 'fbd-chaos'
 // Navigable pause menu entries (GBA-style).
@@ -1602,6 +1604,11 @@ export class CampaignScene extends Scene {
   private showItems = false
   private itemIndex = 0
   private showMap = false
+  // Warp-select overlay (opened at a warp pad): pick a discovered warp room.
+  private showWarp = false
+  private warpTargets: string[] = []
+  private warpIndex = 0
+  private warpNoticeTicks = 0
   private showMenu = false
   private menuIndex = 0
   private menuReturn = false
@@ -1830,6 +1837,35 @@ export class CampaignScene extends Scene {
       }
       return
     }
+    if (this.showWarp) {
+      const n = this.warpTargets.length
+      if (e.code === 'KeyA' || e.code === 'ArrowLeft' || e.code === 'KeyW' || e.code === 'ArrowUp') {
+        e.preventDefault()
+        if (n > 0) { this.warpIndex = (this.warpIndex - 1 + n) % n; this.ctx.audio.swing() }
+        return
+      }
+      if (e.code === 'KeyD' || e.code === 'ArrowRight' || e.code === 'KeyS' || e.code === 'ArrowDown') {
+        e.preventDefault()
+        if (n > 0) { this.warpIndex = (this.warpIndex + 1) % n; this.ctx.audio.swing() }
+        return
+      }
+      // Space closes (it toggles the map elsewhere, so it must not warp);
+      // check cancel/close BEFORE the confirm set, which includes Space.
+      if (e.code === 'Space' || e.code === 'Escape' || isMenuCancel(e.code)) {
+        e.preventDefault()
+        this.showWarp = false
+        this.warpNoticeTicks = 20
+        return
+      }
+      if (isMenuConfirm(e.code)) {
+        e.preventDefault()
+        const target = this.warpTargets[this.warpIndex]
+        this.showWarp = false
+        this.warpNoticeTicks = 20
+        if (target) this.warpTo(target)
+      }
+      return
+    }
     if (this.confirmTitle) {
       if (e.code === 'KeyA' || e.code === 'ArrowLeft' || e.code === 'KeyD' || e.code === 'ArrowRight') {
         e.preventDefault()
@@ -2012,7 +2048,7 @@ export class CampaignScene extends Scene {
     if (this.flashTicks > 0) this.flashTicks -= 1
     if (this.contactHitCooldown > 0) this.contactHitCooldown -= 1
     if (this.levelUpTicks > 0) this.levelUpTicks -= 1
-    if (this.ending || this.drafting || this.perkChoosing || this.levelUpScreen || this.shopping || this.showStatus || this.showEquipment || this.showSouls || this.showItems || this.showMap || this.showMenu) return
+    if (this.ending || this.drafting || this.perkChoosing || this.levelUpScreen || this.shopping || this.showStatus || this.showEquipment || this.showSouls || this.showItems || this.showMap || this.showWarp || this.showMenu) return
     if (this.defeatTicks > 0) {
       this.defeatTicks += 1
       if (this.defeatTicks > DEFEAT_RETRY_TICKS) this.reloadNode(this.node.id, true)
@@ -2156,6 +2192,7 @@ export class CampaignScene extends Scene {
     this.tryRoomTransition(intent)
     this.tryUseSavePoint(intent)
     this.tryUseMerchant(intent)
+    this.tryUseWarpPoint(intent)
     this.tryPickupAbility()
     this.tryPickupMapItem()
     this.tryPickupLifeUp()
@@ -2196,6 +2233,7 @@ export class CampaignScene extends Scene {
     else if (this.shopping) this.drawShop()
     else if (this.showMenu) { this.drawMenu(); if (this.confirmTitle) this.drawTitleConfirm() }
     else if (this.showMap) this.drawMap()
+    else if (this.showWarp) this.drawWarpSelect()
     else if (this.showEquipment) this.drawEquipment()
     else if (this.showSouls) this.drawSouls()
     else if (this.showItems) this.drawItems()
@@ -2377,7 +2415,12 @@ export class CampaignScene extends Scene {
     this.enemies = buildEnemies(this.node, this.ctx.assets, this.layout)
     for (const enemy of this.enemies) { enemy.roomWidth = this.layout.width; enemy.roomTop = this.layout.top }
     // Zombie rooms (non-boss) breed an endless capped trickle of shamblers.
-    this.zombieSpawner = !this.node.isBoss && this.node.enemy.id === 'zombie'
+    // Save and warp rooms are safe: no initial enemies and no trickle either.
+    this.zombieSpawner =
+      !this.node.isBoss &&
+      this.node.enemy.id === 'zombie' &&
+      SAVE_POINTS[this.node.id] === undefined &&
+      WARP_POINTS[this.node.id] === undefined
     this.zombieSpawnTimer = ZOMBIE_SPAWN_INTERVAL
     this.projectiles = []
     this.subweapons = []
@@ -3180,6 +3223,45 @@ export class CampaignScene extends Scene {
     this.ctx.audio.swing()
   }
 
+  /** Standing at a warp pad + Up opens the warp-select overlay (Aria-style:
+   *  any discovered warp room teleports to any other). */
+  private tryUseWarpPoint(intent: IntentState): void {
+    if (this.warpNoticeTicks > 0) this.warpNoticeTicks -= 1
+    const wx = WARP_POINTS[this.node.id]
+    if (wx === undefined || this.player.isDead || !this.player.grounded) return
+    if (!intent.upHeld || this.roomCooldown > 0 || this.warpNoticeTicks > 0) return
+    if (Math.abs(this.player.position.x - wx) > WARP_RANGE) return
+    const visited = new Set(this.save.visitedNodeIds)
+    const targets = CASTLE_WARP_ROOMS.map((r) => r.id).filter((id) => id !== this.node.id && visited.has(id))
+    if (targets.length === 0) {
+      this.spawnFloatingText(this.player.position.x, this.player.position.y - 118, 'NO OTHER WARP POINTS FOUND', '#c86adc')
+      this.warpNoticeTicks = 90
+      this.ctx.audio.swing()
+      return
+    }
+    this.warpTargets = targets
+    this.warpIndex = 0
+    this.showWarp = true
+    this.ctx.audio.swing()
+  }
+
+  /** Teleport to another warp room, spawning on its warp pad. Mirrors
+   *  enterRoom's health/meter carry-over. */
+  private warpTo(nodeId: string): void {
+    const carryHealth = this.player.health
+    const carryMeter = this.player.meter
+    this.reloadNode(nodeId)
+    const x = WARP_POINTS[nodeId] ?? VERT_PASSAGE_X
+    const y = this.layout.checkpointY
+    this.player.reset(x, y, 1)
+    this.player.health = Math.min(this.player.maxHealth, Math.max(1, carryHealth))
+    this.player.meter = clamp(carryMeter, 0, 100)
+    this.updateCamera(x, y)
+    this.roomCooldown = 22
+    this.spawnFloatingText(x, y - 118, 'WARPED', '#c86adc')
+    this.ctx.audio.hit()
+  }
+
   private perkStacks(id: string): number {
     return powerUpStacks(this.save.perks, id)
   }
@@ -3500,6 +3582,9 @@ export class CampaignScene extends Scene {
     // Save point, if this room has one.
     const sx = SAVE_POINTS[this.node.id]
     if (sx !== undefined) drawSavePoint(ctx, sx, this.layout.doorY, this.blink)
+    // Warp pad, if this room has one.
+    const wpx = WARP_POINTS[this.node.id]
+    if (wpx !== undefined) drawWarpPad(ctx, wpx, this.layout.doorY, this.blink)
     // Wandering merchant, if this room has one.
     const mx = MERCHANT_ROOMS[this.node.id]
     if (mx !== undefined) drawMerchant(ctx, mx, this.layout.doorY, this.blink)
@@ -4128,6 +4213,47 @@ export class CampaignScene extends Scene {
     ctx.fillText('SPACE / K  CLOSE', width / 2, height - 40)
   }
 
+  /** The warp-select overlay: the castle map with a gold ring on the currently
+   *  selected destination warp room. */
+  private drawWarpSelect(): void {
+    const { ctx } = this.ctx.renderer
+    const { width, height } = this.ctx
+    ctx.fillStyle = 'rgba(6, 5, 12, 0.94)'
+    ctx.fillRect(0, 0, width, height)
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'top'
+    ctx.fillStyle = '#c86adc'
+    ctx.font = '18px "Press Start 2P", monospace'
+    ctx.fillText('WARP', width / 2, 56)
+    ctx.fillStyle = '#8a8aa0'
+    ctx.font = '9px "Press Start 2P", monospace'
+    ctx.fillText('CHOOSE A DESTINATION', width / 2, 84)
+
+    const pulse = 0.5 + 0.5 * Math.sin(this.blink * 0.12)
+    const target = this.warpTargets[this.warpIndex]
+    this.mapRenderer.draw(
+      ctx,
+      this.mapService,
+      { x: 100, y: 112, width: width - 200, height: height - 240, cellSize: 48 },
+      { pulse, showConnections: true, fit: true, highlightRoomId: target },
+    )
+
+    if (target) {
+      const node = getCampaignNode(target)
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'alphabetic'
+      ctx.fillStyle = '#e8d4a0'
+      ctx.font = '11px "Press Start 2P", monospace'
+      ctx.fillText(node.title.toUpperCase(), width / 2, height - 92)
+      ctx.fillStyle = '#7a8ab0'
+      ctx.font = '8px "Press Start 2P", monospace'
+      ctx.fillText(`${this.warpIndex + 1} / ${this.warpTargets.length}`, width / 2, height - 74)
+    }
+    ctx.fillStyle = '#5a567a'
+    ctx.font = '8px "Press Start 2P", monospace'
+    ctx.fillText('← →  SELECT    J  WARP    SPACE  CLOSE', width / 2, height - 40)
+  }
+
   /** Small live map in the top-right corner during gameplay. */
   private drawMinimap(): void {
     const pulse = 0.5 + 0.5 * Math.sin(this.blink * 0.12)
@@ -4676,6 +4802,7 @@ function relicSummary(relic: RelicDef): string {
 
 function buildEnemies(node: ReturnType<typeof getCampaignNode>, assets: AssetManager, layout: RoomLayout): CastleActor[] {
   if (SAVE_POINTS[node.id] !== undefined) return [] // save rooms are safe
+  if (WARP_POINTS[node.id] !== undefined) return [] // warp rooms are safe too
   if (node.isBoss) {
     const boss = new CastleActor(node.enemy, assets, layout.doorX - 180, layout.checkpointY, -1, campaignEnemySpeed(node.enemy.id))
     boss.setMaxHealth(campaignBossHealth(node.id))
@@ -5455,6 +5582,34 @@ function drawSavePoint(ctx: CanvasRenderingContext2D, x: number, floorY: number,
   ctx.fillStyle = `rgba(143,212,255,${0.5 + 0.5 * pulse})`
   ctx.font = '10px "Press Start 2P", monospace'; ctx.textAlign = 'center'
   ctx.fillText('W: SAVE', x, cy - 34)
+  ctx.restore()
+}
+
+/** A violet teleport gate: pedestal + slowly-turning portal rings. */
+function drawWarpPad(ctx: CanvasRenderingContext2D, x: number, floorY: number, blink: number): void {
+  const pulse = 0.5 + 0.5 * Math.sin(blink * 0.08)
+  const spin = blink * 0.05
+  const cy = floorY - 62
+  ctx.save()
+  const g = ctx.createRadialGradient(x, cy, 0, x, cy, 64)
+  g.addColorStop(0, `rgba(200,106,220,${0.26 + 0.18 * pulse})`)
+  g.addColorStop(1, 'rgba(200,106,220,0)')
+  ctx.fillStyle = g
+  ctx.beginPath(); ctx.arc(x, cy, 64, 0, Math.PI * 2); ctx.fill()
+  // pedestal
+  ctx.fillStyle = '#2a2238'; ctx.fillRect(x - 16, floorY - 16, 32, 16)
+  ctx.fillStyle = '#5a567a'; ctx.fillRect(x - 18, floorY - 18, 36, 4)
+  // two counter-rotating portal rings
+  ctx.strokeStyle = '#e6b4f2'; ctx.lineWidth = 2
+  ctx.beginPath(); ctx.ellipse(x, cy, 16, 22, spin, 0, Math.PI * 2); ctx.stroke()
+  ctx.strokeStyle = `rgba(200,106,220,${0.55 + 0.45 * pulse})`
+  ctx.beginPath(); ctx.ellipse(x, cy, 16, 22, -spin, 0, Math.PI * 2); ctx.stroke()
+  // inner glow core
+  ctx.fillStyle = `rgba(230,180,242,${0.35 + 0.3 * pulse})`
+  ctx.beginPath(); ctx.arc(x, cy, 7, 0, Math.PI * 2); ctx.fill()
+  ctx.fillStyle = `rgba(200,106,220,${0.5 + 0.5 * pulse})`
+  ctx.font = '10px "Press Start 2P", monospace'; ctx.textAlign = 'center'
+  ctx.fillText('W: WARP', x, cy - 34)
   ctx.restore()
 }
 
