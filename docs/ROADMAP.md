@@ -44,8 +44,9 @@ Make the castle actually walkable instead of isolated arenas.
 
 ## Phase 2 — Progression gating  *(what makes it a Metroidvania)*  — **in progress**
 - **Traversal abilities** that lock/unlock areas: double jump ✅, **high jump ✅**
-  (Griffon Wing, height-gates the sky-bridge Life Max Up), **slide ✅** (Fleet
-  Greaves, low-tunnel-gates the cistern Life Max Up), grapple. Areas stay closed
+  (now a base move: always on, W on the ground or L mid-air once per airtime; the
+  Griffon Wing relic remains as flavor), **slide ✅** (Fleet Greaves,
+  low-tunnel-gates the cistern Life Max Up), grapple. Areas stay closed
   until you earn the ability.
 - **Key items / colored doors** — ✅ first lock-and-key done (Silver Key → the
   Chapel's barred bell-loft branch → a Life Max Up).
@@ -55,9 +56,10 @@ Make the castle actually walkable instead of isolated arenas.
 - **Warp network ✅** — three warp rooms (entrance alcove, chapel nave, garden
   hanging walk); Up at a pad opens a map-based warp select; any discovered warp
   teleports to any other. Eases backtracking across the gates.
-- **West Tower ✅** — a 2-wide × 3-tall high-jump-gated shaft off the Ballroom
-  bats + a Life Max Up on the
-  top ledge. First room taller than two screens; proves big-room h>2 works.
+- **West Tower ✅** — a 2-wide × 3-tall shaft off the Ballroom (also linking down
+  to the Corridor Larder), bats + a Life Max Up on the top ledge. First room
+  taller than two screens; proves big-room h>2 works. (Its high-jump door seals
+  came off when the high jump became a base move.)
 - Still to do: grapple/other abilities, colored-door tiers, more gated branches.
 - *Effort: M. Depends on Phase 1.*
 
