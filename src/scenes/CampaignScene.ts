@@ -1620,6 +1620,9 @@ export class CampaignScene extends Scene {
   private showEquipment = false
   private showSouls = false
   private soulSlotIndex = 0
+  // Owned-souls pick list for the selected slot (mirrors the equipment picker).
+  private soulPicking = false
+  private soulPickIndex = 0
   private showItems = false
   private itemIndex = 0
   private showMap = false
@@ -1776,6 +1779,36 @@ export class CampaignScene extends Scene {
       return
     }
     if (this.showSouls) {
+      // Owned-souls pick list for the selected slot.
+      if (this.soulPicking) {
+        const options = this.soulOptions(SOUL_SLOTS[this.soulSlotIndex]!)
+        if (e.code === 'KeyW' || e.code === 'ArrowUp') {
+          e.preventDefault()
+          this.soulPickIndex = (this.soulPickIndex - 1 + options.length) % options.length
+          this.ctx.audio.swing()
+          return
+        }
+        if (e.code === 'KeyS' || e.code === 'ArrowDown') {
+          e.preventDefault()
+          this.soulPickIndex = (this.soulPickIndex + 1) % options.length
+          this.ctx.audio.swing()
+          return
+        }
+        if (isMenuConfirm(e.code) || e.code === 'KeyD' || e.code === 'ArrowRight') {
+          e.preventDefault()
+          this.applySoulOption(SOUL_SLOTS[this.soulSlotIndex]!, options[this.soulPickIndex]?.id ?? null)
+          this.soulPicking = false
+          this.ctx.audio.hit()
+          return
+        }
+        if (isMenuCancel(e.code) || e.code === 'Escape' || e.code === 'KeyA' || e.code === 'ArrowLeft') {
+          e.preventDefault()
+          this.soulPicking = false
+          this.ctx.audio.swing()
+        }
+        return
+      }
+      // Slot list.
       if (e.code === 'KeyW' || e.code === 'ArrowUp') {
         e.preventDefault()
         this.soulSlotIndex = (this.soulSlotIndex - 1 + SOUL_SLOTS.length) % SOUL_SLOTS.length
@@ -1788,14 +1821,9 @@ export class CampaignScene extends Scene {
         this.ctx.audio.swing()
         return
       }
-      if (e.code === 'KeyA' || e.code === 'ArrowLeft') {
+      if (isMenuConfirm(e.code) || e.code === 'KeyD' || e.code === 'ArrowRight' || e.code === 'KeyA' || e.code === 'ArrowLeft') {
         e.preventDefault()
-        this.cycleSoulSlot(SOUL_SLOTS[this.soulSlotIndex]!, -1)
-        return
-      }
-      if (e.code === 'KeyD' || e.code === 'ArrowRight' || isMenuConfirm(e.code)) {
-        e.preventDefault()
-        this.cycleSoulSlot(SOUL_SLOTS[this.soulSlotIndex]!, 1)
+        this.openSoulPicker()
         return
       }
       if (isMenuCancel(e.code) || e.code === 'Escape' || e.code === 'KeyI' || e.code === 'Tab') {
@@ -2025,6 +2053,38 @@ export class CampaignScene extends Scene {
       if (hit >= 0) {
         this.draftIndex = hit
         this.pickDraft()
+      }
+      return
+    }
+    if (this.showSouls) {
+      // Picker open: click a row to equip it (click elsewhere to close).
+      if (this.soulPicking) {
+        const slot = SOUL_SLOTS[this.soulSlotIndex]!
+        const options = this.soulOptions(slot)
+        const { px: lx, py: ly, pw, rowH, startY } = this.soulPickerLayout(options.length)
+        const hit = options.findIndex((_o, i) => {
+          const ry = startY + i * rowH
+          return px >= lx + 12 && px <= lx + pw - 12 && py >= ry && py <= ry + rowH - 6
+        })
+        if (hit >= 0) {
+          this.soulPickIndex = hit
+          this.applySoulOption(slot, options[hit]?.id ?? null)
+          this.soulPicking = false
+          this.ctx.audio.hit()
+        } else if (px < lx || px > lx + pw || py < ly) {
+          this.soulPicking = false
+          this.ctx.audio.swing()
+        }
+        return
+      }
+      // Slot list: click a soul slot to open its owned-souls list.
+      const hit = SOUL_SLOTS.findIndex((_s, i) => {
+        const r = this.soulRowRect(i)
+        return px >= r.x && px <= r.x + r.w && py >= r.y && py <= r.y + r.h
+      })
+      if (hit >= 0) {
+        this.soulSlotIndex = hit
+        this.openSoulPicker()
       }
     }
   }
@@ -2351,7 +2411,7 @@ export class CampaignScene extends Scene {
     this.menuReturn = true
     if (item === 'STATUS') this.showStatus = true
     else if (item === 'EQUIP') { this.showEquipment = true; this.equipSlotIndex = 0; this.equipPicking = false }
-    else if (item === 'SOULS') { this.showSouls = true; this.soulSlotIndex = 0 }
+    else if (item === 'SOULS') { this.showSouls = true; this.soulSlotIndex = 0; this.soulPicking = false }
     else if (item === 'ITEMS') { this.showItems = true; this.itemIndex = 0 }
     else if (item === 'MAP') this.openMap()
   }
@@ -2464,6 +2524,7 @@ export class CampaignScene extends Scene {
     this.showEquipment = false
     this.equipPicking = false
     this.showSouls = false
+    this.soulPicking = false
     this.showItems = false
     this.perkChoosing = false
     this.perkOptions = []
@@ -2588,24 +2649,56 @@ export class CampaignScene extends Scene {
     return [BASE_BLUE_SOUL, ...this.save.blueSouls]
   }
 
-  /** Change the equipped soul in a slot (dir ±1), from the souls you own. */
-  private cycleSoulSlot(slot: SoulSlot, dir: number): void {
+  /** The pickable options for a soul slot: every owned soul of that colour
+   *  (yellow additionally offers a "none" row to unequip). */
+  private soulOptions(slot: SoulSlot): { id: string | null; name: string; blurb?: string | undefined; mp?: number | undefined }[] {
     if (slot === 'RED') {
-      const owned = this.ownedBulletSoulIds()
-      const i = Math.max(0, owned.indexOf(this.save.equippedBulletSoul))
-      this.save = equipCampaignBulletSoul(this.save, owned[(i + dir + owned.length) % owned.length]!)
+      return this.ownedBulletSoulIds().map((id) => {
+        const def = getBulletSoul(id)
+        return { id, name: def?.name ?? id, blurb: def?.blurb, mp: def?.mpCost }
+      })
+    }
+    if (slot === 'BLUE') {
+      return this.ownedBlueSoulIds().map((id) => {
+        const def = getBlueSoul(id)
+        return { id, name: def?.name ?? id, blurb: def?.blurb, mp: def?.mpCost }
+      })
+    }
+    return [
+      { id: null, name: '— NONE —', blurb: 'No enchant soul equipped.' },
+      ...this.save.souls.map((id) => {
+        const def = getSoul(id)
+        return { id, name: def?.name ?? id, blurb: def?.blurb }
+      }),
+    ]
+  }
+
+  /** The soul currently equipped in a slot (null = yellow's "none"). */
+  private equippedSoulId(slot: SoulSlot): string | null {
+    if (slot === 'RED') return this.save.equippedBulletSoul
+    if (slot === 'BLUE') return this.save.equippedBlueSoul
+    return this.save.equippedYellowSoul
+  }
+
+  /** Open the owned-souls pick list, cursor on the equipped soul. */
+  private openSoulPicker(): void {
+    const slot = SOUL_SLOTS[this.soulSlotIndex]!
+    const options = this.soulOptions(slot)
+    this.soulPickIndex = Math.max(0, options.findIndex((o) => o.id === this.equippedSoulId(slot)))
+    this.soulPicking = true
+    this.ctx.audio.swing()
+  }
+
+  /** Equip a picked soul into a slot. */
+  private applySoulOption(slot: SoulSlot, id: string | null): void {
+    if (slot === 'RED') {
+      if (id) this.save = equipCampaignBulletSoul(this.save, id)
     } else if (slot === 'BLUE') {
-      const owned = this.ownedBlueSoulIds()
-      const i = Math.max(0, owned.indexOf(this.save.equippedBlueSoul))
-      this.save = equipCampaignBlueSoul(this.save, owned[(i + dir + owned.length) % owned.length]!)
+      if (id) this.save = equipCampaignBlueSoul(this.save, id)
     } else {
-      // YELLOW: your owned enchant souls plus a "none" (unequipped) option.
-      const opts: (string | null)[] = [null, ...this.save.souls]
-      const i = Math.max(0, opts.indexOf(this.save.equippedYellowSoul))
-      this.save = equipCampaignYellowSoul(this.save, opts[(i + dir + opts.length) % opts.length] ?? null)
+      this.save = equipCampaignYellowSoul(this.save, id)
       this.applySoulMods()
     }
-    this.ctx.audio.swing()
   }
 
   /** Spend a consumable to restore HP (potion) or MP (elixir). */
@@ -4713,7 +4806,7 @@ export class CampaignScene extends Scene {
     ctx.fillText('SOULS', width / 2, 84)
     ctx.fillStyle = '#8a8aa0'
     ctx.font = '8px "Press Start 2P", monospace'
-    ctx.fillText('W/S SLOT     A/D CHANGE     K CLOSE', width / 2, 116)
+    ctx.fillText('W/S SLOT     J CHANGE     K CLOSE', width / 2, 116)
 
     rows.forEach((row, i) => {
       const r = this.soulRowRect(i)
@@ -4746,7 +4839,84 @@ export class CampaignScene extends Scene {
       if (selected) {
         ctx.fillStyle = row.color
         ctx.font = '10px "Press Start 2P", monospace'
-        ctx.fillText('‹ A/D ›', r.x + r.w - 16, r.y + r.h - 22)
+        ctx.fillText('J CHANGE ›', r.x + r.w - 16, r.y + r.h - 22)
+      }
+    })
+    ctx.restore()
+    if (this.soulPicking) this.drawSoulPicker()
+  }
+
+  /** Panel geometry for the owned-souls pick list (shared by draw + clicks). */
+  private soulPickerLayout(count: number): { px: number; py: number; pw: number; rowH: number; startY: number } {
+    const { width, height } = this.ctx
+    const rowH = 42
+    const pw = Math.min(600, width - 100)
+    const ph = 60 + count * rowH + 12
+    const px = (width - pw) / 2
+    const py = Math.max(70, (height - ph) / 2)
+    return { px, py, pw, rowH, startY: py + 50 }
+  }
+
+  /** The owned-souls pick list for the selected slot (mirrors the equip picker). */
+  private drawSoulPicker(): void {
+    const { ctx } = this.ctx.renderer
+    const { width, height } = this.ctx
+    const slot = SOUL_SLOTS[this.soulSlotIndex]
+    if (!slot) return
+    const options = this.soulOptions(slot)
+    const equippedId = this.equippedSoulId(slot)
+    const colors: Record<SoulSlot, string> = { RED: '#ff9ad6', BLUE: '#7ad6ff', YELLOW: '#f6d24a' }
+    const { px, py, pw, rowH, startY } = this.soulPickerLayout(options.length)
+    const ph = 60 + options.length * rowH + 12
+    ctx.save()
+    ctx.fillStyle = 'rgba(4, 4, 10, 0.82)'
+    ctx.fillRect(0, 0, width, height)
+    ctx.fillStyle = 'rgba(18, 15, 28, 0.99)'
+    ctx.fillRect(px, py, pw, ph)
+    ctx.strokeStyle = colors[slot]
+    ctx.lineWidth = 3
+    ctx.strokeRect(px, py, pw, ph)
+
+    ctx.textAlign = 'left'
+    ctx.textBaseline = 'top'
+    ctx.fillStyle = colors[slot]
+    ctx.font = '11px "Press Start 2P", monospace'
+    ctx.fillText(`${slot} SOULS · ${options.length} OWNED`, px + 20, py + 18)
+    ctx.textAlign = 'right'
+    ctx.fillStyle = '#5a567a'
+    ctx.font = '8px "Press Start 2P", monospace'
+    ctx.fillText('W/S MOVE    J EQUIP    K BACK', px + pw - 20, py + 20)
+
+    options.forEach((opt, i) => {
+      const ry = startY + i * rowH
+      const selected = i === this.soulPickIndex
+      const isEquipped = opt.id === equippedId
+      ctx.fillStyle = selected ? 'rgba(44, 36, 62, 0.98)' : 'rgba(16, 24, 43, 0.55)'
+      ctx.fillRect(px + 12, ry, pw - 24, rowH - 6)
+      if (selected) {
+        ctx.strokeStyle = colors[slot]
+        ctx.lineWidth = 2
+        ctx.strokeRect(px + 12, ry, pw - 24, rowH - 6)
+      }
+      ctx.textAlign = 'left'
+      ctx.textBaseline = 'top'
+      ctx.fillStyle = selected ? '#e8d4a0' : '#c7c1de'
+      ctx.font = '11px "Press Start 2P", monospace'
+      ctx.fillText(opt.name.toUpperCase(), px + 26, ry + 6)
+      if (opt.blurb) {
+        ctx.fillStyle = '#8a94b8'
+        ctx.font = '7px "Press Start 2P", monospace'
+        ctx.fillText(opt.blurb.slice(0, 62), px + 26, ry + 22)
+      }
+      ctx.textAlign = 'right'
+      if (isEquipped) {
+        ctx.fillStyle = colors[slot]
+        ctx.font = '8px "Press Start 2P", monospace'
+        ctx.fillText('EQUIPPED', px + pw - 26, ry + 6)
+      } else if (opt.mp) {
+        ctx.fillStyle = '#5a567a'
+        ctx.font = '8px "Press Start 2P", monospace'
+        ctx.fillText(`${opt.mp} MP`, px + pw - 26, ry + 6)
       }
     })
     ctx.restore()
