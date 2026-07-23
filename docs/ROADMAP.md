@@ -56,7 +56,7 @@ Make the castle actually walkable instead of isolated arenas.
   hanging walk); Up at a pad opens a map-based warp select; any discovered warp
   teleports to any other. Eases backtracking across the gates.
 - **West Tower ✅** — a 2-wide × 3-tall high-jump-gated shaft off the Ballroom
-  (sealed doors both sides: "needs Griffon Wing"), bats + a Life Max Up on the
+  bats + a Life Max Up on the
   top ledge. First room taller than two screens; proves big-room h>2 works.
 - Still to do: grapple/other abilities, colored-door tiers, more gated branches.
 - *Effort: M. Depends on Phase 1.*

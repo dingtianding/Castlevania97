@@ -140,12 +140,11 @@ const BIG_ROOMS: Record<string, { width: number; top: number }> = Object.fromEnt
     .map(([id, c]) => [id, { width: c.w * ROOM_WIDTH, top: (1 - c.h) * ROOM_HEIGHT }]),
 )
 // Doors sealed until an ability/key is owned: nodeId -> direction -> required id.
-// The Chapel's bell-loft branch is barred until you find the Silver Key; the
-// West Tower (both approaches) opens only to the high jump.
+// The Chapel's bell-loft branch is barred until you find the Silver Key.
+// (The West Tower's high-jump seals came off when the high jump became a base
+// move: always on, W on the ground or L mid-air.)
 const SEALED_DOORS: Record<string, Partial<Record<MapDir, string>>> = {
   'chp-nave': { e: 'silver-key' },
-  'dnc-ballroom': { w: 'high-jump' },
-  'cor-larder': { n: 'high-jump' },
 }
 const GRAVITY = 0.78
 const WALK_SPEED = 3.4
@@ -553,6 +552,8 @@ class CastleActor {
   lastDamageTaken = 0
   /** Whether the high-jump relic (Griffon Wing) is owned. */
   hasHighJump = false
+  // One air high jump per airtime (L mid-air); resets on landing.
+  private airHighJumpUsed = false
   /** Flying Armor guardian active: caps fall speed for a gentle descent. */
   gliding = false
   /** Whether the slide relic (Fleet Greaves) is owned. */
@@ -643,6 +644,7 @@ class CastleActor {
     this.hurtTick = 0
     this.invulnerableTicks = 0
     this.jumpCount = 0
+    this.airHighJumpUsed = false
     this.dashTicks = 0
     this.dashCooldown = 0
     this.deathTicks = 0
@@ -873,6 +875,15 @@ class CastleActor {
     this.pendingProjectileSpawn = null
     this.state = 'dash'
     this.animator.play(this.sheets.run, 3, true)
+  }
+
+  /** L mid-air: relaunch the Griffon Wing high jump. Once per airtime (resets
+   *  on landing); cancels an air attack into the leap. */
+  tryAirHighJump(): void {
+    if (this.grounded || !this.hasHighJump || this.airHighJumpUsed) return
+    if (this.state === 'death' || this.state === 'hurt' || this.state === 'dive') return
+    this.airHighJumpUsed = true
+    this.highJump()
   }
 
   /** Slide: a fast low crawl that fits under low tunnels. Ground-only. */
@@ -1181,6 +1192,7 @@ class CastleActor {
       this.velocity.y = 0
       this.grounded = true
       this.jumpCount = 0
+      this.airHighJumpUsed = false
       if (this.state === 'jump' || this.state === 'fall') this.setMotion(Math.abs(this.velocity.x) > 0 ? 'run' : 'idle')
     } else {
       this.grounded = false
@@ -2082,8 +2094,9 @@ export class CampaignScene extends Scene {
 
     const intent = this.input.poll()
     if (intent.heavyPressed) {
-      // L is a backdash: a quick hop backward without turning around.
-      this.player.tryBackdash()
+      // L on the ground is a backdash; L in the air is the high jump.
+      if (this.player.grounded) this.player.tryBackdash()
+      else this.player.tryAirHighJump()
       intent.heavyPressed = false
     }
     // The sub button (Up + attack): a soul-reaver hero casts the Red soul here;
@@ -3119,7 +3132,8 @@ export class CampaignScene extends Scene {
   /** Reflect owned abilities on the live player (double jump, ...). */
   private applyAbilities(): void {
     this.player.maxJumps = this.save.abilities.includes('double-jump') ? 2 : 1
-    this.player.hasHighJump = this.save.abilities.includes('high-jump')
+    // High jump is a base move now (always on): W on the ground, or L mid-air.
+    this.player.hasHighJump = true
     this.player.hasSlide = this.save.abilities.includes('slide')
   }
 
@@ -3839,7 +3853,7 @@ export class CampaignScene extends Scene {
     ctx.font = '8px "Press Start 2P", monospace'
     ctx.textAlign = 'center'
     if (HERO_USES_SOULS) {
-      ctx.fillText('A/D MOVE   J JUMP   K ATTACK   W+K RED SOUL   ; BLUE SOUL', this.ctx.width / 2, this.ctx.height - 38)
+      ctx.fillText('A/D MOVE   J JUMP   L AIR HIGH JUMP   K ATTACK   W+K RED SOUL   ; BLUE SOUL', this.ctx.width / 2, this.ctx.height - 38)
       ctx.fillText('O SWAP RED SOUL   ENTER MENU   SPACE MAP   ESC PAUSE', this.ctx.width / 2, this.ctx.height - 22)
     } else {
       ctx.fillText('A/D MOVE   J JUMP   ; DASH   K ATTACK   W+K SUB   U SOUL', this.ctx.width / 2, this.ctx.height - 38)
