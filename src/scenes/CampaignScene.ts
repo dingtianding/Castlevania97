@@ -182,8 +182,9 @@ const JUMP_VELOCITY = -15.5
 // Releasing jump caps the rising speed to this, giving variable jump height
 // (a light tap is a mini-hop; holding through the ascent is the full jump).
 const JUMP_CUTOFF = -8.5
-// Griffon Wing high-jump strength, relative to a normal jump.
-const HIGH_JUMP_MULT = 1.7
+// Griffon Wing high-jump strength, relative to a normal jump: a big, fast burst
+// (not cut short by the variable-jump release, so it commits to the full arc).
+const HIGH_JUMP_MULT = 2.05
 const FAST_FALL_SPEED = 12
 // Fall speed cap while the Flying Armor guardian (glide) is active.
 const GLIDE_FALL_SPEED = 2.4
@@ -552,8 +553,9 @@ class CastleActor {
   lastDamageTaken = 0
   /** Whether the high-jump relic (Griffon Wing) is owned. */
   hasHighJump = false
-  // One air high jump per airtime (L mid-air); resets on landing.
-  private airHighJumpUsed = false
+  // True during a Griffon high jump: exempts it from the variable-jump cutoff
+  // (W/L aren't the jump button, so the cutoff would otherwise neuter the burst).
+  private highJumping = false
   /** Flying Armor guardian active: caps fall speed for a gentle descent. */
   gliding = false
   /** Whether the slide relic (Fleet Greaves) is owned. */
@@ -644,7 +646,7 @@ class CastleActor {
     this.hurtTick = 0
     this.invulnerableTicks = 0
     this.jumpCount = 0
-    this.airHighJumpUsed = false
+    this.highJumping = false
     this.dashTicks = 0
     this.dashCooldown = 0
     this.deathTicks = 0
@@ -843,6 +845,7 @@ class CastleActor {
     this.grounded = false
     this.dropTicks = 0
     this.jumpCount = 1
+    this.highJumping = true
     this.state = 'jump'
     this.attackMove = null
     this.attackConnected = false
@@ -877,12 +880,11 @@ class CastleActor {
     this.animator.play(this.sheets.run, 3, true)
   }
 
-  /** L mid-air: relaunch the Griffon Wing high jump. Once per airtime (resets
-   *  on landing); cancels an air attack into the leap. */
+  /** L mid-air: relaunch the Griffon Wing high jump. Repeatable — every L press
+   *  in the air relaunches the burst; cancels an air attack into the leap. */
   tryAirHighJump(): void {
-    if (this.grounded || !this.hasHighJump || this.airHighJumpUsed) return
+    if (this.grounded || !this.hasHighJump) return
     if (this.state === 'death' || this.state === 'hurt' || this.state === 'dive') return
-    this.airHighJumpUsed = true
     this.highJump()
   }
 
@@ -1016,7 +1018,12 @@ class CastleActor {
       else this.facing = opponentX >= this.position.x ? 1 : -1
     }
 
-    if (intent.jumpPressed && !sliding) {
+    // Downward exit (Metroidvania): standing over the floor shaft, hold Down to
+    // drop through and descend to the room below — no jump button needed.
+    if (this.grounded && intent.downHeld && this.overFloorGap()) {
+      this.dropTicks = DROP_WINDOW
+      this.grounded = false
+    } else if (intent.jumpPressed && !sliding) {
       if (this.grounded && intent.downHeld && this.onDroppablePlatform(platforms)) {
         // Down + jump on a one-way platform drops through it instead of jumping.
         this.dropTicks = DROP_WINDOW
@@ -1032,8 +1039,9 @@ class CastleActor {
     if (!this.grounded && intent.downHeld && intent.moveX !== 0) this.tryDiveAttack(intent.moveX)
     if (this.state === 'dive') return // the dive takes over from here
     // Variable jump height: releasing jump while still rising cuts the ascent
-    // short, so a light tap is a mini-hop and holding gives the full jump.
-    if (this.state === 'jump' && !intent.jumpHeld && this.velocity.y < JUMP_CUTOFF) {
+    // short, so a light tap is a mini-hop and holding gives the full jump. A
+    // Griffon high jump (W/L) is exempt — it commits to its full, fast arc.
+    if (this.state === 'jump' && !this.highJumping && !intent.jumpHeld && this.velocity.y < JUMP_CUTOFF) {
       this.velocity.y = JUMP_CUTOFF
     }
     if (!this.grounded && intent.downHeld && this.velocity.y > 0 && this.velocity.y < FAST_FALL_SPEED) {
@@ -1116,6 +1124,17 @@ class CastleActor {
     return false
   }
 
+  /** Standing on the floor over the downward shaft (the south exit). */
+  private overFloorGap(): boolean {
+    const g = this.floorGap
+    return (
+      g !== null &&
+      Math.abs(this.position.y - FLOOR_Y) <= 4 &&
+      this.position.x > g.x &&
+      this.position.x < g.x + g.width
+    )
+  }
+
   private integrate(platforms: Platform[]): void {
     const wasGrounded = this.grounded
     this.position.x += this.velocity.x
@@ -1192,7 +1211,7 @@ class CastleActor {
       this.velocity.y = 0
       this.grounded = true
       this.jumpCount = 0
-      this.airHighJumpUsed = false
+      this.highJumping = false
       if (this.state === 'jump' || this.state === 'fall') this.setMotion(Math.abs(this.velocity.x) > 0 ? 'run' : 'idle')
     } else {
       this.grounded = false
@@ -3196,8 +3215,10 @@ export class CampaignScene extends Scene {
     const prevY = this.player.prevPosition.y
     const curY = this.player.position.y
     const topEdge = this.layout.top + TOP_EDGE_Y
-    const inColumn = Math.abs(x - VERT_PASSAGE_X) <= DOORWAY_HALF
-    if (doors.n && inColumn && prevY > topEdge && curY <= topEdge) {
+    // A little wider than the shaft itself so rising through the top opening is
+    // forgiving (you don't need pixel-perfect centering to pass through).
+    const inColumn = Math.abs(x - VERT_PASSAGE_X) <= DOORWAY_HALF + 24
+    if (doors.n && inColumn && prevY > topEdge && curY <= topEdge && this.player.velocity.y < 0) {
       const north = castleNeighbor(this.node.id, 'n')
       if (north && this.canPassDoor('n')) { this.enterRoom(north, 'bottom'); return }
     }
@@ -4677,14 +4698,16 @@ export class CampaignScene extends Scene {
       ctx.lineWidth = selected ? 3 : 2
       ctx.strokeRect(rect.x, rect.y, rect.w, rect.h)
 
+      drawEquipSlotIcon(ctx, slot, rect.x + 26, rect.y + rect.h / 2, def ? EQUIP_SLOT_COLOR[slot] : '#4a4660')
+
       ctx.textAlign = 'left'
       ctx.textBaseline = 'top'
       ctx.fillStyle = '#8a8aa0'
       ctx.font = '9px "Press Start 2P", monospace'
-      ctx.fillText(EQUIP_SLOT_LABELS[slot], rect.x + 18, rect.y + 12)
+      ctx.fillText(EQUIP_SLOT_LABELS[slot], rect.x + 48, rect.y + 12)
       ctx.fillStyle = def ? '#e8d4a0' : '#6a6480'
       ctx.font = '12px "Press Start 2P", monospace'
-      ctx.fillText(def ? def.name.toUpperCase() : '— EMPTY —', rect.x + 18, rect.y + 32)
+      ctx.fillText(def ? def.name.toUpperCase() : '— EMPTY —', rect.x + 48, rect.y + 32)
       if (def) {
         ctx.textAlign = 'right'
         ctx.fillStyle = '#b7c7e6'
@@ -4733,11 +4756,12 @@ export class CampaignScene extends Scene {
     ctx.lineWidth = 3
     ctx.strokeRect(px, py, pw, ph)
 
+    drawEquipSlotIcon(ctx, slot, px + 26, py + 22, EQUIP_SLOT_COLOR[slot])
     ctx.textAlign = 'left'
     ctx.textBaseline = 'top'
     ctx.fillStyle = '#f6b74a'
     ctx.font = '11px "Press Start 2P", monospace'
-    ctx.fillText(EQUIP_SLOT_LABELS[slot].toUpperCase(), px + 20, py + 18)
+    ctx.fillText(EQUIP_SLOT_LABELS[slot].toUpperCase(), px + 44, py + 18)
     ctx.textAlign = 'right'
     ctx.fillStyle = '#5a567a'
     ctx.font = '8px "Press Start 2P", monospace'
@@ -4755,15 +4779,16 @@ export class CampaignScene extends Scene {
         ctx.lineWidth = 2
         ctx.strokeRect(px + 12, ry, pw - 24, rowH - 6)
       }
+      if (opt) drawEquipSlotIcon(ctx, slot, px + 32, ry + (rowH - 6) / 2, EQUIP_SLOT_COLOR[slot])
       ctx.textAlign = 'left'
       ctx.textBaseline = 'top'
       ctx.fillStyle = opt ? (selected ? '#e8d4a0' : '#c7c1de') : '#6a6480'
       ctx.font = '11px "Press Start 2P", monospace'
-      ctx.fillText(opt ? opt.name.toUpperCase() : '— NONE —', px + 22, ry + 8)
+      ctx.fillText(opt ? opt.name.toUpperCase() : '— NONE —', px + 48, ry + 8)
       if (opt) {
         ctx.fillStyle = '#9aa8c8'
         ctx.font = '8px "Press Start 2P", monospace'
-        ctx.fillText(opt.blurb, px + 22, ry + 24)
+        ctx.fillText(opt.blurb, px + 48, ry + 24)
       }
       if (isEquipped) {
         ctx.textAlign = 'right'
@@ -5803,6 +5828,59 @@ function drawWarpPad(ctx: CanvasRenderingContext2D, x: number, floorY: number, b
   ctx.fillStyle = `rgba(200,106,220,${0.5 + 0.5 * pulse})`
   ctx.font = '10px "Press Start 2P", monospace'; ctx.textAlign = 'center'
   ctx.fillText('W: WARP', x, cy - 34)
+  ctx.restore()
+}
+
+/** A distinct tint per equip slot, so its icon reads at a glance in a list. */
+const EQUIP_SLOT_COLOR: Record<EquipSlot, string> = {
+  weapon: '#d8e2f0',
+  armor: '#caa06a',
+  helm: '#9ecbe6',
+  cloak: '#b39ddb',
+  accessory: '#f6d24a',
+}
+
+/** A small hand-drawn glyph for an equip slot (sword / vest / helm / cape /
+ *  ring), centred at (cx, cy) in a roughly 16x16 box. Used anywhere equipment
+ *  is listed so slot type reads at a glance, without depending on the label. */
+function drawEquipSlotIcon(ctx: CanvasRenderingContext2D, slot: EquipSlot, cx: number, cy: number, color: string): void {
+  ctx.save()
+  ctx.strokeStyle = color
+  ctx.fillStyle = color
+  ctx.lineWidth = 1.6
+  ctx.lineCap = 'round'
+  switch (slot) {
+    case 'weapon':
+      // A short blade: diagonal edge, a crossguard, and a pommel dot.
+      ctx.beginPath(); ctx.moveTo(cx - 6, cy + 7); ctx.lineTo(cx + 6, cy - 7); ctx.stroke()
+      ctx.beginPath(); ctx.moveTo(cx - 4, cy - 0.5); ctx.lineTo(cx + 1.5, cy - 6); ctx.stroke()
+      ctx.beginPath(); ctx.arc(cx - 6, cy + 7, 1.7, 0, Math.PI * 2); ctx.fill()
+      break
+    case 'armor':
+      // A breastplate: shoulders notch in at the neckline, tapers at the waist.
+      ctx.beginPath()
+      ctx.moveTo(cx - 6, cy - 6); ctx.lineTo(cx, cy - 2); ctx.lineTo(cx + 6, cy - 6)
+      ctx.lineTo(cx + 5, cy + 7); ctx.lineTo(cx - 5, cy + 7); ctx.closePath()
+      ctx.stroke()
+      break
+    case 'helm':
+      // A domed helm with a brim and an eye-slit.
+      ctx.beginPath(); ctx.arc(cx, cy - 1, 6, Math.PI, 0); ctx.lineTo(cx + 6, cy + 4); ctx.lineTo(cx - 6, cy + 4); ctx.closePath()
+      ctx.stroke()
+      ctx.beginPath(); ctx.moveTo(cx - 6, cy + 1); ctx.lineTo(cx + 6, cy + 1); ctx.stroke()
+      break
+    case 'cloak':
+      // A cape: a triangle hung from a collar clasp.
+      ctx.beginPath(); ctx.moveTo(cx, cy - 7); ctx.lineTo(cx + 6, cy + 7); ctx.lineTo(cx - 6, cy + 7); ctx.closePath()
+      ctx.stroke()
+      ctx.beginPath(); ctx.arc(cx, cy - 7, 1.7, 0, Math.PI * 2); ctx.fill()
+      break
+    case 'accessory':
+      // A ring.
+      ctx.beginPath(); ctx.arc(cx, cy, 6, 0, Math.PI * 2); ctx.stroke()
+      ctx.beginPath(); ctx.arc(cx, cy, 2.6, 0, Math.PI * 2); ctx.stroke()
+      break
+  }
   ctx.restore()
 }
 
