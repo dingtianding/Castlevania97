@@ -859,3 +859,13 @@ export const chaos = cloneBoss(
   'FORBIDDEN ONE',
   'The shape the castle keeps in its forbidden heart — the war itself, two years too soon.',
 )
+
+const CAMPAIGN_BOSSES: readonly CharacterDef[] = [creakingSkull, bigGolem, manticore, greatArmor, headhunter, death, legion, chaos]
+
+/** Every campaign mob and boss, in castle encounter order — the roster the
+ *  Archive's Loot Table scene cycles through. */
+export const CAMPAIGN_ENEMIES: readonly CharacterDef[] = [zombie, skeleton, ghoul, bat, axeArmor, armoredSkeleton, boneThrower, ...CAMPAIGN_BOSSES]
+
+/** Ids of the bosses in CAMPAIGN_ENEMIES — bosses use a fixed reward bounty
+ *  (see rewardForEnemy) rather than the per-mob ENEMY_REWARD table. */
+export const CAMPAIGN_BOSS_IDS: ReadonlySet<string> = new Set(CAMPAIGN_BOSSES.map((b) => b.id))

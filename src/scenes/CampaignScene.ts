@@ -14,6 +14,7 @@ import { castleDoors, castleNeighbor, type MapDir } from '../data/castleMap.ts'
 import { buildEquipmentModifiers, EQUIP_SLOT_LABELS, EQUIP_SLOTS, equipmentForSlot, EQUIPMENT_POOL, getEquipment, type EquipmentDef, type EquipmentModifiers, type EquipSlot, type WeaponProfile } from '../data/equipment.ts'
 import { buildRunModifiers, RELIC_POOL, type RelicDef, type RunModifiers } from '../data/relics.ts'
 import { buildSoulModifiers, getSoul, soulForEnemy, type SoulDef, type SoulModifiers } from '../data/souls.ts'
+import { rewardForEnemy } from '../data/enemyRewards.ts'
 import { grey as CAMPAIGN_HERO, zombie } from '../data/characters/castlevaniaCampaign.ts'
 import { CONSUMABLE_POOL, getConsumable } from '../data/consumables.ts'
 import { getStage } from '../data/stages.ts'
@@ -477,18 +478,6 @@ const SKELETON_THROW_COOLDOWN = 300
 const CREAKING_SKULL_ATTACK_CD = 150
 // Axe Sentinel: pause between axe throws (~1.6s + the throw animation).
 const AXE_THROW_COOLDOWN = 96
-
-// XP and gold granted when each enemy type is defeated. Bosses use a fixed
-// bounty (see campaignEnemyReward) rather than this table.
-const ENEMY_REWARD: Record<string, { xp: number; gold: number }> = {
-  skeleton: { xp: 6, gold: 4 },
-  zombie: { xp: 5, gold: 3 },
-  ghoul: { xp: 4, gold: 2 },
-  bat: { xp: 4, gold: 3 },
-  axeArmor: { xp: 13, gold: 9 },
-  armoredSkeleton: { xp: 14, gold: 10 },
-  boneThrower: { xp: 10, gold: 7 },
-}
 
 type PickupKind = 'heart' | 'gold' | 'mp'
 
@@ -5068,8 +5057,7 @@ function buildEnemies(node: ReturnType<typeof getCampaignNode>, assets: AssetMan
 }
 
 function campaignEnemyReward(enemy: CastleActor): { xp: number; gold: number } {
-  if (enemy.isBoss) return { xp: 60, gold: 50 }
-  return ENEMY_REWARD[enemy.def.id] ?? { xp: 5, gold: 3 }
+  return rewardForEnemy(enemy.def.id, enemy.isBoss)
 }
 
 function campaignEnemySpeed(enemyId: string): number {

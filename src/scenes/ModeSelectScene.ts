@@ -4,6 +4,7 @@ import { TitleScene } from './TitleScene.ts'
 import { SettingsScene } from './SettingsScene.ts'
 import { MoveListScene } from './MoveListScene.ts'
 import { HighScoresScene } from './HighScoresScene.ts'
+import { LootTableScene } from './LootTableScene.ts'
 import { isMenuCancel, isMenuConfirm } from '../input/menuButtons.ts'
 
 interface ModeOption {
@@ -12,6 +13,7 @@ interface ModeOption {
   settings?: true
   moves?: true
   scores?: true
+  loot?: true
   blurb: string
 }
 
@@ -22,6 +24,7 @@ const OPTIONS: ModeOption[] = [
   { label: 'ARCHIVE ARC', mode: 'arcade', blurb: 'Climb the CPU gauntlet' },
   { label: 'BOSS RUSH', mode: 'boss', blurb: 'Challenge the demon' },
   { label: 'MOVE CODICES', moves: true, blurb: 'Read fighter kits' },
+  { label: 'LOOT TABLE', loot: true, blurb: 'See what the castle drops' },
   { label: 'RECORDS', scores: true, blurb: 'View local records' },
   { label: 'SETTINGS', settings: true, blurb: 'Audio, motion, CPU level' },
 ]
@@ -80,6 +83,7 @@ export class ModeSelectScene extends Scene {
     if (!option) return
     if (option.settings) this.ctx.scenes.replace(new SettingsScene(this.ctx))
     else if (option.moves) this.ctx.scenes.replace(new MoveListScene(this.ctx))
+    else if (option.loot) this.ctx.scenes.replace(new LootTableScene(this.ctx))
     else if (option.scores) this.ctx.scenes.replace(new HighScoresScene(this.ctx))
     else if (option.mode) this.ctx.scenes.replace(new CharacterSelectScene(this.ctx, option.mode))
   }
