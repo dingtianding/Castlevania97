@@ -86,6 +86,9 @@ const ABILITIES: Record<string, { name: string; blurb: string; getSub: string }>
   'silver-key': { name: 'Silver Key', blurb: 'Opens the silver-barred door in the Chapel.', getSub: 'A SILVER-BARRED DOOR WILL NOW OPEN' },
   'high-jump': { name: 'Griffon Wing', blurb: 'Spring to great heights — hold up and jump.', getSub: 'HIGH JUMP — HOLD UP + JUMP' },
   'slide': { name: 'Fleet Greaves', blurb: 'Slide under low tunnels — hold down and dash.', getSub: 'SLIDE — HOLD DOWN + DASH' },
+  // Backdash (L on the ground) is already a base move, same as high jump — this
+  // relic is flavor-only naming for the canon Gravekeeper ability soul.
+  'back-dash': { name: 'Gravekeeper Soul', blurb: 'A gravedigger\'s parting step — a clean backward dash.', getSub: 'BACKDASH — GRAVEKEEPER SOUL FOUND' },
 }
 // Rooms that hold an ability relic, keyed to its x-position and the ability id.
 const ABILITY_PICKUPS: Record<string, { x: number; ability: string }> = Object.fromEntries(

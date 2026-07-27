@@ -25,6 +25,14 @@ export interface BlueSoulDef {
 
 export const BASE_BLUE_SOUL = 'guard-flight'
 
+// Canon check (see docs/ARIA_PARITY.md): guard-flight (Flying Armor) is an exact
+// canon match. guard-golem and guard-great-armor are real canon Guardian souls
+// approximated onto this engine's four-effect model (their true canon effects —
+// a rock-arm melee attachment and a lightning-wreathed STR buff — are both
+// attack-boost-flavored, so both map to 'frenzy'; only the numbers differ).
+// guard-manticore approximates Manticore's "charging beast form" as a speed
+// buff, the closest available slot. guard-bulwark has no confirmed canon
+// Guardian-soul source among enemies built here and is labeled original.
 export const BLUE_SOUL_POOL: readonly BlueSoulDef[] = [
   {
     id: 'guard-flight',
@@ -38,37 +46,48 @@ export const BLUE_SOUL_POOL: readonly BlueSoulDef[] = [
     base: true,
   },
   {
-    id: 'guard-bulwark',
-    name: 'Stone Bulwark',
+    id: 'guard-golem',
+    name: 'Big Golem Soul',
+    enemyId: 'bigGolem',
+    dropChance: 1,
+    mpCost: 42,
+    cooldown: 200,
+    duration: 180,
+    effect: 'frenzy',
+    blurb: 'A rock arm grafts to your back — heavy blows for a while.',
+  },
+  {
+    id: 'guard-great-armor',
+    name: 'Great Armor Soul',
+    enemyId: 'greatArmor',
+    dropChance: 1,
+    mpCost: 50,
+    cooldown: 240,
+    duration: 210,
+    effect: 'frenzy',
+    blurb: 'Canon effect: +120% STR wreathed in red lightning. A battle-fury that raises your attack for a while.',
+  },
+  {
+    id: 'guard-manticore',
+    name: 'Manticore Soul',
+    enemyId: 'manticore',
+    dropChance: 1,
+    mpCost: 38,
+    cooldown: 210,
+    duration: 240,
+    effect: 'haste',
+    blurb: 'Canon effect: a charging beast form. Approximated here as a burst of move speed.',
+  },
+  {
+    id: 'guard-bulwark-original',
+    name: 'Stone Bulwark (original)',
     enemyId: 'armoredSkeleton',
     dropChance: 0.22,
     mpCost: 40,
     cooldown: 180,
     duration: 150,
     effect: 'aegis',
-    blurb: 'Raise a stone ward — take 60% less damage for a few seconds.',
-  },
-  {
-    id: 'guard-frenzy',
-    name: 'Berserker Spirit',
-    enemyId: 'skeleton',
-    dropChance: 0.18,
-    mpCost: 45,
-    cooldown: 240,
-    duration: 210,
-    effect: 'frenzy',
-    blurb: 'A battle-fury that raises your attack by 45% for a while.',
-  },
-  {
-    id: 'guard-gale',
-    name: 'Gale Familiar',
-    enemyId: 'ghoul',
-    dropChance: 0.2,
-    mpCost: 35,
-    cooldown: 210,
-    duration: 240,
-    effect: 'haste',
-    blurb: 'Wind at your heels — +40% move speed for a while.',
+    blurb: 'Not from Aria of Sorrow — no built enemy here is a confirmed source for a shield-type Guardian soul (canon: Final Guard/Giant Ghost/Witch). Original content: take 60% less damage for a few seconds.',
   },
 ]
 
