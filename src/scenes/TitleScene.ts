@@ -86,6 +86,7 @@ export class TitleScene extends Scene {
     const { renderer } = this.ctx
     const { ctx } = renderer
     renderer.clear('#05040a')
+    this.drawEclipse(ctx, this.ctx.width)
 
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
@@ -106,6 +107,41 @@ export class TitleScene extends Scene {
       ctx.font = '10px "Press Start 2P", monospace'
       ctx.fillText('J / ENTER TO SELECT', this.ctx.width / 2, this.ctx.height / 2 + 200)
     }
+  }
+
+  /** A sun behind the title, slowly crossed by a moon on a continuous loop —
+   *  a sine wave gives the moon's slide a natural ease-in/out at each extreme,
+   *  so the eclipse (and its clearing) both read as gradual, not linear. */
+  private drawEclipse(ctx: CanvasRenderingContext2D, width: number): void {
+    const sunX = width / 2
+    const sunY = 118
+    const sunRadius = 46
+    const moonRadius = 50
+    const cycleSeconds = 32
+    const travel = sunRadius + moonRadius + 30
+    const phase = ((this.tick / TICK_RATE) % cycleSeconds) / cycleSeconds * Math.PI * 2
+    const moonOffsetX = Math.sin(phase) * travel
+
+    const corona = ctx.createRadialGradient(sunX, sunY, sunRadius * 0.6, sunX, sunY, sunRadius * 2.4)
+    corona.addColorStop(0, 'rgba(255, 205, 130, 0.35)')
+    corona.addColorStop(1, 'rgba(255, 205, 130, 0)')
+    ctx.fillStyle = corona
+    ctx.beginPath()
+    ctx.arc(sunX, sunY, sunRadius * 2.4, 0, Math.PI * 2)
+    ctx.fill()
+
+    const sunGradient = ctx.createRadialGradient(sunX, sunY, 0, sunX, sunY, sunRadius)
+    sunGradient.addColorStop(0, '#fff3d6')
+    sunGradient.addColorStop(1, '#f0a03c')
+    ctx.fillStyle = sunGradient
+    ctx.beginPath()
+    ctx.arc(sunX, sunY, sunRadius, 0, Math.PI * 2)
+    ctx.fill()
+
+    ctx.fillStyle = '#08060f'
+    ctx.beginPath()
+    ctx.arc(sunX + moonOffsetX, sunY, moonRadius, 0, Math.PI * 2)
+    ctx.fill()
   }
 
   private choose(): void {
