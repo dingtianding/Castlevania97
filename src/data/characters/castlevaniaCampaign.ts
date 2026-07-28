@@ -526,6 +526,77 @@ export const zombieSoldier: CharacterDef = {
   },
 }
 
+// Winged Skeleton — a canon Aria of Sorrow enemy: a skeleton with wings that
+// hops and throws a low-arc spear. Kept ground-based here (no true flight)
+// since the visual is a name/flavor difference, not a new movement system.
+export const wingedSkeleton: CharacterDef = {
+  ...skeleton,
+  id: 'wingedSkeleton',
+  name: 'WINGED SKELETON',
+  meta: {
+    ...skeleton.meta,
+    archetype: 'HOPPING BONE FLYER',
+    bio: 'A skeleton fused to a pair of leathern wings too tattered to truly fly. It hops and hurls a spear in a low arc.',
+  },
+  moves: {
+    ...skeleton.moves,
+    light: { ...skeleton.moves.light, id: 'winged-skeleton-spear-toss', damage: 8 },
+  },
+}
+
+// Beam Skeleton — a canon Aria of Sorrow enemy: a skeleton that channels a
+// straight energy beam instead of swinging bone. Reuses the skeleton sheets.
+export const beamSkeleton: CharacterDef = {
+  ...skeleton,
+  id: 'beamSkeleton',
+  name: 'BEAM SKELETON',
+  meta: {
+    ...skeleton.meta,
+    archetype: 'CHANNELING BONE GUARD',
+    bio: 'A bone soldier fused with a shard of old castle magic. It holds its line and fires a straight beam rather than closing.',
+  },
+  moves: {
+    ...skeleton.moves,
+    special: { ...skeleton.moves.special, id: 'beam-skeleton-channel', damage: 10, lunge: 0 },
+  },
+}
+
+// Skull Archer — a canon Aria of Sorrow enemy: a skeleton that summons a bow
+// to fire arrows from range rather than closing to melee.
+export const skullArcher: CharacterDef = {
+  ...skeleton,
+  id: 'skullArcher',
+  name: 'SKULL ARCHER',
+  meta: {
+    ...skeleton.meta,
+    archetype: 'SUMMONED BOWMAN',
+    bio: 'A skeleton that conjures a bow from nothing and keeps its distance, loosing arrows while the living close the gap.',
+  },
+  moves: {
+    ...skeleton.moves,
+    light: { ...skeleton.moves.light, id: 'skull-archer-arrow', damage: 6 },
+  },
+}
+
+// Waiter Skeleton — a canon Aria of Sorrow enemy, one of the series' odder
+// regulars: a skeleton in service dress that serves a lingering curry plate.
+// No damage-over-time system exists here, so its hit lands as one bigger
+// single strike instead of a lingering burn.
+export const waiterSkeleton: CharacterDef = {
+  ...skeleton,
+  id: 'waiterSkeleton',
+  name: 'WAITER SKELETON',
+  meta: {
+    ...skeleton.meta,
+    archetype: 'CASTLE SERVICE STAFF',
+    bio: 'A skeleton still in its serving dress, decades after the last living guest. Its curry plate stays scalding hot.',
+  },
+  moves: {
+    ...skeleton.moves,
+    heavy: { ...skeleton.moves.heavy, id: 'waiter-skeleton-curry-plate', damage: 14 },
+  },
+}
+
 // Fell Bat — roosts in the air until the player draws near, then dives across
 // the room and flaps off the far side. Flies (no gravity); drawn as a custom bat
 // shape by CampaignScene. Its only threat is the contact of its dive (moves.light).
@@ -950,6 +1021,10 @@ export const CAMPAIGN_ENEMIES: readonly CharacterDef[] = [
   skeletonKnight,
   giantSkeleton,
   zombieSoldier,
+  wingedSkeleton,
+  beamSkeleton,
+  skullArcher,
+  waiterSkeleton,
   ...CAMPAIGN_BOSSES,
 ]
 

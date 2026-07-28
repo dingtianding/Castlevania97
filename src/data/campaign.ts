@@ -1,5 +1,5 @@
 import type { CharacterDef } from './characters/CharacterDef.ts'
-import { armoredSkeleton, axeArmor, bat, bigGolem, boneThrower, chaos, creakingSkull, death, ghoul, giantSkeleton, greatArmor, headhunter, grey, legion, manticore, skeleton, skeletonKnight, zombie, zombieOfficer, zombieSoldier } from './characters/castlevaniaCampaign.ts'
+import { armoredSkeleton, axeArmor, bat, beamSkeleton, bigGolem, boneThrower, chaos, creakingSkull, death, ghoul, giantSkeleton, greatArmor, headhunter, grey, legion, manticore, skeleton, skeletonKnight, skullArcher, waiterSkeleton, wingedSkeleton, zombie, zombieOfficer, zombieSoldier } from './characters/castlevaniaCampaign.ts'
 import type { StageId } from './stages.ts'
 import { RELIC_POOL, type RelicId } from './relics.ts'
 import { SOUL_POOL } from './souls.ts'
@@ -261,7 +261,7 @@ export const CAMPAIGN_NODES: readonly CampaignNodeDef[] = [
       'A raised alcove branches off the spine — a store-room to one side, a watch-post to the other. Red clears the risen that nest here and takes the high ground.',
     stage: 'outer_wall',
     enemy: zombie,
-    extraEnemies: [{ def: skeleton, count: 1 }],
+    extraEnemies: [{ def: skeleton, count: 1 }, { def: waiterSkeleton, count: 1 }],
     difficulty: 'easy',
     nextIds: ['cor-larder', 'cor-watch'],
     position: { x: 220, y: 110 },
@@ -367,7 +367,7 @@ export const CAMPAIGN_NODES: readonly CampaignNodeDef[] = [
       'A flooded side chamber hoards the castle’s overflow. Red wades it and cuts down the iron thing left to guard the dark.',
     stage: 'catacombs',
     enemy: zombie,
-    extraEnemies: [{ def: armoredSkeleton, count: 1 }],
+    extraEnemies: [{ def: armoredSkeleton, count: 1 }, { def: beamSkeleton, count: 1 }],
     difficulty: 'normal',
     nextIds: [],
     position: { x: 440, y: 120 },
@@ -398,7 +398,7 @@ export const CAMPAIGN_NODES: readonly CampaignNodeDef[] = [
       'The chapel apes a holy place and gets every detail wrong. Red walks its nave and the congregation of the dead rises to meet him.',
     stage: 'cathedral',
     enemy: skeleton,
-    extraEnemies: [{ def: ghoul, count: 1 }, { def: boneThrower, count: 1 }],
+    extraEnemies: [{ def: ghoul, count: 1 }, { def: boneThrower, count: 1 }, { def: skullArcher, count: 1 }],
     difficulty: 'normal',
     nextIds: ['chp-loft', 'chp-manticore'],
     position: { x: 660, y: 220 },
@@ -413,7 +413,7 @@ export const CAMPAIGN_NODES: readonly CampaignNodeDef[] = [
       'Up a narrow stair the bell loft rings without hands. Red silences its marksmen and the toll dies in the rafters.',
     stage: 'cathedral',
     enemy: skeleton,
-    extraEnemies: [{ def: boneThrower, count: 1 }],
+    extraEnemies: [{ def: boneThrower, count: 1 }, { def: wingedSkeleton, count: 1 }],
     difficulty: 'normal',
     nextIds: [],
     position: { x: 660, y: 120 },
@@ -459,7 +459,7 @@ export const CAMPAIGN_NODES: readonly CampaignNodeDef[] = [
       'Behind the study lies the archive, and in it the name the cult has been circling for years. Red commits it to memory and burns the rest.',
     stage: 'library',
     enemy: skeleton,
-    extraEnemies: [{ def: armoredSkeleton, count: 1 }, { def: axeArmor, count: 1 }],
+    extraEnemies: [{ def: armoredSkeleton, count: 1 }, { def: axeArmor, count: 1 }, { def: wingedSkeleton, count: 1 }],
     difficulty: 'hard',
     nextIds: ['dnc-ballroom'],
     position: { x: 460, y: 200 },
@@ -475,7 +475,7 @@ export const CAMPAIGN_NODES: readonly CampaignNodeDef[] = [
       'The ballroom’s music swells for no one. Red crosses the mirrored floor while the castle’s idea of guests circles him.',
     stage: 'throne_room',
     enemy: axeArmor,
-    extraEnemies: [{ def: ghoul, count: 2 }],
+    extraEnemies: [{ def: ghoul, count: 2 }, { def: beamSkeleton, count: 1 }],
     difficulty: 'hard',
     nextIds: ['dnc-greatarmor', 'dnc-tower'],
     position: { x: 360, y: 200 },
@@ -521,7 +521,7 @@ export const CAMPAIGN_NODES: readonly CampaignNodeDef[] = [
       'The servants’ passages twist behind the walls, narrow and watchful. Red fights through them with no room to run.',
     stage: 'cathedral',
     enemy: zombie,
-    extraEnemies: [{ def: ghoul, count: 1 }, { def: boneThrower, count: 1 }],
+    extraEnemies: [{ def: ghoul, count: 1 }, { def: boneThrower, count: 1 }, { def: skullArcher, count: 1 }],
     difficulty: 'hard',
     nextIds: ['inr-headhunter'],
     position: { x: 460, y: 110 },
@@ -583,7 +583,7 @@ export const CAMPAIGN_NODES: readonly CampaignNodeDef[] = [
       'The garden floats on nothing, its beds spilling over a bottomless drop. Red fights across it while the wind pulls at every step.',
     stage: 'outer_wall',
     enemy: skeleton,
-    extraEnemies: [{ def: boneThrower, count: 2 }],
+    extraEnemies: [{ def: boneThrower, count: 2 }, { def: waiterSkeleton, count: 1 }],
     difficulty: 'hard',
     nextIds: ['grd-skybridge', 'grd-legion'],
     position: { x: 660, y: 90 },

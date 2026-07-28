@@ -312,6 +312,10 @@ const ENEMY_GLOW: Record<string, string> = {
   skeletonKnight: '224,196,110',
   giantSkeleton: '210,214,220',
   zombieSoldier: '176,168,110',
+  wingedSkeleton: '224,150,90',
+  beamSkeleton: '140,220,224',
+  skullArcher: '110,200,180',
+  waiterSkeleton: '224,204,90',
 }
 
 
@@ -5227,6 +5231,10 @@ function campaignEnemyHealth(enemyId: string, difficulty: 'easy' | 'normal' | 'h
   if (enemyId === 'skeletonKnight') return 32
   if (enemyId === 'giantSkeleton') return difficulty === 'hard' ? 62 : 50
   if (enemyId === 'zombieSoldier') return 9
+  if (enemyId === 'wingedSkeleton') return 24
+  if (enemyId === 'beamSkeleton') return 26
+  if (enemyId === 'skullArcher') return 20
+  if (enemyId === 'waiterSkeleton') return 25
   return difficulty === 'easy' ? 28 : difficulty === 'normal' ? 40 : 52
 }
 
@@ -5283,16 +5291,26 @@ function enemyIntent(enemy: CastleActor, player: CastleActor, node: ReturnType<t
     return intent
   }
 
-  if (kind === 'skeleton') {
-    // Bone Soldier: holds its ground and lobs a bone in a high arc — no chasing.
-    // Throws are deliberately sparse: roughly one every 5s (+ jitter so a pack
-    // doesn't fire in unison), not a continuous barrage.
+  if (kind === 'skeleton' || kind === 'beamSkeleton') {
+    // Bone Soldier / Beam Skeleton: holds its ground and lobs a bone (or
+    // channels a beam) — no chasing. Throws are deliberately sparse: roughly
+    // one every 5s (+ jitter so a pack doesn't fire in unison), not a barrage.
     intent.moveX = 0
     if (enemy.throwCooldown > 0) enemy.throwCooldown -= 1
     if (enemy.currentMove === null && enemy.throwCooldown <= 0 && dist < 560) {
-      intent.lightPressed = true
+      if (kind === 'beamSkeleton') intent.specialPressed = true
+      else intent.lightPressed = true
       enemy.throwCooldown = SKELETON_THROW_COOLDOWN + Math.floor(rng.next() * 90)
     }
+    return intent
+  }
+
+  if (kind === 'skullArcher') {
+    // Bow kiter: keeps well back and looses arrows from long range, backing
+    // off if the player closes rather than trading in melee.
+    if (dist < 200) intent.moveX = dir === 1 ? -1 : 1
+    else if (dist > 420) intent.moveX = dir
+    else if (enemy.currentMove === null) intent.lightPressed = true
     return intent
   }
 

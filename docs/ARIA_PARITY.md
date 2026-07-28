@@ -19,13 +19,17 @@ and `src/data/campaign.ts`).
 (Gravekeeper) all match canon in name-in-spirit and effect — implemented as relic pickups /base moves
 rather than boss/enemy soul drops (a deliberate simplification, not an oversight).
 
-**Four new canon regular enemies added.** Zombie Officer, Skeleton Knight, Giant Skeleton, and Zombie
-Soldier are real Aria of Sorrow enemies, added as recolored variants of the existing zombie/skeleton
-sprite sheets (the only reskinnable assets this project has — see `ENEMY_GLOW` in `CampaignScene.ts`
-for the aura tint that tells each apart from its base at a glance). Each drops its own real canon soul:
-Skeleton Knight (STR+4, direct match), Zombie Officer (approximated — see souls.ts), Giant Skeleton
-(skull-projectile Bullet Soul), Zombie Soldier (grenade-toss Bullet Soul, approximated as a straight
-throw). Placed into two existing rooms each, additively, so existing encounter balance is unchanged.
+**Eight new canon regular enemies added, across two passes.** Zombie Officer, Skeleton Knight, Giant
+Skeleton, Zombie Soldier, Winged Skeleton, Beam Skeleton, Skull Archer, and Waiter Skeleton are all real
+Aria of Sorrow enemies, added as recolored variants of the existing zombie/skeleton sprite sheets (the
+only reskinnable assets this project has — see `ENEMY_GLOW` in `CampaignScene.ts` for the aura tint
+that tells each apart from its base at a glance). Each drops its own real canon soul — direct stat
+matches (Skeleton Knight: STR+4), MP-cost-and-pattern matches (Giant Skeleton, Winged Skeleton, Beam
+Skeleton, Skull Archer), and a couple of honestly-approximated ones where the canon effect needs a
+system this engine doesn't have yet (Zombie Officer's mid-air-KO heal, Zombie Soldier's timed-grenade
+fuse, Waiter Skeleton's damage-over-time). Skull Archer and Beam Skeleton also got real kiting/stationary
+AI instead of falling back to generic melee-approach. All eight are placed into two existing rooms each,
+additively, so existing encounter balance is unchanged.
 
 **Souls have been renamed to their real canon identity where a match exists, honestly labeled
 "(original)" where it does not.** `souls.ts`, `blueSouls.ts`, and `bulletSouls.ts` now source
@@ -143,7 +147,7 @@ intentionally modeled as a Bullet Soul instead. Not in the table below since Dea
 | Axe Armor | 22 | Boomerang | ❌ |
 | Balore | 120 | Powerful punch | ❌ |
 | Bat | 5 | Sonar wave | ❌ |
-| Beam Skeleton | 28 | Straight beam | ❌ |
+| Beam Skeleton | 28 | Straight beam | ✅ built — `beam-skeleton-soul` in `bulletSouls.ts`, name/source/MP-cost match canon |
 | Biphron | 35 | Ground flame wave | ❌ |
 | Blue Crow | 10 | Angled crow shot | ❌ |
 | Bomber Armor | 80 | Bomb toss | ❌ |
@@ -179,7 +183,7 @@ intentionally modeled as a Bullet Soul instead. Not in the table below since Dea
 | Rock Armor | 22 | Hurls boulders | ❌ |
 | Siren | 10 | Musical-note shot | ❌ |
 | Skeleton | 8 | Arced bone toss | ✅ built — `skeleton-soul`, now the base Bullet Soul (`BASE_BULLET_SOUL`), name/source/MP-cost/pattern all match canon |
-| Skull Archer | 8 | Summoned bow arrow | ❌ |
+| Skull Archer | 8 | Summoned bow arrow | ✅ built — `skull-archer-soul`, name/source/MP-cost match canon |
 | Skull Millone | 25 | Poison claw slash | ❌ |
 | Slime | 20 | Bouncing comet | ❌ |
 | Student Witch | 20 | Cat familiar | ❌ |
@@ -187,11 +191,11 @@ intentionally modeled as a Bullet Soul instead. Not in the table below since Dea
 | Ukoback | 12 | Screen flames | ❌ |
 | Une | 20 | Vine mine | ❌ |
 | Valkyrie | 50 | Spirit strike | ❌ |
-| Waiter Skeleton | 30 | Curry-plate DoT | ❌ |
+| Waiter Skeleton | 30 | Curry-plate DoT | ✅ built — `waiter-skeleton-soul`, modeled as a one-shot burst since no DoT system exists yet |
 | Weretiger | 40 | Uppercut | ❌ |
 | Werejaguar | 40 | Strong punch | ❌ |
 | Werewolf | 28 | Foot-ignite flame | ❌ |
-| Winged Skeleton | 23 | Low-arc spear | ❌ |
+| Winged Skeleton | 23 | Low-arc spear | ✅ built — `winged-skeleton-soul`, name/source/MP-cost match canon; kept ground-based (no true flight) |
 | Zombie Soldier | 14 | Timed grenade | ✅ built — `zombie-soldier-soul`, MP-cost matches canon, modeled as a straight throw (no fuse-delay/explosion) |
 
 ## 5. Castle Map (13 canon areas)
@@ -242,17 +246,16 @@ Done as of this pass:
    Seal Guardian, Dracula Shadow, and the Skula-flavored underwater effect) are labeled "(original)"
    instead of misrepresented as canon.
 
-Still open, for a later pass if pursued:
-
-3. ✅ Added four real canon regular enemies not previously built — Zombie Officer, Skeleton Knight,
-   Giant Skeleton, Zombie Soldier — as recolored zombie/skeleton variants (the only reskinnable assets
-   available), each dropping its own real canon soul, placed into two existing rooms each.
+3. ✅ Added eight real canon regular enemies not previously built, across two passes — Zombie Officer,
+   Skeleton Knight, Giant Skeleton, Zombie Soldier, Winged Skeleton, Beam Skeleton, Skull Archer, Waiter
+   Skeleton — as recolored zombie/skeleton variants (the only reskinnable assets available), each
+   dropping its own real canon soul, placed into two existing rooms each.
 
 Still open, for a later pass if pursued:
 
 4. More real canon regular enemies remain unbuilt (e.g. Golem, Ectoplasm, Poison Worm) but need either
-   a new sprite or a less obvious reskin fit than the four just added.
-5. Curate a subset of the remaining ~90 souls (mostly Bullet/Enchant, tied to enemies not built here)
+   a new sprite or a less obvious reskin fit than the eight just added.
+5. Curate a subset of the remaining ~80 souls (mostly Bullet/Enchant, tied to enemies not built here)
    that's realistic for this engine's scope — not all of them need modeling, but what gets modeled
    should stay honestly sourced.
 6. If real mechanical differentiation matters more than naming (distinct familiars, shields, projectile
@@ -261,3 +264,5 @@ Still open, for a later pass if pursued:
    `blueBuffMult` — genuine engine work, not a data rename.
 7. Underground Cemetery, The Arena, and Chaotic Realm (plus Balore, Graham Jones, Julius Belmont as
    bosses) are the three canon areas and three bosses not built at all yet.
+8. A damage-over-time system (poison, curse, burn, the curry plate) would let several already-flagged
+   approximations become exact — Zombie, Zombie Officer, and Waiter Skeleton souls all wait on this.
