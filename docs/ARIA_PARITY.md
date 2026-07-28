@@ -19,6 +19,14 @@ and `src/data/campaign.ts`).
 (Gravekeeper) all match canon in name-in-spirit and effect — implemented as relic pickups /base moves
 rather than boss/enemy soul drops (a deliberate simplification, not an oversight).
 
+**Four new canon regular enemies added.** Zombie Officer, Skeleton Knight, Giant Skeleton, and Zombie
+Soldier are real Aria of Sorrow enemies, added as recolored variants of the existing zombie/skeleton
+sprite sheets (the only reskinnable assets this project has — see `ENEMY_GLOW` in `CampaignScene.ts`
+for the aura tint that tells each apart from its base at a glance). Each drops its own real canon soul:
+Skeleton Knight (STR+4, direct match), Zombie Officer (approximated — see souls.ts), Giant Skeleton
+(skull-projectile Bullet Soul), Zombie Soldier (grenade-toss Bullet Soul, approximated as a straight
+throw). Placed into two existing rooms each, additively, so existing encounter balance is unchanged.
+
 **Souls have been renamed to their real canon identity where a match exists, honestly labeled
 "(original)" where it does not.** `souls.ts`, `blueSouls.ts`, and `bulletSouls.ts` now source
 Zombie/Headhunter/Creaking Skull/Big Golem/Great Armor/Manticore/Skeleton/Legion/Death souls from
@@ -109,7 +117,7 @@ shields, projectile summons) would need new `BlueSoulEffect` variants and matchi
 | Poison Worm | Poison immunity | ❌ |
 | Quetzalcoatl | CON +8 | ❌ |
 | Red Crow | INT +4 | ❌ |
-| Skeleton Knight | STR +4 | ❌ |
+| Skeleton Knight | STR +4 | ✅ built — `skeleton-knight-soul` in `souls.ts`, direct match |
 | **Skula** | **Walk/breathe underwater ("Deep Seeker")** | ⚠️ built but misattributed, now labeled honestly — `drowned-soul` in `souls.ts` grants underwater breathing correctly but is sourced from `bigGolem` and marked "(original)" since no Skula enemy exists here yet |
 | Stolas | INT +16 | ❌ |
 | Succubus | Heal on landing a hit | ❌ |
@@ -119,7 +127,7 @@ shields, projectile summons) would need new `BlueSoulEffect` variants and matchi
 | White Dragon | CON +4 | ❌ |
 | Wooden Golem | Faster MP regen | ❌ |
 | Zombie | Stronger while poisoned | ✅ built — `zombie-soul` in `souls.ts`, name + source correct; effect approximated as flat +12 max health since this engine has no poison status yet |
-| Zombie Officer | Restore HP if KO'd mid-jump | ❌ |
+| Zombie Officer | Restore HP if KO'd mid-jump | ✅ built — `zombie-officer-soul`, conditional trigger not modeled, approximated as +8 max health |
 
 ## 4. Bullet Souls (57 total — MP-cost directional attacks; best-effort compilation, not independently cross-verified)
 
@@ -150,7 +158,7 @@ intentionally modeled as a Bullet Soul instead. Not in the table below since Dea
 | Flame Demon | 44 | Three-fireball spread | ❌ |
 | Flea Man | 15 | Erratic jump attack | ❌ |
 | Ghost | 16 | Homing spirit | ❌ (closest real match for `seeker-soul-original`, which is labeled non-canon) |
-| Giant Skeleton | 19 | Skull projectile | ❌ |
+| Giant Skeleton | 19 | Skull projectile | ✅ built — `giant-skeleton-soul` in `bulletSouls.ts`, name/source/MP-cost match canon |
 | Gladiator | 30 | Rolling crush | ❌ |
 | Harpy | 25 | Weak feathers | ❌ |
 | Killer Doll | 20 | Decoy | ❌ |
@@ -184,7 +192,7 @@ intentionally modeled as a Bullet Soul instead. Not in the table below since Dea
 | Werejaguar | 40 | Strong punch | ❌ |
 | Werewolf | 28 | Foot-ignite flame | ❌ |
 | Winged Skeleton | 23 | Low-arc spear | ❌ |
-| Zombie Soldier | 14 | Timed grenade | ❌ |
+| Zombie Soldier | 14 | Timed grenade | ✅ built — `zombie-soldier-soul`, MP-cost matches canon, modeled as a straight throw (no fuse-delay/explosion) |
 
 ## 5. Castle Map (13 canon areas)
 
@@ -236,11 +244,20 @@ Done as of this pass:
 
 Still open, for a later pass if pursued:
 
-3. Curate a subset of the remaining ~100 souls (mostly Bullet/Enchant) that's realistic for this
-   engine's scope — not all 119 need modeling, but what gets modeled should stay honestly sourced.
-4. If real mechanical differentiation matters more than naming (distinct familiars, shields, projectile
+3. ✅ Added four real canon regular enemies not previously built — Zombie Officer, Skeleton Knight,
+   Giant Skeleton, Zombie Soldier — as recolored zombie/skeleton variants (the only reskinnable assets
+   available), each dropping its own real canon soul, placed into two existing rooms each.
+
+Still open, for a later pass if pursued:
+
+4. More real canon regular enemies remain unbuilt (e.g. Golem, Ectoplasm, Poison Worm) but need either
+   a new sprite or a less obvious reskin fit than the four just added.
+5. Curate a subset of the remaining ~90 souls (mostly Bullet/Enchant, tied to enemies not built here)
+   that's realistic for this engine's scope — not all of them need modeling, but what gets modeled
+   should stay honestly sourced.
+6. If real mechanical differentiation matters more than naming (distinct familiars, shields, projectile
    summons per Guardian soul, rather than several souls sharing the same 4 stat-buff slots), that
    requires extending `BlueSoulEffect` and the logic in `CampaignScene.updateBlueGuardian`/
    `blueBuffMult` — genuine engine work, not a data rename.
-5. Underground Cemetery, The Arena, and Chaotic Realm (plus Balore, Graham Jones, Julius Belmont as
+7. Underground Cemetery, The Arena, and Chaotic Realm (plus Balore, Graham Jones, Julius Belmont as
    bosses) are the three canon areas and three bosses not built at all yet.

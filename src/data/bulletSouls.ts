@@ -21,10 +21,11 @@ export interface BulletSoulDef {
 
 export const BASE_BULLET_SOUL = 'skeleton-soul'
 
-// Canon check (see docs/ARIA_PARITY.md): skeleton-soul and legion-soul are real
-// canon Bullet Souls with a matching in-repo enemy/boss source. death-soul is a
-// canon reclassification — Death's real soul is a Guardian (hold-to-channel)
-// soul in Aria of Sorrow, but "throws multiple scythes around the screen"
+// Canon check (see docs/ARIA_PARITY.md): skeleton-soul, legion-soul,
+// giant-skeleton-soul, and zombie-soldier-soul are real canon Bullet Souls
+// with a matching in-repo enemy/boss source. death-soul is a canon
+// reclassification — Death's real soul is a Guardian (hold-to-channel) soul
+// in Aria of Sorrow, but "throws multiple scythes around the screen"
 // mechanically fits this engine's one-shot nova pattern better than a stat
 // buff, so it is modeled here as a Bullet Soul instead. The "-original" entries
 // have no confirmed canon soul source among enemies built here.
@@ -38,6 +39,24 @@ export const BULLET_SOUL_POOL: readonly BulletSoulDef[] = [
     pattern: 'spear',
     blurb: 'Canon effect: an arced bone toss — the first soul most Belmont-line hunters find.',
     base: true,
+  },
+  {
+    id: 'giant-skeleton-soul',
+    name: 'Giant Skeleton Soul',
+    enemyId: 'giantSkeleton',
+    dropChance: 0.24,
+    mpCost: 19,
+    pattern: 'bolt',
+    blurb: 'Canon effect: a skull projectile. Modeled here as a straight-line bolt.',
+  },
+  {
+    id: 'zombie-soldier-soul',
+    name: 'Zombie Soldier Soul',
+    enemyId: 'zombieSoldier',
+    dropChance: 0.2,
+    mpCost: 14,
+    pattern: 'bolt',
+    blurb: 'Canon effect: a timed grenade toss. Modeled here as a straight throw, without the fuse-delay/explosion timing.',
   },
   {
     id: 'legion-soul',

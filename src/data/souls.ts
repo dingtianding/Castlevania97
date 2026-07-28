@@ -27,10 +27,11 @@ export interface SoulModifiers {
   meterGainMultiplier: number
 }
 
-// Canon check (see docs/ARIA_PARITY.md): only zombie-soul, headhunter-soul, and
-// creaking-skull-soul correspond to a real Aria of Sorrow soul-dropper. The
-// "-original" entries are homebrew for enemies with no confirmed canon soul —
-// kept as gameplay content but labeled honestly instead of faking a source.
+// Canon check (see docs/ARIA_PARITY.md): zombie-soul, headhunter-soul,
+// creaking-skull-soul, skeleton-knight-soul, and zombie-officer-soul all
+// correspond to a real Aria of Sorrow soul-dropper. The "-original" entries
+// are homebrew for enemies with no confirmed canon soul — kept as gameplay
+// content but labeled honestly instead of faking a source.
 export const SOUL_POOL: readonly SoulDef[] = [
   {
     id: 'zombie-soul',
@@ -39,6 +40,22 @@ export const SOUL_POOL: readonly SoulDef[] = [
     dropChance: 0.24,
     blurb: 'Canon effect: stronger while poisoned. No poison status exists in this engine yet, so it grants +12 max health instead.',
     maxHealthBonus: 12,
+  },
+  {
+    id: 'skeleton-knight-soul',
+    name: 'Skeleton Knight Soul',
+    enemyId: 'skeletonKnight',
+    dropChance: 0.3,
+    blurb: 'Canon effect: STR +4. A direct match — a modest, permanent attack boost.',
+    damageMultiplier: 1.04,
+  },
+  {
+    id: 'zombie-officer-soul',
+    name: 'Zombie Officer Soul',
+    enemyId: 'zombieOfficer',
+    dropChance: 0.28,
+    blurb: 'Canon effect: restore HP if knocked out mid-jump. That conditional trigger is not modeled yet, so it grants +8 max health instead.',
+    maxHealthBonus: 8,
   },
   {
     id: 'headhunter-soul',

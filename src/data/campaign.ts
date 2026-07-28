@@ -1,5 +1,5 @@
 import type { CharacterDef } from './characters/CharacterDef.ts'
-import { armoredSkeleton, axeArmor, bat, bigGolem, boneThrower, chaos, creakingSkull, death, ghoul, greatArmor, headhunter, grey, legion, manticore, skeleton, zombie } from './characters/castlevaniaCampaign.ts'
+import { armoredSkeleton, axeArmor, bat, bigGolem, boneThrower, chaos, creakingSkull, death, ghoul, giantSkeleton, greatArmor, headhunter, grey, legion, manticore, skeleton, skeletonKnight, zombie, zombieOfficer, zombieSoldier } from './characters/castlevaniaCampaign.ts'
 import type { StageId } from './stages.ts'
 import { RELIC_POOL, type RelicId } from './relics.ts'
 import { SOUL_POOL } from './souls.ts'
@@ -336,7 +336,7 @@ export const CAMPAIGN_NODES: readonly CampaignNodeDef[] = [
       'The undercroft empties into a drain that goes nowhere but down into black water. Red wades to the grate, takes what the castle washed up against it, and turns back.',
     stage: 'outer_wall',
     enemy: zombie,
-    extraEnemies: [{ def: zombie, count: 1 }],
+    extraEnemies: [{ def: zombieOfficer, count: 1 }],
     difficulty: 'easy',
     nextIds: [],
     position: { x: 340, y: 300 },
@@ -352,7 +352,7 @@ export const CAMPAIGN_NODES: readonly CampaignNodeDef[] = [
       'The stair descends into standing water. Things that drowned here long ago wake at the sound of a living step.',
     stage: 'catacombs',
     enemy: zombie,
-    extraEnemies: [{ def: ghoul, count: 2 }],
+    extraEnemies: [{ def: ghoul, count: 2 }, { def: zombieSoldier, count: 1 }],
     difficulty: 'normal',
     nextIds: ['res-cistern', 'res-golem'],
     position: { x: 440, y: 220 },
@@ -444,7 +444,7 @@ export const CAMPAIGN_NODES: readonly CampaignNodeDef[] = [
       'The study hoards scripture the castle plans to unwrite. Red reads enough to know the war’s shape and cuts down its keepers.',
     stage: 'library',
     enemy: zombie,
-    extraEnemies: [{ def: ghoul, count: 1 }, { def: boneThrower, count: 1 }],
+    extraEnemies: [{ def: ghoul, count: 1 }, { def: boneThrower, count: 1 }, { def: zombieSoldier, count: 1 }],
     difficulty: 'normal',
     nextIds: ['std-archive'],
     position: { x: 560, y: 200 },
@@ -552,7 +552,7 @@ export const CAMPAIGN_NODES: readonly CampaignNodeDef[] = [
       'The clock tower is a gauntlet of moving iron over a long drop. Red times the gears and climbs while the castle tries to grind him off them.',
     stage: 'clock_tower',
     enemy: skeleton,
-    extraEnemies: [{ def: boneThrower, count: 1 }, { def: ghoul, count: 1 }],
+    extraEnemies: [{ def: boneThrower, count: 1 }, { def: ghoul, count: 1 }, { def: skeletonKnight, count: 1 }],
     difficulty: 'hard',
     nextIds: ['clk-death'],
     position: { x: 560, y: 200 },
@@ -598,7 +598,7 @@ export const CAMPAIGN_NODES: readonly CampaignNodeDef[] = [
       'A bridge of light arcs off to a lonely terrace. Red crosses it to break the archers picking at the garden from afar.',
     stage: 'outer_wall',
     enemy: skeleton,
-    extraEnemies: [{ def: armoredSkeleton, count: 1 }],
+    extraEnemies: [{ def: armoredSkeleton, count: 1 }, { def: giantSkeleton, count: 1 }],
     difficulty: 'hard',
     nextIds: [],
     position: { x: 760, y: 90 },
@@ -629,7 +629,7 @@ export const CAMPAIGN_NODES: readonly CampaignNodeDef[] = [
       'The upper keep barely pretends to be a building now. Red holds his ground against everything the castle can still spare.',
     stage: 'throne_room',
     enemy: skeleton,
-    extraEnemies: [{ def: armoredSkeleton, count: 1 }, { def: boneThrower, count: 1 }],
+    extraEnemies: [{ def: armoredSkeleton, count: 1 }, { def: boneThrower, count: 1 }, { def: giantSkeleton, count: 1 }],
     difficulty: 'hard',
     nextIds: ['top-antechamber'],
     position: { x: 560, y: 20 },
@@ -644,7 +644,7 @@ export const CAMPAIGN_NODES: readonly CampaignNodeDef[] = [
       'The antechamber is the castle’s final held breath. Red clears the last of its defenders and faces the door it never meant to open.',
     stage: 'throne_room',
     enemy: zombie,
-    extraEnemies: [{ def: ghoul, count: 2 }, { def: boneThrower, count: 1 }],
+    extraEnemies: [{ def: ghoul, count: 2 }, { def: boneThrower, count: 1 }, { def: zombieOfficer, count: 1 }],
     difficulty: 'hard',
     nextIds: ['fbd-gate'],
     position: { x: 460, y: 20 },
@@ -660,7 +660,7 @@ export const CAMPAIGN_NODES: readonly CampaignNodeDef[] = [
       'The forbidden gate stands open for the first time in a hundred years. Red steps to the threshold and the guardians of the heart close ranks.',
     stage: 'throne_room',
     enemy: skeleton,
-    extraEnemies: [{ def: armoredSkeleton, count: 1 }, { def: ghoul, count: 1 }],
+    extraEnemies: [{ def: armoredSkeleton, count: 1 }, { def: ghoul, count: 1 }, { def: skeletonKnight, count: 1 }],
     difficulty: 'hard',
     nextIds: ['fbd-chaos'],
     position: { x: 360, y: 20 },

@@ -308,6 +308,10 @@ const ENEMY_GLOW: Record<string, string> = {
   armoredSkeleton: '126,168,255',
   ghoul: '124,214,124',
   boneThrower: '178,132,224',
+  zombieOfficer: '220,70,70',
+  skeletonKnight: '224,196,110',
+  giantSkeleton: '210,214,220',
+  zombieSoldier: '176,168,110',
 }
 
 
@@ -5219,6 +5223,10 @@ function campaignEnemyHealth(enemyId: string, difficulty: 'easy' | 'normal' | 'h
   if (enemyId === 'ghoul') return 16
   if (enemyId === 'boneThrower') return 18
   if (enemyId === 'armoredSkeleton') return difficulty === 'hard' ? 96 : 78
+  if (enemyId === 'zombieOfficer') return 10
+  if (enemyId === 'skeletonKnight') return 32
+  if (enemyId === 'giantSkeleton') return difficulty === 'hard' ? 62 : 50
+  if (enemyId === 'zombieSoldier') return 9
   return difficulty === 'easy' ? 28 : difficulty === 'normal' ? 40 : 52
 }
 

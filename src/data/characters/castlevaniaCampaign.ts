@@ -452,6 +452,80 @@ export const ghoul: CharacterDef = {
   },
 }
 
+// Zombie Officer — a canon Aria of Sorrow enemy: a tougher, more assertive
+// zombie variant. Reuses the zombie sheets; the red-glow aura (see ENEMY_GLOW)
+// is the only thing marking it apart at a glance.
+export const zombieOfficer: CharacterDef = {
+  ...zombie,
+  id: 'zombieOfficer',
+  name: 'ZOMBIE OFFICER',
+  meta: {
+    ...zombie.meta,
+    archetype: 'FALLEN COMMANDER',
+    bio: 'A rotted officer that still barks orders at the dead around it. Hits harder than the corpses it commands.',
+  },
+  moves: {
+    ...zombie.moves,
+    light: { ...zombie.moves.light, id: 'zombie-officer-strike', damage: 8 },
+    heavy: { ...zombie.moves.heavy, id: 'zombie-officer-slam', damage: 11 },
+  },
+}
+
+// Skeleton Knight — a canon Aria of Sorrow enemy: a disciplined bone soldier,
+// sturdier than a plain skeleton. Reuses the skeleton sheets; the gold-glow
+// aura is the only visual difference from a plain skeleton.
+export const skeletonKnight: CharacterDef = {
+  ...skeleton,
+  id: 'skeletonKnight',
+  name: 'SKELETON KNIGHT',
+  meta: {
+    ...skeleton.meta,
+    archetype: 'DISCIPLINED GUARD',
+    bio: 'A bone soldier that never breaks formation. Its guard is tighter than the rank and file it stands with.',
+  },
+  moves: {
+    ...skeleton.moves,
+    light: { ...skeleton.moves.light, id: 'skeleton-knight-swipe', damage: 9 },
+    heavy: { ...skeleton.moves.heavy, id: 'skeleton-knight-break', damage: 13 },
+  },
+}
+
+// Giant Skeleton — a canon Aria of Sorrow enemy: an oversized bruiser variant,
+// scaled up from the base skeleton sheet. The pale-white glow reads as bone
+// bleached bigger, not just brighter.
+export const giantSkeleton: CharacterDef = {
+  ...skeleton,
+  id: 'giantSkeleton',
+  name: 'GIANT SKELETON',
+  meta: {
+    ...skeleton.meta,
+    archetype: 'BLOATED BONE HULK',
+    bio: 'A skeleton built from more than one grave. Slow, but every swing carries the weight of the extra bone.',
+  },
+  visual: { ...skeleton.visual, scale: skeleton.visual.scale * 1.3 },
+  moves: {
+    ...skeleton.moves,
+    heavy: { ...skeleton.moves.heavy, id: 'giant-skeleton-break', damage: 16, knockbackX: 10, knockbackY: -7 },
+  },
+}
+
+// Zombie Soldier — a canon Aria of Sorrow enemy: a drilled, tougher zombie
+// variant. The olive-drab glow reads as a fatigue-uniform tint.
+export const zombieSoldier: CharacterDef = {
+  ...zombie,
+  id: 'zombieSoldier',
+  name: 'ZOMBIE SOLDIER',
+  meta: {
+    ...zombie.meta,
+    archetype: 'DRILLED DEADHEAD',
+    bio: 'Drilled into a shambling rank-and-file even in death. Slower to anger than an officer, but it does not scatter.',
+  },
+  moves: {
+    ...zombie.moves,
+    light: { ...zombie.moves.light, id: 'zombie-soldier-strike', damage: 7 },
+  },
+}
+
 // Fell Bat — roosts in the air until the player draws near, then dives across
 // the room and flaps off the far side. Flies (no gravity); drawn as a custom bat
 // shape by CampaignScene. Its only threat is the contact of its dive (moves.light).
@@ -864,7 +938,20 @@ const CAMPAIGN_BOSSES: readonly CharacterDef[] = [creakingSkull, bigGolem, manti
 
 /** Every campaign mob and boss, in castle encounter order — the roster the
  *  Archive's Loot Table scene cycles through. */
-export const CAMPAIGN_ENEMIES: readonly CharacterDef[] = [zombie, skeleton, ghoul, bat, axeArmor, armoredSkeleton, boneThrower, ...CAMPAIGN_BOSSES]
+export const CAMPAIGN_ENEMIES: readonly CharacterDef[] = [
+  zombie,
+  skeleton,
+  ghoul,
+  bat,
+  axeArmor,
+  armoredSkeleton,
+  boneThrower,
+  zombieOfficer,
+  skeletonKnight,
+  giantSkeleton,
+  zombieSoldier,
+  ...CAMPAIGN_BOSSES,
+]
 
 /** Ids of the bosses in CAMPAIGN_ENEMIES — bosses use a fixed reward bounty
  *  (see rewardForEnemy) rather than the per-mob ENEMY_REWARD table. */
