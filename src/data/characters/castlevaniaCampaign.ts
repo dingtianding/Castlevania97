@@ -597,6 +597,42 @@ export const waiterSkeleton: CharacterDef = {
   },
 }
 
+// Dead Crusader — a canon Aria of Sorrow enemy: a fully-plated bone knight,
+// tougher than the Armored Skeleton it reuses. The crimson-gold glow reads as
+// a heraldic sash rather than plain war-plate.
+export const deadCrusader: CharacterDef = {
+  ...armoredSkeleton,
+  id: 'deadCrusader',
+  name: 'DEAD CRUSADER',
+  meta: {
+    ...armoredSkeleton.meta,
+    archetype: 'HOLY WAR RELIC',
+    bio: 'A knight who marched under a banner no one remembers. It still fights like the cause was worth it.',
+  },
+  moves: {
+    ...armoredSkeleton.moves,
+    heavy: { ...armoredSkeleton.moves.heavy, id: 'dead-crusader-plate-slam', damage: 15 },
+  },
+}
+
+// Golem — a canon Aria of Sorrow enemy: a slow, stone-built bruiser. Reuses
+// the Armored Skeleton sheets and timing; the ash-gray glow reads as
+// weathered stone rather than iron plate.
+export const golem: CharacterDef = {
+  ...armoredSkeleton,
+  id: 'golem',
+  name: 'GOLEM',
+  meta: {
+    ...armoredSkeleton.meta,
+    archetype: 'ANIMATE STONEWORK',
+    bio: 'Castle masonry given a grudge. Slower than the iron guard it stands beside, but every hit lands like part of a wall.',
+  },
+  moves: {
+    ...armoredSkeleton.moves,
+    light: { ...armoredSkeleton.moves.light, id: 'golem-stone-fist', damage: 13 },
+  },
+}
+
 // Fell Bat — roosts in the air until the player draws near, then dives across
 // the room and flaps off the far side. Flies (no gravity); drawn as a custom bat
 // shape by CampaignScene. Its only threat is the contact of its dive (moves.light).
@@ -1025,6 +1061,8 @@ export const CAMPAIGN_ENEMIES: readonly CharacterDef[] = [
   beamSkeleton,
   skullArcher,
   waiterSkeleton,
+  deadCrusader,
+  golem,
   ...CAMPAIGN_BOSSES,
 ]
 

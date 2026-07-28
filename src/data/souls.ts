@@ -28,10 +28,11 @@ export interface SoulModifiers {
 }
 
 // Canon check (see docs/ARIA_PARITY.md): zombie-soul, headhunter-soul,
-// creaking-skull-soul, skeleton-knight-soul, and zombie-officer-soul all
-// correspond to a real Aria of Sorrow soul-dropper. The "-original" entries
-// are homebrew for enemies with no confirmed canon soul — kept as gameplay
-// content but labeled honestly instead of faking a source.
+// creaking-skull-soul, skeleton-knight-soul, zombie-officer-soul, dead-
+// crusader-soul, and golem-soul all correspond to a real Aria of Sorrow
+// soul-dropper. The "-original" entries are homebrew for enemies with no
+// confirmed canon soul — kept as gameplay content but labeled honestly
+// instead of faking a source.
 export const SOUL_POOL: readonly SoulDef[] = [
   {
     id: 'zombie-soul',
@@ -56,6 +57,22 @@ export const SOUL_POOL: readonly SoulDef[] = [
     dropChance: 0.28,
     blurb: 'Canon effect: restore HP if knocked out mid-jump. That conditional trigger is not modeled yet, so it grants +8 max health instead.',
     maxHealthBonus: 8,
+  },
+  {
+    id: 'dead-crusader-soul',
+    name: 'Dead Crusader Soul',
+    enemyId: 'deadCrusader',
+    dropChance: 0.26,
+    blurb: 'Canon effect: CON +16. A direct match — a solid, permanent toughness boost.',
+    maxHealthBonus: 16,
+  },
+  {
+    id: 'golem-soul',
+    name: 'Golem Soul',
+    enemyId: 'golem',
+    dropChance: 0.24,
+    blurb: 'Canon effect: STR +12. A direct match — a sizeable, permanent attack boost.',
+    damageMultiplier: 1.12,
   },
   {
     id: 'headhunter-soul',

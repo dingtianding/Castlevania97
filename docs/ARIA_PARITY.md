@@ -19,17 +19,21 @@ and `src/data/campaign.ts`).
 (Gravekeeper) all match canon in name-in-spirit and effect — implemented as relic pickups /base moves
 rather than boss/enemy soul drops (a deliberate simplification, not an oversight).
 
-**Eight new canon regular enemies added, across two passes.** Zombie Officer, Skeleton Knight, Giant
-Skeleton, Zombie Soldier, Winged Skeleton, Beam Skeleton, Skull Archer, and Waiter Skeleton are all real
-Aria of Sorrow enemies, added as recolored variants of the existing zombie/skeleton sprite sheets (the
-only reskinnable assets this project has — see `ENEMY_GLOW` in `CampaignScene.ts` for the aura tint
-that tells each apart from its base at a glance). Each drops its own real canon soul — direct stat
-matches (Skeleton Knight: STR+4), MP-cost-and-pattern matches (Giant Skeleton, Winged Skeleton, Beam
-Skeleton, Skull Archer), and a couple of honestly-approximated ones where the canon effect needs a
+**Ten new canon regular enemies added, across three passes**, plus souls added to two enemies that
+already existed under the right canon name. Zombie Officer, Skeleton Knight, Giant Skeleton, Zombie
+Soldier, Winged Skeleton, Beam Skeleton, Skull Archer, Waiter Skeleton, Dead Crusader, and Golem are all
+real Aria of Sorrow enemies, added as recolored variants of the existing zombie/skeleton sprite sheets
+(the only reskinnable assets this project has — see `ENEMY_GLOW` in `CampaignScene.ts` for the aura
+tint that tells each apart from its base at a glance). Separately, `axeArmor` and `bat` — already
+correctly canon-named enemies that had no soul at all — turned out to themselves be real canon Bullet
+Souls (Axe Armor: boomerang, Bat: sonar wave), so those were added directly with zero new enemy work.
+Each new/newly-souled enemy drops its own real canon soul — direct stat matches (Skeleton Knight,
+Dead Crusader, Golem), MP-cost-and-pattern matches (Giant Skeleton, Winged Skeleton, Beam Skeleton,
+Skull Archer, Axe Armor, Bat), and a few honestly-approximated ones where the canon effect needs a
 system this engine doesn't have yet (Zombie Officer's mid-air-KO heal, Zombie Soldier's timed-grenade
-fuse, Waiter Skeleton's damage-over-time). Skull Archer and Beam Skeleton also got real kiting/stationary
-AI instead of falling back to generic melee-approach. All eight are placed into two existing rooms each,
-additively, so existing encounter balance is unchanged.
+fuse, Waiter Skeleton's damage-over-time, Axe Armor's boomerang return). Skull Archer and Beam Skeleton
+also got real kiting/stationary AI instead of falling back to generic melee-approach. All ten new
+enemies are placed into two existing rooms each, additively, so existing encounter balance is unchanged.
 
 **Souls have been renamed to their real canon identity where a match exists, honestly labeled
 "(original)" where it does not.** `souls.ts`, `blueSouls.ts`, and `bulletSouls.ts` now source
@@ -101,14 +105,14 @@ shields, projectile summons) would need new `BlueSoulEffect` variants and matchi
 | Arc Demon | +40% STR, drains enemy HP | ❌ (name reused for different effect in `souls.ts`) |
 | Bael | INT +12 | ❌ |
 | Basilisk | STR down / DEF up | ❌ |
-| Dead Crusader | CON +16 | ❌ |
+| Dead Crusader | CON +16 | ✅ built — `dead-crusader-soul` in `souls.ts`, direct match |
 | Ectoplasm | Curse immunity | ❌ |
 | Erinys | +120% EXP | ❌ |
 | Flesh Golem | HP-drain items heal instead | ❌ |
 | Gargoyle | Petrification immunity | ❌ |
 | Ghost Dancer | LCK +4 | ❌ |
 | Giant Worm | Regen HP while still | ❌ |
-| Golem | STR +12 | ❌ |
+| Golem | STR +12 | ✅ built — `golem-soul`, direct match |
 | Gorgon | CON +12 | ❌ |
 | Gremlin | LCK +8 | ❌ |
 | Headhunter | Stats scale with souls collected | ✅ built — `headhunter-soul` in `souls.ts`, approximated as a flat all-round boost (no dynamic soul-count scaling) |
@@ -144,9 +148,9 @@ intentionally modeled as a Bullet Soul instead. Not in the table below since Dea
 |---|---|---|---|
 | Altair | 33 | Eagle flies forward | ❌ |
 | Arachne | 15 | Web entangle | ❌ |
-| Axe Armor | 22 | Boomerang | ❌ |
+| Axe Armor | 22 | Boomerang | ✅ built — `axe-armor-soul` in `bulletSouls.ts`, sourced from the already-existing `axeArmor` enemy; boomerang return not modeled |
 | Balore | 120 | Powerful punch | ❌ |
-| Bat | 5 | Sonar wave | ❌ |
+| Bat | 5 | Sonar wave | ✅ built — `bat-soul`, sourced from the already-existing `bat` enemy |
 | Beam Skeleton | 28 | Straight beam | ✅ built — `beam-skeleton-soul` in `bulletSouls.ts`, name/source/MP-cost match canon |
 | Biphron | 35 | Ground flame wave | ❌ |
 | Blue Crow | 10 | Angled crow shot | ❌ |
@@ -246,16 +250,18 @@ Done as of this pass:
    Seal Guardian, Dracula Shadow, and the Skula-flavored underwater effect) are labeled "(original)"
    instead of misrepresented as canon.
 
-3. ✅ Added eight real canon regular enemies not previously built, across two passes — Zombie Officer,
+3. ✅ Added ten real canon regular enemies not previously built, across three passes — Zombie Officer,
    Skeleton Knight, Giant Skeleton, Zombie Soldier, Winged Skeleton, Beam Skeleton, Skull Archer, Waiter
-   Skeleton — as recolored zombie/skeleton variants (the only reskinnable assets available), each
-   dropping its own real canon soul, placed into two existing rooms each.
+   Skeleton, Dead Crusader, Golem — as recolored zombie/skeleton/armoredSkeleton variants (the only
+   reskinnable assets available), each dropping its own real canon soul, placed into two existing rooms
+   each. Also gave `axeArmor` and `bat` — already-existing, already-correctly-named enemies — their real
+   canon Bullet Souls, at zero new-enemy cost.
 
 Still open, for a later pass if pursued:
 
-4. More real canon regular enemies remain unbuilt (e.g. Golem, Ectoplasm, Poison Worm) but need either
-   a new sprite or a less obvious reskin fit than the eight just added.
-5. Curate a subset of the remaining ~80 souls (mostly Bullet/Enchant, tied to enemies not built here)
+4. More real canon regular enemies remain unbuilt (e.g. Ectoplasm, Poison Worm, Minotaur) but need
+   either a new sprite or a less obvious reskin fit than the ten just added.
+5. Curate a subset of the remaining ~75 souls (mostly Bullet/Enchant, tied to enemies not built here)
    that's realistic for this engine's scope — not all of them need modeling, but what gets modeled
    should stay honestly sourced.
 6. If real mechanical differentiation matters more than naming (distinct familiars, shields, projectile

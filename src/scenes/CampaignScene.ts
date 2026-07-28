@@ -316,6 +316,8 @@ const ENEMY_GLOW: Record<string, string> = {
   beamSkeleton: '140,220,224',
   skullArcher: '110,200,180',
   waiterSkeleton: '224,204,90',
+  deadCrusader: '212,132,84',
+  golem: '150,150,150',
 }
 
 
@@ -5235,6 +5237,8 @@ function campaignEnemyHealth(enemyId: string, difficulty: 'easy' | 'normal' | 'h
   if (enemyId === 'beamSkeleton') return 26
   if (enemyId === 'skullArcher') return 20
   if (enemyId === 'waiterSkeleton') return 25
+  if (enemyId === 'deadCrusader') return difficulty === 'hard' ? 100 : 82
+  if (enemyId === 'golem') return difficulty === 'hard' ? 110 : 90
   return difficulty === 'easy' ? 28 : difficulty === 'normal' ? 40 : 52
 }
 
