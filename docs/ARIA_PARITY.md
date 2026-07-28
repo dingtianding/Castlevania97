@@ -19,22 +19,25 @@ and `src/data/campaign.ts`).
 (Gravekeeper) all match canon in name-in-spirit and effect — implemented as relic pickups /base moves
 rather than boss/enemy soul drops (a deliberate simplification, not an oversight).
 
-**Twelve new canon regular enemies added, across four passes**, plus souls added to two enemies that
+**Sixteen new canon regular enemies added, across five passes**, plus souls added to two enemies that
 already existed under the right canon name. Zombie Officer, Skeleton Knight, Giant Skeleton, Zombie
 Soldier, Winged Skeleton, Beam Skeleton, Skull Archer, Waiter Skeleton, Dead Crusader, Golem, Evil
-Butcher, and Skull Millone are all real Aria of Sorrow enemies, added as recolored variants of the
-existing zombie/skeleton/armoredSkeleton sprite sheets
-(the only reskinnable assets this project has — see `ENEMY_GLOW` in `CampaignScene.ts` for the aura
-tint that tells each apart from its base at a glance). Separately, `axeArmor` and `bat` — already
-correctly canon-named enemies that had no soul at all — turned out to themselves be real canon Bullet
-Souls (Axe Armor: boomerang, Bat: sonar wave), so those were added directly with zero new enemy work.
-Each new/newly-souled enemy drops its own real canon soul — direct stat matches (Skeleton Knight,
-Dead Crusader, Golem), MP-cost-and-pattern matches (Giant Skeleton, Winged Skeleton, Beam Skeleton,
-Skull Archer, Axe Armor, Bat), and a few honestly-approximated ones where the canon effect needs a
-system this engine doesn't have yet (Zombie Officer's mid-air-KO heal, Zombie Soldier's timed-grenade
-fuse, Waiter Skeleton's damage-over-time, Axe Armor's boomerang return). Skull Archer and Beam Skeleton
-also got real kiting/stationary AI instead of falling back to generic melee-approach. All ten new
-enemies are placed into two existing rooms each, additively, so existing encounter balance is unchanged.
+Butcher, and Skull Millone are recolored variants of the zombie/skeleton/armoredSkeleton sprite sheets
+(the only reskinnable assets this project had at first — see `ENEMY_GLOW` in `CampaignScene.ts` for the
+aura tint that tells each apart from its base at a glance). Tiny Devil, Demon Lord, Flame Demon, and Arc
+Demon open a fourth family, reusing the demon-Files sheet already used by Seal Guardian/Big
+Golem/Manticore/Legion but scaled down (0.36x–0.68x) so they read as regular threats, not mini-bosses.
+Separately, `axeArmor` and `bat` — already correctly canon-named enemies that had no soul at all —
+turned out to themselves be real canon Bullet Souls (Axe Armor: boomerang, Bat: sonar wave), so those
+were added directly with zero new enemy work. Each new/newly-souled enemy drops its own real canon
+soul — direct stat matches (Skeleton Knight, Dead Crusader, Golem, Arc Demon's STR portion),
+MP-cost-and-pattern matches (Giant Skeleton, Winged Skeleton, Beam Skeleton, Skull Archer, Axe Armor,
+Bat, Tiny Devil, Demon Lord, Flame Demon), and a few honestly-approximated ones where the canon effect
+needs a system this engine doesn't have yet (Zombie Officer's mid-air-KO heal, Zombie Soldier's
+timed-grenade fuse, Waiter Skeleton's damage-over-time, Axe Armor's boomerang return, Arc Demon's
+HP-drain-on-hit). Skull Archer and Beam Skeleton also got real kiting/stationary AI instead of falling
+back to generic melee-approach. All sixteen new enemies are placed into two existing rooms each,
+additively, so existing encounter balance is unchanged.
 
 **Souls have been renamed to their real canon identity where a match exists, honestly labeled
 "(original)" where it does not.** `souls.ts`, `blueSouls.ts`, and `bulletSouls.ts` now source
@@ -103,7 +106,7 @@ shields, projectile summons) would need new `BlueSoulEffect` variants and matchi
 
 | Soul | Effect | Built here? |
 |---|---|---|
-| Arc Demon | +40% STR, drains enemy HP | ❌ (name reused for different effect in `souls.ts`) |
+| Arc Demon | +40% STR, drains enemy HP | ✅ built — `arc-demon-soul` in `souls.ts`; STR boost is a direct match, HP-drain-on-hit not modeled |
 | Bael | INT +12 | ❌ |
 | Basilisk | STR down / DEF up | ❌ |
 | Dead Crusader | CON +16 | ✅ built — `dead-crusader-soul` in `souls.ts`, direct match |
@@ -158,13 +161,13 @@ intentionally modeled as a Bullet Soul instead. Not in the table below since Dea
 | Bomber Armor | 80 | Bomb toss | ❌ |
 | Chronomage | 96 | Brief time-freeze | ❌ |
 | Cockatrice | 24 | Downward petrify beam | ❌ |
-| Demon Lord | 38 | Large fireball | ❌ |
+| Demon Lord | 38 | Large fireball | ✅ built — `demon-lord-soul` in `bulletSouls.ts`, name/source/MP-cost match canon |
 | Disc Armor | 34 | Spinning disc | ❌ |
 | Dryad | 33 | HP-drain blob | ❌ |
 | Durga | 20 | Forward katana | ❌ |
 | Evil Butcher | 5 | Dagger throw | ✅ built — `evil-butcher-soul` in `bulletSouls.ts`, name/source/MP-cost match canon |
 | Fish Head | 18 | Standard fireball | ❌ |
-| Flame Demon | 44 | Three-fireball spread | ❌ |
+| Flame Demon | 44 | Three-fireball spread | ✅ built — `flame-demon-soul`, name/source/MP-cost match canon, spread pattern is a direct fit |
 | Flea Man | 15 | Erratic jump attack | ❌ |
 | Ghost | 16 | Homing spirit | ❌ (closest real match for `seeker-soul-original`, which is labeled non-canon) |
 | Giant Skeleton | 19 | Skull projectile | ✅ built — `giant-skeleton-soul` in `bulletSouls.ts`, name/source/MP-cost match canon |
@@ -192,7 +195,7 @@ intentionally modeled as a Bullet Soul instead. Not in the table below since Dea
 | Skull Millone | 25 | Poison claw slash | ✅ built — `skull-millone-soul`, poison not modeled so it lands as extra flat damage |
 | Slime | 20 | Bouncing comet | ❌ |
 | Student Witch | 20 | Cat familiar | ❌ |
-| Tiny Devil | 16 | Blades fly around screen | ❌ |
+| Tiny Devil | 16 | Blades fly around screen | ✅ built — `tiny-devil-soul`, name/source/MP-cost match canon, nova pattern is a direct fit |
 | Ukoback | 12 | Screen flames | ❌ |
 | Une | 20 | Vine mine | ❌ |
 | Valkyrie | 50 | Spirit strike | ❌ |
@@ -251,19 +254,21 @@ Done as of this pass:
    Seal Guardian, Dracula Shadow, and the Skula-flavored underwater effect) are labeled "(original)"
    instead of misrepresented as canon.
 
-3. ✅ Added twelve real canon regular enemies not previously built, across four passes — Zombie Officer,
+3. ✅ Added sixteen real canon regular enemies not previously built, across five passes — Zombie Officer,
    Skeleton Knight, Giant Skeleton, Zombie Soldier, Winged Skeleton, Beam Skeleton, Skull Archer, Waiter
-   Skeleton, Dead Crusader, Golem, Evil Butcher, Skull Millone — as recolored zombie/skeleton/
-   armoredSkeleton variants (the only reskinnable assets available), each dropping its own real canon
-   soul, placed into two existing rooms each. Also gave `axeArmor` and `bat` — already-existing,
-   already-correctly-named enemies — their real canon Bullet Souls, at zero new-enemy cost.
+   Skeleton, Dead Crusader, Golem, Evil Butcher, Skull Millone, Tiny Devil, Demon Lord, Flame Demon, Arc
+   Demon — the first twelve as recolored zombie/skeleton/armoredSkeleton variants, the last four opening
+   a fourth family on the demon-Files sheet (scaled down from Seal Guardian's boss proportions). Each
+   drops its own real canon soul, placed into two existing rooms each. Also gave `axeArmor` and `bat` —
+   already-existing, already-correctly-named enemies — their real canon Bullet Souls, at zero
+   new-enemy cost.
 
 Still open, for a later pass if pursued:
 
 4. More real canon regular enemies remain unbuilt (e.g. Ectoplasm, Poison Worm, Minotaur, Iron Golem,
-   Wooden Golem) but need either a new sprite, or reuse the demon-Files sheet already spoken for by
-   sealGuardian/Big Golem/Manticore/Legion, or start feeling like the same 3 reskins wearing thin.
-5. Curate a subset of the remaining ~70 souls (mostly Bullet/Enchant, tied to enemies not built here)
+   Wooden Golem, Cagnazzo, Succubus) but need either a new sprite or start feeling like the same 4
+   reskins (now including demon-Files) wearing thin.
+5. Curate a subset of the remaining ~65 souls (mostly Bullet/Enchant, tied to enemies not built here)
    that's realistic for this engine's scope — not all of them need modeling, but what gets modeled
    should stay honestly sourced.
 6. If real mechanical differentiation matters more than naming (distinct familiars, shields, projectile

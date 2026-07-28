@@ -23,13 +23,15 @@ export const BASE_BULLET_SOUL = 'skeleton-soul'
 
 // Canon check (see docs/ARIA_PARITY.md): skeleton-soul, legion-soul,
 // giant-skeleton-soul, zombie-soldier-soul, winged-skeleton-soul,
-// beam-skeleton-soul, skull-archer-soul, and waiter-skeleton-soul are all real
-// canon Bullet Souls with a matching in-repo enemy source. death-soul is a
-// canon reclassification — Death's real soul is a Guardian (hold-to-channel)
-// soul in Aria of Sorrow, but "throws multiple scythes around the screen"
-// mechanically fits this engine's one-shot nova pattern better than a stat
-// buff, so it is modeled here as a Bullet Soul instead. The "-original" entries
-// have no confirmed canon soul source among enemies built here.
+// beam-skeleton-soul, skull-archer-soul, waiter-skeleton-soul, axe-armor-soul,
+// bat-soul, evil-butcher-soul, skull-millone-soul, tiny-devil-soul,
+// demon-lord-soul, and flame-demon-soul are all real canon Bullet Souls with a
+// matching in-repo enemy source. death-soul is a canon reclassification —
+// Death's real soul is a Guardian (hold-to-channel) soul in Aria of Sorrow,
+// but "throws multiple scythes around the screen" mechanically fits this
+// engine's one-shot nova pattern better than a stat buff, so it is modeled
+// here as a Bullet Soul instead. The "-original" entries have no confirmed
+// canon soul source among enemies built here.
 export const BULLET_SOUL_POOL: readonly BulletSoulDef[] = [
   {
     id: 'skeleton-soul',
@@ -112,6 +114,33 @@ export const BULLET_SOUL_POOL: readonly BulletSoulDef[] = [
     mpCost: 25,
     pattern: 'bolt',
     blurb: 'Canon effect: a poison claw slash. Name, source, and MP cost all match canon; poison is not modeled, so it lands as extra flat damage.',
+  },
+  {
+    id: 'tiny-devil-soul',
+    name: 'Tiny Devil Soul',
+    enemyId: 'tinyDevil',
+    dropChance: 0.2,
+    mpCost: 16,
+    pattern: 'nova',
+    blurb: 'Canon effect: blades fly around the screen. Name, source, and MP cost all match canon; the orbiting-blade ring fits this engine’s nova pattern directly.',
+  },
+  {
+    id: 'demon-lord-soul',
+    name: 'Demon Lord Soul',
+    enemyId: 'demonLord',
+    dropChance: 0.2,
+    mpCost: 38,
+    pattern: 'bolt',
+    blurb: 'Canon effect: a large fireball. Name, source, and MP cost all match canon.',
+  },
+  {
+    id: 'flame-demon-soul',
+    name: 'Flame Demon Soul',
+    enemyId: 'flameDemon',
+    dropChance: 0.18,
+    mpCost: 44,
+    pattern: 'spread',
+    blurb: 'Canon effect: a three-fireball spread. Name, source, and MP cost all match canon; this engine’s spread pattern is a direct fit.',
   },
   {
     id: 'skull-archer-soul',

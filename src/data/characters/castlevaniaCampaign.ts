@@ -871,6 +871,80 @@ export const sealGuardian: CharacterDef = {
   },
 }
 
+// Tiny Devil — a canon Aria of Sorrow enemy: a small, quick imp-demon. Reuses
+// the demon-Files sheet already used by Seal Guardian and its boss clones, but
+// scaled down sharply so it reads as a lesser threat, not a mini-boss.
+export const tinyDevil: CharacterDef = {
+  ...sealGuardian,
+  id: 'tinyDevil',
+  name: 'TINY DEVIL',
+  meta: {
+    ...sealGuardian.meta,
+    archetype: 'LESSER IMP',
+    bio: 'A small, cackling demon too minor for the castle to bother naming twice. Quick, but its hits are as small as it is.',
+  },
+  visual: { ...sealGuardian.visual, scale: sealGuardian.visual.scale * 0.36 },
+  moves: {
+    ...sealGuardian.moves,
+    light: { ...sealGuardian.moves.light, id: 'tiny-devil-claw', damage: 6 },
+    heavy: { ...sealGuardian.moves.heavy, id: 'tiny-devil-flit', damage: 8 },
+  },
+}
+
+// Demon Lord — a canon Aria of Sorrow enemy: a lesser demon commander, smaller
+// than the winged guardians it takes orders from. Reuses the demon-Files sheet.
+export const demonLord: CharacterDef = {
+  ...sealGuardian,
+  id: 'demonLord',
+  name: 'DEMON LORD',
+  meta: {
+    ...sealGuardian.meta,
+    archetype: 'LESSER COMMANDER',
+    bio: 'A demon of middling rank, sent ahead of whatever the castle keeps in reserve. It hits harder than it needs to, to prove the point.',
+  },
+  visual: { ...sealGuardian.visual, scale: sealGuardian.visual.scale * 0.68 },
+  moves: {
+    ...sealGuardian.moves,
+    heavy: { ...sealGuardian.moves.heavy, id: 'demon-lord-crush', damage: 20 },
+  },
+}
+
+// Flame Demon — a canon Aria of Sorrow enemy: a fire-wreathed demon variant.
+// Reuses the demon-Files sheet with a fire-orange glow instead of a boss scale.
+export const flameDemon: CharacterDef = {
+  ...sealGuardian,
+  id: 'flameDemon',
+  name: 'FLAME DEMON',
+  meta: {
+    ...sealGuardian.meta,
+    archetype: 'ASH-WING DEMON',
+    bio: 'A demon that trails cinders wherever it lands. Its wings never fully stop smoking.',
+  },
+  visual: { ...sealGuardian.visual, scale: sealGuardian.visual.scale * 0.6 },
+  moves: {
+    ...sealGuardian.moves,
+    special: { ...sealGuardian.moves.special, id: 'flame-demon-cinder-lunge', damage: 15 },
+  },
+}
+
+// Arc Demon — a canon Aria of Sorrow enemy: a lean, fast demon variant. Reuses
+// the demon-Files sheet; no HP-drain-on-hit system exists here (see its soul).
+export const arcDemon: CharacterDef = {
+  ...sealGuardian,
+  id: 'arcDemon',
+  name: 'ARC DEMON',
+  meta: {
+    ...sealGuardian.meta,
+    archetype: 'LEAN VOLTAIC DEMON',
+    bio: 'A wiry demon that crackles faintly at the joints. It closes distance faster than its bulkier kin.',
+  },
+  visual: { ...sealGuardian.visual, scale: sealGuardian.visual.scale * 0.55 },
+  moves: {
+    ...sealGuardian.moves,
+    light: { ...sealGuardian.moves.light, id: 'arc-demon-jolt-claw', damage: 9 },
+  },
+}
+
 export const dracula1999: CharacterDef = {
   id: 'dracula1999',
   name: 'DRACULA SHADOW',
@@ -1099,6 +1173,10 @@ export const CAMPAIGN_ENEMIES: readonly CharacterDef[] = [
   golem,
   evilButcher,
   skullMillone,
+  tinyDevil,
+  demonLord,
+  flameDemon,
+  arcDemon,
   ...CAMPAIGN_BOSSES,
 ]
 

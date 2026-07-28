@@ -320,6 +320,10 @@ const ENEMY_GLOW: Record<string, string> = {
   golem: '150,150,150',
   evilButcher: '190,60,60',
   skullMillone: '150,200,90',
+  tinyDevil: '224,90,180',
+  demonLord: '160,50,120',
+  flameDemon: '224,100,40',
+  arcDemon: '170,90,224',
 }
 
 
@@ -2899,7 +2903,7 @@ export class CampaignScene extends Scene {
   /** Multiplier a live Blue buff applies to the given stat (1 = no effect). */
   private blueBuffMult(effect: BlueSoulEffect): number {
     if (this.blueBuffEffect !== effect) return 1
-    return effect === 'aegis' ? 0.4 : effect === 'frenzy' ? 1.45 : effect === 'panther' ? 1.55 : 1.4
+    return effect === 'aegis' ? 0.4 : effect === 'frenzy' ? 1.45 : effect === 'panther' ? 2.2 : 1.4
   }
 
   /** Curve a homing soul bolt toward the nearest live enemy it has not hit. */
@@ -5243,6 +5247,10 @@ function campaignEnemyHealth(enemyId: string, difficulty: 'easy' | 'normal' | 'h
   if (enemyId === 'golem') return difficulty === 'hard' ? 110 : 90
   if (enemyId === 'evilButcher') return 8
   if (enemyId === 'skullMillone') return 27
+  if (enemyId === 'tinyDevil') return 14
+  if (enemyId === 'demonLord') return difficulty === 'hard' ? 48 : 38
+  if (enemyId === 'flameDemon') return difficulty === 'hard' ? 44 : 34
+  if (enemyId === 'arcDemon') return 30
   return difficulty === 'easy' ? 28 : difficulty === 'normal' ? 40 : 52
 }
 
