@@ -633,6 +633,40 @@ export const golem: CharacterDef = {
   },
 }
 
+// Evil Butcher — a canon Aria of Sorrow enemy: a zombie still clutching its
+// trade, flinging a cleaver rather than biting. Reuses the zombie sheets.
+export const evilButcher: CharacterDef = {
+  ...zombie,
+  id: 'evilButcher',
+  name: 'EVIL BUTCHER',
+  meta: {
+    ...zombie.meta,
+    archetype: 'ROTTED TRADESMAN',
+    bio: 'A butcher who never put the cleaver down, even after the castle took the rest of him. It throws before it shambles closer.',
+  },
+  moves: {
+    ...zombie.moves,
+    light: { ...zombie.moves.light, id: 'evil-butcher-cleaver', damage: 6 },
+  },
+}
+
+// Skull Millone — a canon Aria of Sorrow enemy: a skeleton whose claw carries
+// an old venom. No poison status exists here, so the hit lands harder instead.
+export const skullMillone: CharacterDef = {
+  ...skeleton,
+  id: 'skullMillone',
+  name: 'SKULL MILLONE',
+  meta: {
+    ...skeleton.meta,
+    archetype: 'VENOMOUS BONE CLAW',
+    bio: 'A bone soldier whose claw still carries a poison the castle never let fade. Its swipe lingers longer than it should.',
+  },
+  moves: {
+    ...skeleton.moves,
+    special: { ...skeleton.moves.special, id: 'skull-millone-venom-claw', damage: 13 },
+  },
+}
+
 // Fell Bat — roosts in the air until the player draws near, then dives across
 // the room and flaps off the far side. Flies (no gravity); drawn as a custom bat
 // shape by CampaignScene. Its only threat is the contact of its dive (moves.light).
@@ -1063,6 +1097,8 @@ export const CAMPAIGN_ENEMIES: readonly CharacterDef[] = [
   waiterSkeleton,
   deadCrusader,
   golem,
+  evilButcher,
+  skullMillone,
   ...CAMPAIGN_BOSSES,
 ]
 

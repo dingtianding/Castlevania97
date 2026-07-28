@@ -1,5 +1,5 @@
 import type { CharacterDef } from './characters/CharacterDef.ts'
-import { armoredSkeleton, axeArmor, bat, beamSkeleton, bigGolem, boneThrower, chaos, creakingSkull, deadCrusader, death, ghoul, giantSkeleton, golem, greatArmor, headhunter, grey, legion, manticore, skeleton, skeletonKnight, skullArcher, waiterSkeleton, wingedSkeleton, zombie, zombieOfficer, zombieSoldier } from './characters/castlevaniaCampaign.ts'
+import { armoredSkeleton, axeArmor, bat, beamSkeleton, bigGolem, boneThrower, chaos, creakingSkull, deadCrusader, death, evilButcher, ghoul, giantSkeleton, golem, greatArmor, headhunter, grey, legion, manticore, skeleton, skeletonKnight, skullArcher, skullMillone, waiterSkeleton, wingedSkeleton, zombie, zombieOfficer, zombieSoldier } from './characters/castlevaniaCampaign.ts'
 import type { StageId } from './stages.ts'
 import { RELIC_POOL, type RelicId } from './relics.ts'
 import { SOUL_POOL } from './souls.ts'
@@ -276,7 +276,7 @@ export const CAMPAIGN_NODES: readonly CampaignNodeDef[] = [
       'A sealed larder off the alcove, its shelves gone to rot and rust. Whatever the castle laid up here it left a chest to guard — and a corpse to lift when Red pries the door.',
     stage: 'outer_wall',
     enemy: zombie,
-    extraEnemies: [{ def: skeleton, count: 1 }],
+    extraEnemies: [{ def: skeleton, count: 1 }, { def: evilButcher, count: 1 }],
     difficulty: 'easy',
     nextIds: [],
     position: { x: 120, y: 110 },
@@ -291,7 +291,7 @@ export const CAMPAIGN_NODES: readonly CampaignNodeDef[] = [
       'The watch-post looks down on the far gate from above. Fell bats roost in the rafters here, still as stone until Red passes beneath them.',
     stage: 'outer_wall',
     enemy: skeleton,
-    extraEnemies: [{ def: bat, count: 2 }],
+    extraEnemies: [{ def: bat, count: 2 }, { def: skullMillone, count: 1 }],
     difficulty: 'normal',
     nextIds: ['cor-skull'],
     position: { x: 340, y: 110 },
@@ -321,7 +321,7 @@ export const CAMPAIGN_NODES: readonly CampaignNodeDef[] = [
       'A shaft in the grand corridor drops into the undercroft below. The dark down here is older than the castle, and it does not like the torchlight Red brings with him.',
     stage: 'outer_wall',
     enemy: skeleton,
-    extraEnemies: [{ def: bat, count: 1 }],
+    extraEnemies: [{ def: bat, count: 1 }, { def: skullMillone, count: 1 }],
     difficulty: 'normal',
     nextIds: ['cor-drain'],
     position: { x: 220, y: 300 },
@@ -336,7 +336,7 @@ export const CAMPAIGN_NODES: readonly CampaignNodeDef[] = [
       'The undercroft empties into a drain that goes nowhere but down into black water. Red wades to the grate, takes what the castle washed up against it, and turns back.',
     stage: 'outer_wall',
     enemy: zombie,
-    extraEnemies: [{ def: zombieOfficer, count: 1 }],
+    extraEnemies: [{ def: zombieOfficer, count: 1 }, { def: evilButcher, count: 1 }],
     difficulty: 'easy',
     nextIds: [],
     position: { x: 340, y: 300 },

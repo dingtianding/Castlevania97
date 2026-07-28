@@ -19,10 +19,11 @@ and `src/data/campaign.ts`).
 (Gravekeeper) all match canon in name-in-spirit and effect — implemented as relic pickups /base moves
 rather than boss/enemy soul drops (a deliberate simplification, not an oversight).
 
-**Ten new canon regular enemies added, across three passes**, plus souls added to two enemies that
+**Twelve new canon regular enemies added, across four passes**, plus souls added to two enemies that
 already existed under the right canon name. Zombie Officer, Skeleton Knight, Giant Skeleton, Zombie
-Soldier, Winged Skeleton, Beam Skeleton, Skull Archer, Waiter Skeleton, Dead Crusader, and Golem are all
-real Aria of Sorrow enemies, added as recolored variants of the existing zombie/skeleton sprite sheets
+Soldier, Winged Skeleton, Beam Skeleton, Skull Archer, Waiter Skeleton, Dead Crusader, Golem, Evil
+Butcher, and Skull Millone are all real Aria of Sorrow enemies, added as recolored variants of the
+existing zombie/skeleton/armoredSkeleton sprite sheets
 (the only reskinnable assets this project has — see `ENEMY_GLOW` in `CampaignScene.ts` for the aura
 tint that tells each apart from its base at a glance). Separately, `axeArmor` and `bat` — already
 correctly canon-named enemies that had no soul at all — turned out to themselves be real canon Bullet
@@ -161,7 +162,7 @@ intentionally modeled as a Bullet Soul instead. Not in the table below since Dea
 | Disc Armor | 34 | Spinning disc | ❌ |
 | Dryad | 33 | HP-drain blob | ❌ |
 | Durga | 20 | Forward katana | ❌ |
-| Evil Butcher | 5 | Dagger throw | ❌ |
+| Evil Butcher | 5 | Dagger throw | ✅ built — `evil-butcher-soul` in `bulletSouls.ts`, name/source/MP-cost match canon |
 | Fish Head | 18 | Standard fireball | ❌ |
 | Flame Demon | 44 | Three-fireball spread | ❌ |
 | Flea Man | 15 | Erratic jump attack | ❌ |
@@ -188,7 +189,7 @@ intentionally modeled as a Bullet Soul instead. Not in the table below since Dea
 | Siren | 10 | Musical-note shot | ❌ |
 | Skeleton | 8 | Arced bone toss | ✅ built — `skeleton-soul`, now the base Bullet Soul (`BASE_BULLET_SOUL`), name/source/MP-cost/pattern all match canon |
 | Skull Archer | 8 | Summoned bow arrow | ✅ built — `skull-archer-soul`, name/source/MP-cost match canon |
-| Skull Millone | 25 | Poison claw slash | ❌ |
+| Skull Millone | 25 | Poison claw slash | ✅ built — `skull-millone-soul`, poison not modeled so it lands as extra flat damage |
 | Slime | 20 | Bouncing comet | ❌ |
 | Student Witch | 20 | Cat familiar | ❌ |
 | Tiny Devil | 16 | Blades fly around screen | ❌ |
@@ -250,18 +251,19 @@ Done as of this pass:
    Seal Guardian, Dracula Shadow, and the Skula-flavored underwater effect) are labeled "(original)"
    instead of misrepresented as canon.
 
-3. ✅ Added ten real canon regular enemies not previously built, across three passes — Zombie Officer,
+3. ✅ Added twelve real canon regular enemies not previously built, across four passes — Zombie Officer,
    Skeleton Knight, Giant Skeleton, Zombie Soldier, Winged Skeleton, Beam Skeleton, Skull Archer, Waiter
-   Skeleton, Dead Crusader, Golem — as recolored zombie/skeleton/armoredSkeleton variants (the only
-   reskinnable assets available), each dropping its own real canon soul, placed into two existing rooms
-   each. Also gave `axeArmor` and `bat` — already-existing, already-correctly-named enemies — their real
-   canon Bullet Souls, at zero new-enemy cost.
+   Skeleton, Dead Crusader, Golem, Evil Butcher, Skull Millone — as recolored zombie/skeleton/
+   armoredSkeleton variants (the only reskinnable assets available), each dropping its own real canon
+   soul, placed into two existing rooms each. Also gave `axeArmor` and `bat` — already-existing,
+   already-correctly-named enemies — their real canon Bullet Souls, at zero new-enemy cost.
 
 Still open, for a later pass if pursued:
 
-4. More real canon regular enemies remain unbuilt (e.g. Ectoplasm, Poison Worm, Minotaur) but need
-   either a new sprite or a less obvious reskin fit than the ten just added.
-5. Curate a subset of the remaining ~75 souls (mostly Bullet/Enchant, tied to enemies not built here)
+4. More real canon regular enemies remain unbuilt (e.g. Ectoplasm, Poison Worm, Minotaur, Iron Golem,
+   Wooden Golem) but need either a new sprite, or reuse the demon-Files sheet already spoken for by
+   sealGuardian/Big Golem/Manticore/Legion, or start feeling like the same 3 reskins wearing thin.
+5. Curate a subset of the remaining ~70 souls (mostly Bullet/Enchant, tied to enemies not built here)
    that's realistic for this engine's scope — not all of them need modeling, but what gets modeled
    should stay honestly sourced.
 6. If real mechanical differentiation matters more than naming (distinct familiars, shields, projectile
