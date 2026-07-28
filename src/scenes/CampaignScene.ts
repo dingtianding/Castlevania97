@@ -4,7 +4,7 @@ import { ModeSelectScene } from './ModeSelectScene.ts'
 import { PauseScene } from './PauseScene.ts'
 import { AssetManager } from '../assets/AssetManager.ts'
 import { AUDIO_MANIFEST } from '../assets/manifest.ts'
-import { addCampaignAbility, addCampaignBlueSoul, addCampaignBulletSoul, addCampaignConsumable, addCampaignEquipment, addCampaignPerk, addCampaignRelic, addCampaignSoul, equipCampaignBlueSoul, equipCampaignBulletSoul, equipCampaignItem, equipCampaignYellowSoul, equippedDefs, getCampaignChapter, getCampaignNode, grantCampaignRewards, hasWorldFlag, loadCampaignSave, markCampaignVisited, MAX_LEVEL, saveCampaignSave, setWorldFlag, unequipCampaignSlot, useCampaignConsumable, xpForNextLevel } from '../data/campaign.ts'
+import { addCampaignAbility, addCampaignBlueSoul, addCampaignBulletSoul, addCampaignConsumable, addCampaignEquipment, addCampaignPerk, addCampaignRelic, addCampaignSoul, CAMPAIGN_NODES, equipCampaignBlueSoul, equipCampaignBulletSoul, equipCampaignItem, equipCampaignYellowSoul, equippedDefs, getCampaignChapter, getCampaignNode, grantCampaignRewards, hasWorldFlag, loadCampaignSave, markCampaignVisited, MAX_LEVEL, saveCampaignSave, setWorldFlag, unequipCampaignSlot, useCampaignConsumable, xpForNextLevel } from '../data/campaign.ts'
 import { draftPowerUps, powerUpStacks, type PowerUpDef } from '../data/powerups.ts'
 import { BASE_BULLET_SOUL, bulletSoulForEnemy, getBulletSoul, type BulletSoulDef } from '../data/bulletSouls.ts'
 import { BASE_BLUE_SOUL, blueSoulForEnemy, getBlueSoul, type BlueSoulEffect } from '../data/blueSouls.ts'
@@ -180,6 +180,11 @@ const DIVE_SPEED = 15
 // A 45° air slide (Down + a direction while airborne): equal x/y speed.
 const DIVE_DIAG_SPEED = 9.5
 const DIVE_DAMAGE = 16
+// Black Panther Soul (Sonic Dash): while running with it active, pulse a flat
+// hit to every overlapping enemy every PANTHER_HIT_INTERVAL ticks — a trailing
+// shockwave rather than a per-frame instant-kill.
+const PANTHER_DASH_DAMAGE = 10
+const PANTHER_HIT_INTERVAL = 10
 // A low tunnel's floor gap — a standing player is blocked, a sliding one fits.
 const CRAWL_GAP = 46
 const JUMP_VELOCITY = -15.5
@@ -204,6 +209,11 @@ const STAIR_GRAB = 22
 const HURT_TICKS = 20
 const INVULNERABLE_TICKS = 72
 const DEBUG_HITBOXES = new URLSearchParams(location.search).has('hitbox')
+// Dev-only: ?debug grants every traversal ability on load and adds a
+// Backquote-toggled warp-to-any-room overlay, so testing a specific room/enemy
+// doesn't require a real playthrough to reach it. Never on by default.
+const DEBUG_MODE = new URLSearchParams(location.search).has('debug')
+const DEBUG_ABILITIES = ['double-jump', 'silver-key', 'high-jump', 'slide', 'back-dash']
 // Optional GBA-style downscale of the game world — OFF by default so the source
 // art stays crisp. Opt in with ?pixel; PIXELATE_FACTOR tunes the chunkiness.
 const GBA_PIXELATE = new URLSearchParams(location.search).has('pixel')
@@ -516,6 +526,9 @@ class CastleActor {
   private batBob = 0
   /** The eased baseline height the diving bat undulates around. */
   private batCenterY = 0
+  /** Direction locked in once the dive starts, so the bat commits through and
+   *  off-screen instead of homing in on (and sticking to) the player's x. */
+  private batDiveDir: Facing = 1
   /** Ticks alive — drives the timed despawn of ambient spawned zombies. */
   ageTicks = 0
   /** Force removal next filter pass (flew off-screen / timed out), no reward. */
@@ -716,16 +729,18 @@ class CastleActor {
       if (Math.abs(px - this.position.x) < BAT_AGGRO_X) {
         this.batPhase = 'dive'
         this.batCenterY = this.position.y // ease down from where it roosted
+        this.batDiveDir = px >= this.position.x ? 1 : -1
       }
     } else {
       // Drop to the player's standing-attack height, then cruise slowly toward
-      // them, flying in a gentle up/down wave.
+      // them, flying in a gentle up/down wave. Direction is locked at dive
+      // start (batDiveDir) so the bat commits through and off-screen instead
+      // of re-tracking the player's x every frame and stalling on top of them.
       const targetY = py - BAT_ATTACK_HEIGHT
       this.batCenterY += (targetY - this.batCenterY) * 0.05
-      const dir: Facing = px >= this.position.x ? 1 : -1
-      this.position.x += dir * BAT_CRUISE_SPEED
+      this.position.x += this.batDiveDir * BAT_CRUISE_SPEED
       this.position.y = this.batCenterY + Math.sin(this.batBob * BAT_WAVE_FREQ) * BAT_WAVE_AMP
-      this.facing = dir
+      this.facing = this.batDiveDir
     }
     this.state = 'idle'
     this.updateAnimator()
@@ -1584,6 +1599,7 @@ export class CampaignScene extends Scene {
   private hitstop = 0
   private flashTicks = 0
   private contactHitCooldown = 0
+  private pantherHitCooldown = 0
   private defeatTicks = 0
   private bossIntroTicks = 0
   // Zone title card: freeze timer + name for the "first time entering a zone" banner.
@@ -1642,6 +1658,9 @@ export class CampaignScene extends Scene {
   private warpTargets: string[] = []
   private warpIndex = 0
   private warpNoticeTicks = 0
+  // Debug-only warp-to-any-room overlay (Backquote), gated by DEBUG_MODE.
+  private showDebugWarp = false
+  private debugWarpIndex = 0
   private showMenu = false
   private menuIndex = 0
   private menuReturn = false
@@ -1895,6 +1914,40 @@ export class CampaignScene extends Scene {
       }
       return
     }
+    if (DEBUG_MODE && e.code === 'Backquote' && !this.showMenu && !this.showMap && !this.showWarp) {
+      e.preventDefault()
+      this.showDebugWarp = !this.showDebugWarp
+      this.debugWarpIndex = CAMPAIGN_NODES.findIndex((n) => n.id === this.node.id)
+      if (this.debugWarpIndex < 0) this.debugWarpIndex = 0
+      return
+    }
+    if (this.showDebugWarp) {
+      const n = CAMPAIGN_NODES.length
+      if (e.code === 'KeyA' || e.code === 'ArrowLeft' || e.code === 'KeyW' || e.code === 'ArrowUp') {
+        e.preventDefault()
+        this.debugWarpIndex = (this.debugWarpIndex - 1 + n) % n
+        this.ctx.audio.swing()
+        return
+      }
+      if (e.code === 'KeyD' || e.code === 'ArrowRight' || e.code === 'KeyS' || e.code === 'ArrowDown') {
+        e.preventDefault()
+        this.debugWarpIndex = (this.debugWarpIndex + 1) % n
+        this.ctx.audio.swing()
+        return
+      }
+      if (e.code === 'Space' || e.code === 'Escape' || isMenuCancel(e.code)) {
+        e.preventDefault()
+        this.showDebugWarp = false
+        return
+      }
+      if (isMenuConfirm(e.code)) {
+        e.preventDefault()
+        const target = CAMPAIGN_NODES[this.debugWarpIndex]
+        this.showDebugWarp = false
+        if (target) this.warpTo(target.id)
+      }
+      return
+    }
     if (this.showWarp) {
       const n = this.warpTargets.length
       if (e.code === 'KeyA' || e.code === 'ArrowLeft' || e.code === 'KeyW' || e.code === 'ArrowUp') {
@@ -2108,6 +2161,10 @@ export class CampaignScene extends Scene {
     document.addEventListener('visibilitychange', this.onVisibilityChange)
     this.ctx.renderer.canvas.addEventListener('pointerdown', this.onPointerDown)
     this.reloadFromSave()
+    if (DEBUG_MODE) {
+      for (const id of DEBUG_ABILITIES) this.save = addCampaignAbility(this.save, id)
+      this.applyAbilities()
+    }
   }
 
   override exit(): void {
@@ -2137,8 +2194,9 @@ export class CampaignScene extends Scene {
     this.blink += 1
     if (this.flashTicks > 0) this.flashTicks -= 1
     if (this.contactHitCooldown > 0) this.contactHitCooldown -= 1
+    if (this.pantherHitCooldown > 0) this.pantherHitCooldown -= 1
     if (this.levelUpTicks > 0) this.levelUpTicks -= 1
-    if (this.ending || this.drafting || this.perkChoosing || this.levelUpScreen || this.shopping || this.showStatus || this.showEquipment || this.showSouls || this.showItems || this.showMap || this.showWarp || this.showMenu) return
+    if (this.ending || this.drafting || this.perkChoosing || this.levelUpScreen || this.shopping || this.showStatus || this.showEquipment || this.showSouls || this.showItems || this.showMap || this.showWarp || this.showDebugWarp || this.showMenu) return
     if (this.defeatTicks > 0) {
       this.defeatTicks += 1
       if (this.defeatTicks > DEFEAT_RETRY_TICKS) this.reloadNode(this.node.id, true)
@@ -2325,6 +2383,7 @@ export class CampaignScene extends Scene {
     else if (this.showMenu) { this.drawMenu(); if (this.confirmTitle) this.drawTitleConfirm() }
     else if (this.showMap) this.drawMap()
     else if (this.showWarp) this.drawWarpSelect()
+    else if (this.showDebugWarp) this.drawDebugWarp()
     else if (this.showEquipment) this.drawEquipment()
     else if (this.showSouls) this.drawSouls()
     else if (this.showItems) this.drawItems()
@@ -2556,6 +2615,24 @@ export class CampaignScene extends Scene {
   }
 
   private resolveCombat(): void {
+    // Black Panther Soul (Sonic Dash): while running with it equipped and
+    // held, pulse damage into every enemy the trailing shockwave overlaps.
+    if (this.blueBuffEffect === 'panther' && this.player.state === 'run' && this.pantherHitCooldown <= 0) {
+      const box = this.player.hurtbox()
+      let hitAny = false
+      for (const enemy of this.enemies) {
+        if (enemy.isDead || !rectsOverlap(box, enemy.hurtbox())) continue
+        if (!enemy.applyFlatDamage(PANTHER_DASH_DAMAGE, this.player.position.x, -3, this.playerDamageMult)) continue
+        hitAny = true
+        this.spawnDamageNumber(enemy, '#c9a6ff')
+        if (enemy.isDead) this.flashTicks = BIG_HIT_FLASH_TICKS
+      }
+      if (hitAny) {
+        this.pantherHitCooldown = PANTHER_HIT_INTERVAL
+        this.ctx.audio.hit()
+        this.hitstop = Math.max(this.hitstop, 3)
+      }
+    }
     // A diving slam damages every enemy it drops onto (each once per dive).
     if (this.player.isDiving) {
       const dbox = this.player.diveHitbox()
@@ -2810,7 +2887,7 @@ export class CampaignScene extends Scene {
   /** Multiplier a live Blue buff applies to the given stat (1 = no effect). */
   private blueBuffMult(effect: BlueSoulEffect): number {
     if (this.blueBuffEffect !== effect) return 1
-    return effect === 'aegis' ? 0.4 : effect === 'frenzy' ? 1.45 : 1.4
+    return effect === 'aegis' ? 0.4 : effect === 'frenzy' ? 1.45 : effect === 'panther' ? 1.55 : 1.4
   }
 
   /** Curve a homing soul bolt toward the nearest live enemy it has not hit. */
@@ -2994,7 +3071,7 @@ export class CampaignScene extends Scene {
   }
 
   private computeMoveSpeedMult(): number {
-    return this.runMods.moveSpeedMultiplier * this.soulMods.moveSpeedMultiplier * this.equipMods.moveSpeedMultiplier * (1 + this.perkStacks('swiftness') * 0.06) * this.blueBuffMult('haste')
+    return this.runMods.moveSpeedMultiplier * this.soulMods.moveSpeedMultiplier * this.equipMods.moveSpeedMultiplier * (1 + this.perkStacks('swiftness') * 0.06) * this.blueBuffMult('haste') * this.blueBuffMult('panther')
   }
 
   private computeMeterGainMult(): number {
@@ -3885,7 +3962,7 @@ export class CampaignScene extends Scene {
     // Active guardian buff: its label pulses to the right of the meters while the
     // ; button is held (MP itself is the draining resource, shown by the MP bar).
     if (this.blueBuffEffect !== null) {
-      const label = this.blueBuffEffect === 'glide' ? 'GLIDE' : this.blueBuffEffect === 'aegis' ? 'WARD' : this.blueBuffEffect === 'frenzy' ? 'FRENZY' : 'HASTE'
+      const label = this.blueBuffEffect === 'glide' ? 'GLIDE' : this.blueBuffEffect === 'aegis' ? 'WARD' : this.blueBuffEffect === 'frenzy' ? 'FRENZY' : this.blueBuffEffect === 'panther' ? 'SONIC DASH' : 'HASTE'
       ctx.textAlign = 'left'
       ctx.textBaseline = 'middle'
       ctx.font = '8px "Press Start 2P", monospace'
@@ -4381,6 +4458,46 @@ export class CampaignScene extends Scene {
     ctx.fillStyle = '#5a567a'
     ctx.font = '8px "Press Start 2P", monospace'
     ctx.fillText('← →  SELECT    J  WARP    SPACE  CLOSE', width / 2, height - 40)
+  }
+
+  /** Dev-only (DEBUG_MODE): warp to ANY room, discovered or not — unlike
+   *  drawWarpSelect this isn't limited to found warp pads, so it can reach a
+   *  specific room/enemy directly for testing. */
+  private drawDebugWarp(): void {
+    const { ctx } = this.ctx.renderer
+    const { width, height } = this.ctx
+    ctx.fillStyle = 'rgba(6, 5, 12, 0.94)'
+    ctx.fillRect(0, 0, width, height)
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'top'
+    ctx.fillStyle = '#8ae06a'
+    ctx.font = '18px "Press Start 2P", monospace'
+    ctx.fillText('DEBUG WARP', width / 2, 56)
+    ctx.fillStyle = '#8a8aa0'
+    ctx.font = '9px "Press Start 2P", monospace'
+    ctx.fillText('ANY ROOM, DISCOVERED OR NOT', width / 2, 84)
+
+    const target = CAMPAIGN_NODES[this.debugWarpIndex]
+    this.mapRenderer.draw(
+      ctx,
+      this.mapService,
+      { x: 100, y: 112, width: width - 200, height: height - 240, cellSize: 48 },
+      { pulse: 1, showConnections: true, fit: true, highlightRoomId: target?.id },
+    )
+
+    if (target) {
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'alphabetic'
+      ctx.fillStyle = '#e8d4a0'
+      ctx.font = '11px "Press Start 2P", monospace'
+      ctx.fillText(target.title.toUpperCase(), width / 2, height - 92)
+      ctx.fillStyle = '#7a8ab0'
+      ctx.font = '8px "Press Start 2P", monospace'
+      ctx.fillText(`${this.debugWarpIndex + 1} / ${CAMPAIGN_NODES.length}`, width / 2, height - 74)
+    }
+    ctx.fillStyle = '#5a567a'
+    ctx.font = '8px "Press Start 2P", monospace'
+    ctx.fillText('WASD/ARROWS  SELECT    J  WARP    SPACE  CLOSE', width / 2, height - 40)
   }
 
   /** Small live map in the top-right corner during gameplay. */

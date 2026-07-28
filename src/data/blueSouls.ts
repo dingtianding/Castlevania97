@@ -4,7 +4,7 @@
  * is always owned, and stronger guardians drop from certain enemies. Owned blue
  * souls live on the campaign save; only the equipped one is castable.
  */
-export type BlueSoulEffect = 'glide' | 'aegis' | 'frenzy' | 'haste'
+export type BlueSoulEffect = 'glide' | 'aegis' | 'frenzy' | 'haste' | 'panther'
 
 export interface BlueSoulDef {
   id: string
@@ -23,27 +23,40 @@ export interface BlueSoulDef {
   base?: boolean
 }
 
-export const BASE_BLUE_SOUL = 'guard-flight'
+export const BASE_BLUE_SOUL = 'guard-panther'
 
-// Canon check (see docs/ARIA_PARITY.md): guard-flight (Flying Armor) is an exact
-// canon match. guard-golem and guard-great-armor are real canon Guardian souls
-// approximated onto this engine's four-effect model (their true canon effects —
-// a rock-arm melee attachment and a lightning-wreathed STR buff — are both
+// Canon check (see docs/ARIA_PARITY.md): guard-panther (Black Panther, "Sonic
+// Dash" — real speed boost + real contact damage, see CampaignScene's panther
+// hit check) and guard-flight (Flying Armor) are both exact canon matches.
+// guard-golem and guard-great-armor are real canon Guardian souls approximated
+// onto this engine's four-effect model (their true canon effects — a rock-arm
+// melee attachment and a lightning-wreathed STR buff — are both
 // attack-boost-flavored, so both map to 'frenzy'; only the numbers differ).
 // guard-manticore approximates Manticore's "charging beast form" as a speed
 // buff, the closest available slot. guard-bulwark has no confirmed canon
 // Guardian-soul source among enemies built here and is labeled original.
 export const BLUE_SOUL_POOL: readonly BlueSoulDef[] = [
   {
+    id: 'guard-panther',
+    name: 'Black Panther Soul',
+    dropChance: 0,
+    mpCost: 32,
+    cooldown: 140,
+    duration: 240,
+    effect: 'panther',
+    blurb: 'Canon effect: Sonic Dash — run at high speed trailing a damaging shockwave, weak early but able to flatten lesser enemies once you have leveled up.',
+    base: true,
+  },
+  {
     id: 'guard-flight',
     name: 'Flying Armor',
-    dropChance: 0,
+    enemyId: 'bat',
+    dropChance: 0.2,
     mpCost: 28,
     cooldown: 120,
     duration: 260,
     effect: 'glide',
     blurb: 'Ride the air — greatly slow your fall for a while.',
-    base: true,
   },
   {
     id: 'guard-golem',
