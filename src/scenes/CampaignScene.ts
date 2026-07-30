@@ -31,7 +31,7 @@ import { clamp, rectsOverlap } from '../core/math.ts'
 import type { Rng } from '../core/rng.ts'
 import type { Facing, Rect, Vec2 } from '../types.ts'
 import type { Renderer } from '../render/Renderer.ts'
-import { Animator, drawSprite, makeSheet, type SpriteSheet } from '../render/SpriteRenderer.ts'
+import { Animator, makeSheet, type SpriteSheet } from '../render/SpriteRenderer.ts'
 import { computeHitbox, isActiveAt, totalFrames, type AttackMove } from '../combat/AttackMove.ts'
 
 const ROOM_WIDTH = 1680
@@ -1290,7 +1290,7 @@ class CastleActor {
       const H = this.def.visual.hurtbox.height * ACTOR_SCALE * 1.3
       ctx.save()
       ctx.beginPath(); ctx.rect(fx - 130, FLOOR_Y - 4000, 260, 4000); ctx.clip()
-      this.drawBody(renderer, fx, fy + (1 - prog) * H)
+      this.drawStick(ctx, fx, fy + (1 - prog) * H)
       ctx.restore()
       return
     }
@@ -1303,9 +1303,9 @@ class CastleActor {
     ctx.globalAlpha = alpha
     if (this.state === 'dash') {
       ctx.globalAlpha = alpha * 0.22
-      this.drawBody(renderer, fx - this.dashDir * 26, fy)
+      this.drawStick(ctx, fx - this.dashDir * 26, fy)
       ctx.globalAlpha = alpha * 0.44
-      this.drawBody(renderer, fx - this.dashDir * 13, fy)
+      this.drawStick(ctx, fx - this.dashDir * 13, fy)
       ctx.globalAlpha = alpha
     }
     if (this.isSliding) {
@@ -1314,29 +1314,10 @@ class CastleActor {
       ctx.scale(1, 0.5)
       ctx.translate(0, -fy)
     }
-    this.drawBody(renderer, fx, fy)
+    if (this.def.id === 'bat') this.drawBat(ctx, fx, fy)
+    else if (this.def.id === 'creakingSkull') this.drawCreakingSkull(ctx, fx, fy)
+    else this.drawStick(ctx, fx, fy)
     ctx.restore()
-  }
-
-  /** Dispatch to the right body-drawer: the bat and Creaking Skull keep their
-   *  bespoke procedural shapes (no real sprite art exists for either — see
-   *  each method's own comment), everyone else — the player included — draws
-   *  their actual sprite-sheet animation for the current state. */
-  private drawBody(renderer: Renderer, fx: number, fy: number): void {
-    if (this.def.id === 'bat') this.drawBat(renderer.ctx, fx, fy)
-    else if (this.def.id === 'creakingSkull') this.drawCreakingSkull(renderer.ctx, fx, fy)
-    else this.drawSpriteBody(renderer, fx, fy)
-  }
-
-  /** Draw the real sprite-sheet frame for the actor's current state, anchored
-   *  at its feet (fx, fy) — mirrors the proven anchor math in Fighter.render(). */
-  private drawSpriteBody(renderer: Renderer, fx: number, fy: number): void {
-    const sheet = this.animator.activeSheet
-    const { scale, anchorX, anchorY } = this.def.visual
-    const effAnchorX = this.facing === 1 ? anchorX : sheet.frameWidth - anchorX
-    const drawX = fx - effAnchorX * scale
-    const drawY = fy - anchorY * scale
-    drawSprite(renderer, sheet, this.animator.currentFrame, drawX, drawY, scale, this.facing)
   }
 
   /** A small flapping bat: body, ears, and two wings whose spread animates. */
@@ -1440,6 +1421,121 @@ class CastleActor {
     return this.def.color ?? (this.isBoss ? '#d0846a' : '#cdc6b2')
   }
 
+  /** Placeholder stick-figure art, posed by state, sized to the hurtbox. */
+  private drawStick(ctx: CanvasRenderingContext2D, fx: number, fy: number): void {
+    const H = this.def.visual.hurtbox.height * ACTOR_SCALE * 1.3
+    const f = this.facing
+    const col = this.bodyColor()
+    const lw = Math.max(2, H * 0.06)
+    const headR = H * 0.12
+    ctx.save()
+    ctx.strokeStyle = col
+    ctx.fillStyle = col
+    ctx.lineWidth = lw
+    ctx.lineCap = 'round'
+    ctx.lineJoin = 'round'
+
+    if (this.state === 'death') {
+      // A crumpled heap on the floor.
+      const hy = fy - H * 0.16
+      ctx.beginPath(); ctx.arc(fx - f * H * 0.22, hy, headR, 0, Math.PI * 2); ctx.fill()
+      ctx.beginPath(); ctx.moveTo(fx - f * H * 0.14, hy); ctx.lineTo(fx + f * H * 0.24, fy - H * 0.03); ctx.stroke()
+      ctx.beginPath(); ctx.moveTo(fx + f * H * 0.02, fy - H * 0.12); ctx.lineTo(fx + f * H * 0.3, fy); ctx.stroke()
+      ctx.restore()
+      return
+    }
+
+    const st = this.state
+    // Crouching (and the crouch slash) compresses the figure toward the floor.
+    const crouched = st === 'crouch' || this.attackMove?.id === 'crouch-slash'
+    const headCy = crouched ? fy - H * 0.52 : fy - H + headR
+    const shoulderY = crouched ? fy - H * 0.44 : fy - H * 0.70
+    const hipY = crouched ? fy - H * 0.26 : fy - H * 0.42
+    let legL = { x: fx - H * 0.12, y: fy }
+    let legR = { x: fx + H * 0.12, y: fy }
+    let armL = { x: fx - H * 0.17, y: hipY - H * 0.02 }
+    let armR = { x: fx + H * 0.17, y: hipY - H * 0.02 }
+    let weapon: { x: number; y: number } | null = null
+    let lean = 0
+
+    if (st === 'run' || st === 'dash') {
+      const ph = Math.sin(this.position.x * 0.09)
+      legL = { x: fx - ph * H * 0.24, y: fy }
+      legR = { x: fx + ph * H * 0.24, y: fy }
+      armL = { x: fx + ph * H * 0.2, y: shoulderY + H * 0.16 }
+      armR = { x: fx - ph * H * 0.2, y: shoulderY + H * 0.16 }
+      lean = f * (st === 'dash' ? H * 0.16 : H * 0.07)
+    } else if (st === 'jump' || st === 'fall') {
+      legL = { x: fx - H * 0.15, y: fy - H * 0.05 }
+      legR = { x: fx + H * 0.15, y: fy - H * 0.05 }
+      const up = st === 'jump' ? -H * 0.12 : H * 0.04
+      armL = { x: fx - H * 0.2, y: shoulderY + up }
+      armR = { x: fx + H * 0.2, y: shoulderY + up }
+    } else if (st === 'dive') {
+      // A plunge: legs snapped together downward, arms swept up overhead.
+      legL = { x: fx - H * 0.05, y: fy }
+      legR = { x: fx + H * 0.05, y: fy }
+      armL = { x: fx - H * 0.16, y: shoulderY - H * 0.16 }
+      armR = { x: fx + H * 0.16, y: shoulderY - H * 0.16 }
+    } else if (st === 'crouch') {
+      // Ducked low, arms drawn in over bent legs.
+      legL = { x: fx - H * 0.22, y: fy }
+      legR = { x: fx + H * 0.22, y: fy }
+      armL = { x: fx - H * 0.14, y: hipY + H * 0.03 }
+      armR = { x: fx + H * 0.14, y: hipY + H * 0.03 }
+    } else if (st === 'attack') {
+      const crouchSlash = this.attackMove?.id === 'crouch-slash'
+      lean = f * H * 0.05
+      armL = { x: fx - f * H * 0.1, y: hipY }
+      const wp = this.weaponProfile
+      const wlen = wp ? (wp.reach + wp.width) * 0.5 : H * 0.36
+      if (crouchSlash) {
+        // A low sweep skimming the ground.
+        legL = { x: fx - H * 0.22, y: fy }
+        legR = { x: fx + H * 0.22, y: fy }
+        armR = { x: fx + f * H * 0.16, y: hipY + H * 0.04 }
+        weapon = { x: armR.x + f * wlen, y: fy - H * 0.06 }
+      } else if (wp?.swing === 'chop') {
+        // Overhead cleave: the blade sweeps from raised-up-front down to in front,
+        // animated across the swing so it reads as a real up-to-down chop.
+        legL = { x: fx - f * H * 0.16, y: fy }
+        legR = { x: fx + f * H * 0.08, y: fy }
+        const total = this.attackMove ? totalFrames(this.attackMove) : 24
+        const p = clamp(this.attackTick / total, 0, 1)
+        const a = ((-82 + 128 * p) * Math.PI) / 180 // -82° (up) → +46° (down/front)
+        armR = { x: fx + f * H * 0.14, y: shoulderY - H * 0.04 }
+        weapon = { x: armR.x + f * Math.cos(a) * wlen, y: armR.y + Math.sin(a) * wlen }
+      } else {
+        legL = { x: fx - f * H * 0.16, y: fy }
+        legR = { x: fx + f * H * 0.08, y: fy }
+        armR = { x: fx + f * H * 0.3, y: shoulderY + H * 0.06 }
+        weapon = { x: armR.x + f * wlen, y: shoulderY + H * 0.1 }
+      }
+    } else if (st === 'hurt') {
+      lean = -f * H * 0.11
+      armL = { x: fx - H * 0.23, y: shoulderY }
+      armR = { x: fx + H * 0.23, y: shoulderY }
+    }
+
+    const topX = fx + lean
+    const shoulderX = (topX + fx) / 2
+    ctx.beginPath(); ctx.arc(topX, headCy, headR, 0, Math.PI * 2); ctx.fill()
+    ctx.beginPath(); ctx.moveTo(topX, headCy + headR); ctx.lineTo(fx, hipY); ctx.stroke()
+    ctx.beginPath()
+    ctx.moveTo(shoulderX, shoulderY); ctx.lineTo(armL.x, armL.y)
+    ctx.moveTo(shoulderX, shoulderY); ctx.lineTo(armR.x, armR.y)
+    ctx.stroke()
+    ctx.beginPath()
+    ctx.moveTo(fx, hipY); ctx.lineTo(legL.x, legL.y)
+    ctx.moveTo(fx, hipY); ctx.lineTo(legR.x, legR.y)
+    ctx.stroke()
+    if (weapon) {
+      ctx.strokeStyle = this.weaponProfile?.color ?? '#e8e2d0'
+      ctx.lineWidth = lw * 0.9
+      ctx.beginPath(); ctx.moveTo(armR.x, armR.y); ctx.lineTo(weapon.x, weapon.y); ctx.stroke()
+    }
+    ctx.restore()
+  }
 
   private drawGlow(renderer: Renderer, cameraX: number): void {
     const enraged = this.isEnraged
