@@ -29,10 +29,11 @@ export interface SoulModifiers {
 
 // Canon check (see docs/ARIA_PARITY.md): zombie-soul, headhunter-soul,
 // creaking-skull-soul, skeleton-knight-soul, zombie-officer-soul,
-// dead-crusader-soul, golem-soul, and arc-demon-soul all correspond to a real
-// Aria of Sorrow soul-dropper. The "-original" entries are homebrew for
-// enemies with no confirmed canon soul — kept as gameplay content but
-// labeled honestly instead of faking a source.
+// dead-crusader-soul, golem-soul, arc-demon-soul, iron-golem-soul,
+// wooden-golem-soul, and succubus-soul all correspond to a real Aria of
+// Sorrow soul-dropper. The "-original" entries are homebrew for enemies with
+// no confirmed canon soul — kept as gameplay content but labeled honestly
+// instead of faking a source.
 export const SOUL_POOL: readonly SoulDef[] = [
   {
     id: 'zombie-soul',
@@ -81,6 +82,30 @@ export const SOUL_POOL: readonly SoulDef[] = [
     dropChance: 0.2,
     blurb: 'Canon effect: +40% STR, drains enemy HP on hit. The STR boost is a direct match; the HP-drain-on-hit isn’t modeled yet.',
     damageMultiplier: 1.4,
+  },
+  {
+    id: 'iron-golem-soul',
+    name: 'Iron Golem Soul',
+    enemyId: 'ironGolem',
+    dropChance: 0.22,
+    blurb: 'Canon effect: no stun/flinch from weak enemy attacks. That poise mechanic isn’t modeled yet, so it grants +14 max health instead.',
+    maxHealthBonus: 14,
+  },
+  {
+    id: 'wooden-golem-soul',
+    name: 'Wooden Golem Soul',
+    enemyId: 'woodenGolem',
+    dropChance: 0.24,
+    blurb: 'Canon effect: faster MP regen. This engine has no MP-regen mechanic, so it grants faster super-meter gain instead, the closest resource this engine has.',
+    meterGainMultiplier: 1.12,
+  },
+  {
+    id: 'succubus-soul',
+    name: 'Succubus Soul',
+    enemyId: 'succubus',
+    dropChance: 0.2,
+    blurb: 'Canon effect: heal on landing a hit. That lifesteal-on-attack mechanic isn’t modeled yet, so it grants +10 max health instead.',
+    maxHealthBonus: 10,
   },
   {
     id: 'headhunter-soul',

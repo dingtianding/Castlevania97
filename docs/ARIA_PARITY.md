@@ -19,25 +19,26 @@ and `src/data/campaign.ts`).
 (Gravekeeper) all match canon in name-in-spirit and effect — implemented as relic pickups /base moves
 rather than boss/enemy soul drops (a deliberate simplification, not an oversight).
 
-**Sixteen new canon regular enemies added, across five passes**, plus souls added to two enemies that
+**Nineteen new canon regular enemies added, across six passes**, plus souls added to two enemies that
 already existed under the right canon name. Zombie Officer, Skeleton Knight, Giant Skeleton, Zombie
-Soldier, Winged Skeleton, Beam Skeleton, Skull Archer, Waiter Skeleton, Dead Crusader, Golem, Evil
-Butcher, and Skull Millone are recolored variants of the zombie/skeleton/armoredSkeleton sprite sheets
-(the only reskinnable assets this project had at first — see `ENEMY_GLOW` in `CampaignScene.ts` for the
-aura tint that tells each apart from its base at a glance). Tiny Devil, Demon Lord, Flame Demon, and Arc
-Demon open a fourth family, reusing the demon-Files sheet already used by Seal Guardian/Big
-Golem/Manticore/Legion but scaled down (0.36x–0.68x) so they read as regular threats, not mini-bosses.
-Separately, `axeArmor` and `bat` — already correctly canon-named enemies that had no soul at all —
-turned out to themselves be real canon Bullet Souls (Axe Armor: boomerang, Bat: sonar wave), so those
-were added directly with zero new enemy work. Each new/newly-souled enemy drops its own real canon
-soul — direct stat matches (Skeleton Knight, Dead Crusader, Golem, Arc Demon's STR portion),
-MP-cost-and-pattern matches (Giant Skeleton, Winged Skeleton, Beam Skeleton, Skull Archer, Axe Armor,
-Bat, Tiny Devil, Demon Lord, Flame Demon), and a few honestly-approximated ones where the canon effect
-needs a system this engine doesn't have yet (Zombie Officer's mid-air-KO heal, Zombie Soldier's
-timed-grenade fuse, Waiter Skeleton's damage-over-time, Axe Armor's boomerang return, Arc Demon's
-HP-drain-on-hit). Skull Archer and Beam Skeleton also got real kiting/stationary AI instead of falling
-back to generic melee-approach. All sixteen new enemies are placed into two existing rooms each,
-additively, so existing encounter balance is unchanged.
+Soldier, Winged Skeleton, Beam Skeleton, Skull Archer, Waiter Skeleton, Dead Crusader, Golem, Iron
+Golem, Wooden Golem, Evil Butcher, and Skull Millone are recolored variants of the
+zombie/skeleton/armoredSkeleton sprite sheets (the only reskinnable assets this project had at first —
+see `ENEMY_GLOW` in `CampaignScene.ts` for the aura tint that tells each apart from its base at a
+glance). Tiny Devil, Demon Lord, Flame Demon, Arc Demon, and Succubus open a fourth family, reusing the
+demon-Files sheet already used by Seal Guardian/Big Golem/Manticore/Legion but scaled down (0.36x–0.68x)
+so they read as regular threats, not mini-bosses. Separately, `axeArmor` and `bat` — already correctly
+canon-named enemies that had no soul at all — turned out to themselves be real canon Bullet Souls (Axe
+Armor: boomerang, Bat: sonar wave), so those were added directly with zero new enemy work. Each
+new/newly-souled enemy drops its own real canon soul — direct stat matches (Skeleton Knight, Dead
+Crusader, Golem, Arc Demon's STR portion), MP-cost-and-pattern matches (Giant Skeleton, Winged Skeleton,
+Beam Skeleton, Skull Archer, Axe Armor, Bat, Tiny Devil, Demon Lord, Flame Demon), and honestly-
+approximated ones where the canon effect needs a system this engine doesn't have yet (Zombie Officer's
+mid-air-KO heal, Zombie Soldier's timed-grenade fuse, Waiter Skeleton's damage-over-time, Axe Armor's
+boomerang return, Arc Demon's HP-drain-on-hit, Iron Golem's poise, Wooden Golem's MP regen, Succubus's
+lifesteal). Skull Archer and Beam Skeleton also got real kiting/stationary AI instead of falling back to
+generic melee-approach. All nineteen new enemies are placed into two existing rooms each, additively, so
+existing encounter balance is unchanged.
 
 **Souls have been renamed to their real canon identity where a match exists, honestly labeled
 "(original)" where it does not.** `souls.ts`, `blueSouls.ts`, and `bulletSouls.ts` now source
@@ -120,7 +121,7 @@ shields, projectile summons) would need new `BlueSoulEffect` variants and matchi
 | Gorgon | CON +12 | ❌ |
 | Gremlin | LCK +8 | ❌ |
 | Headhunter | Stats scale with souls collected | ✅ built — `headhunter-soul` in `souls.ts`, approximated as a flat all-round boost (no dynamic soul-count scaling) |
-| Iron Golem | No stun from weak hits | ❌ |
+| Iron Golem | No stun from weak hits | ✅ built — `iron-golem-soul` in `souls.ts`; poise mechanic not modeled, approximated as +14 max health |
 | Lilith | INT +8 | ❌ |
 | Lubicant | Lower HP = stronger attacks | ❌ |
 | Mimic | Gain money when hurt | ❌ |
@@ -132,12 +133,12 @@ shields, projectile summons) would need new `BlueSoulEffect` variants and matchi
 | Skeleton Knight | STR +4 | ✅ built — `skeleton-knight-soul` in `souls.ts`, direct match |
 | **Skula** | **Walk/breathe underwater ("Deep Seeker")** | ⚠️ built but misattributed, now labeled honestly — `drowned-soul` in `souls.ts` grants underwater breathing correctly but is sourced from `bigGolem` and marked "(original)" since no Skula enemy exists here yet |
 | Stolas | INT +16 | ❌ |
-| Succubus | Heal on landing a hit | ❌ |
+| Succubus | Heal on landing a hit | ✅ built — `succubus-soul`; lifesteal not modeled, approximated as +10 max health |
 | Triton | STR +16 | ❌ |
 | Tsuchinoko | Item prices −20% | ❌ |
 | Undine | Walk on top of water | ❌ |
 | White Dragon | CON +4 | ❌ |
-| Wooden Golem | Faster MP regen | ❌ |
+| Wooden Golem | Faster MP regen | ✅ built — `wooden-golem-soul`; no MP-regen mechanic exists, approximated as faster meter gain |
 | Zombie | Stronger while poisoned | ✅ built — `zombie-soul` in `souls.ts`, name + source correct; effect approximated as flat +12 max health since this engine has no poison status yet |
 | Zombie Officer | Restore HP if KO'd mid-jump | ✅ built — `zombie-officer-soul`, conditional trigger not modeled, approximated as +8 max health |
 
@@ -254,21 +255,21 @@ Done as of this pass:
    Seal Guardian, Dracula Shadow, and the Skula-flavored underwater effect) are labeled "(original)"
    instead of misrepresented as canon.
 
-3. ✅ Added sixteen real canon regular enemies not previously built, across five passes — Zombie Officer,
+3. ✅ Added nineteen real canon regular enemies not previously built, across six passes — Zombie Officer,
    Skeleton Knight, Giant Skeleton, Zombie Soldier, Winged Skeleton, Beam Skeleton, Skull Archer, Waiter
-   Skeleton, Dead Crusader, Golem, Evil Butcher, Skull Millone, Tiny Devil, Demon Lord, Flame Demon, Arc
-   Demon — the first twelve as recolored zombie/skeleton/armoredSkeleton variants, the last four opening
-   a fourth family on the demon-Files sheet (scaled down from Seal Guardian's boss proportions). Each
-   drops its own real canon soul, placed into two existing rooms each. Also gave `axeArmor` and `bat` —
-   already-existing, already-correctly-named enemies — their real canon Bullet Souls, at zero
-   new-enemy cost.
+   Skeleton, Dead Crusader, Golem, Iron Golem, Wooden Golem, Evil Butcher, Skull Millone, Tiny Devil,
+   Demon Lord, Flame Demon, Arc Demon, Succubus — the first fourteen as recolored
+   zombie/skeleton/armoredSkeleton variants, the last five opening a fourth family on the demon-Files
+   sheet (scaled down from Seal Guardian's boss proportions). Each drops its own real canon soul, placed
+   into two existing rooms each. Also gave `axeArmor` and `bat` — already-existing, already-correctly-
+   named enemies — their real canon Bullet Souls, at zero new-enemy cost.
 
 Still open, for a later pass if pursued:
 
-4. More real canon regular enemies remain unbuilt (e.g. Ectoplasm, Poison Worm, Minotaur, Iron Golem,
-   Wooden Golem, Cagnazzo, Succubus) but need either a new sprite or start feeling like the same 4
-   reskins (now including demon-Files) wearing thin.
-5. Curate a subset of the remaining ~65 souls (mostly Bullet/Enchant, tied to enemies not built here)
+4. More real canon regular enemies remain unbuilt (e.g. Ectoplasm, Poison Worm, Minotaur, Cagnazzo) but
+   need either a new sprite or start feeling like the same 4 reskins (now including demon-Files) worn
+   thin — at this point closing more of this list means genuinely new sprites, not further recolors.
+5. Curate a subset of the remaining ~60 souls (mostly Bullet/Enchant, tied to enemies not built here)
    that's realistic for this engine's scope — not all of them need modeling, but what gets modeled
    should stay honestly sourced.
 6. If real mechanical differentiation matters more than naming (distinct familiars, shields, projectile

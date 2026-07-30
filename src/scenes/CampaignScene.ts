@@ -324,6 +324,9 @@ const ENEMY_GLOW: Record<string, string> = {
   demonLord: '160,50,120',
   flameDemon: '224,100,40',
   arcDemon: '170,90,224',
+  ironGolem: '120,120,130',
+  woodenGolem: '160,130,90',
+  succubus: '200,60,140',
 }
 
 
@@ -5251,6 +5254,9 @@ function campaignEnemyHealth(enemyId: string, difficulty: 'easy' | 'normal' | 'h
   if (enemyId === 'demonLord') return difficulty === 'hard' ? 48 : 38
   if (enemyId === 'flameDemon') return difficulty === 'hard' ? 44 : 34
   if (enemyId === 'arcDemon') return 30
+  if (enemyId === 'ironGolem') return difficulty === 'hard' ? 118 : 96
+  if (enemyId === 'woodenGolem') return difficulty === 'hard' ? 84 : 68
+  if (enemyId === 'succubus') return 36
   return difficulty === 'easy' ? 28 : difficulty === 'normal' ? 40 : 52
 }
 

@@ -1,5 +1,5 @@
 import type { CharacterDef } from './characters/CharacterDef.ts'
-import { arcDemon, armoredSkeleton, axeArmor, bat, beamSkeleton, bigGolem, boneThrower, chaos, creakingSkull, deadCrusader, death, demonLord, evilButcher, flameDemon, ghoul, giantSkeleton, golem, greatArmor, headhunter, grey, legion, manticore, skeleton, skeletonKnight, skullArcher, skullMillone, tinyDevil, waiterSkeleton, wingedSkeleton, zombie, zombieOfficer, zombieSoldier } from './characters/castlevaniaCampaign.ts'
+import { arcDemon, armoredSkeleton, axeArmor, bat, beamSkeleton, bigGolem, boneThrower, chaos, creakingSkull, deadCrusader, death, demonLord, evilButcher, flameDemon, ghoul, giantSkeleton, golem, greatArmor, headhunter, grey, ironGolem, legion, manticore, skeleton, skeletonKnight, skullArcher, skullMillone, succubus, tinyDevil, waiterSkeleton, wingedSkeleton, woodenGolem, zombie, zombieOfficer, zombieSoldier } from './characters/castlevaniaCampaign.ts'
 import type { StageId } from './stages.ts'
 import { RELIC_POOL, type RelicId } from './relics.ts'
 import { SOUL_POOL } from './souls.ts'
@@ -413,7 +413,7 @@ export const CAMPAIGN_NODES: readonly CampaignNodeDef[] = [
       'Up a narrow stair the bell loft rings without hands. Red silences its marksmen and the toll dies in the rafters.',
     stage: 'cathedral',
     enemy: skeleton,
-    extraEnemies: [{ def: boneThrower, count: 1 }, { def: wingedSkeleton, count: 1 }, { def: flameDemon, count: 1 }],
+    extraEnemies: [{ def: boneThrower, count: 1 }, { def: wingedSkeleton, count: 1 }, { def: flameDemon, count: 1 }, { def: succubus, count: 1 }],
     difficulty: 'normal',
     nextIds: [],
     position: { x: 660, y: 120 },
@@ -459,7 +459,7 @@ export const CAMPAIGN_NODES: readonly CampaignNodeDef[] = [
       'Behind the study lies the archive, and in it the name the cult has been circling for years. Red commits it to memory and burns the rest.',
     stage: 'library',
     enemy: skeleton,
-    extraEnemies: [{ def: armoredSkeleton, count: 1 }, { def: axeArmor, count: 1 }, { def: wingedSkeleton, count: 1 }],
+    extraEnemies: [{ def: armoredSkeleton, count: 1 }, { def: axeArmor, count: 1 }, { def: wingedSkeleton, count: 1 }, { def: woodenGolem, count: 1 }],
     difficulty: 'hard',
     nextIds: ['dnc-ballroom'],
     position: { x: 460, y: 200 },
@@ -475,7 +475,7 @@ export const CAMPAIGN_NODES: readonly CampaignNodeDef[] = [
       'The ballroom’s music swells for no one. Red crosses the mirrored floor while the castle’s idea of guests circles him.',
     stage: 'throne_room',
     enemy: axeArmor,
-    extraEnemies: [{ def: ghoul, count: 2 }, { def: beamSkeleton, count: 1 }, { def: flameDemon, count: 1 }],
+    extraEnemies: [{ def: ghoul, count: 2 }, { def: beamSkeleton, count: 1 }, { def: flameDemon, count: 1 }, { def: succubus, count: 1 }],
     difficulty: 'hard',
     nextIds: ['dnc-greatarmor', 'dnc-tower'],
     position: { x: 360, y: 200 },
@@ -490,7 +490,7 @@ export const CAMPAIGN_NODES: readonly CampaignNodeDef[] = [
       'Behind a door the castle keeps for its swiftest, the west tower climbs three storeys of cold air. Bats nest in the dark above, and something the castle hoarded waits at the very top.',
     stage: 'throne_room',
     enemy: axeArmor,
-    extraEnemies: [{ def: bat, count: 2 }, { def: golem, count: 1 }],
+    extraEnemies: [{ def: bat, count: 2 }, { def: golem, count: 1 }, { def: ironGolem, count: 1 }],
     difficulty: 'hard',
     nextIds: ['cor-larder'],
     position: { x: 300, y: 200 },
@@ -598,7 +598,7 @@ export const CAMPAIGN_NODES: readonly CampaignNodeDef[] = [
       'A bridge of light arcs off to a lonely terrace. Red crosses it to break the archers picking at the garden from afar.',
     stage: 'outer_wall',
     enemy: skeleton,
-    extraEnemies: [{ def: armoredSkeleton, count: 1 }, { def: giantSkeleton, count: 1 }, { def: deadCrusader, count: 1 }],
+    extraEnemies: [{ def: armoredSkeleton, count: 1 }, { def: giantSkeleton, count: 1 }, { def: deadCrusader, count: 1 }, { def: woodenGolem, count: 1 }],
     difficulty: 'hard',
     nextIds: [],
     position: { x: 760, y: 90 },
@@ -629,7 +629,7 @@ export const CAMPAIGN_NODES: readonly CampaignNodeDef[] = [
       'The upper keep barely pretends to be a building now. Red holds his ground against everything the castle can still spare.',
     stage: 'throne_room',
     enemy: skeleton,
-    extraEnemies: [{ def: armoredSkeleton, count: 1 }, { def: boneThrower, count: 1 }, { def: giantSkeleton, count: 1 }, { def: golem, count: 1 }],
+    extraEnemies: [{ def: armoredSkeleton, count: 1 }, { def: boneThrower, count: 1 }, { def: giantSkeleton, count: 1 }, { def: golem, count: 1 }, { def: ironGolem, count: 1 }],
     difficulty: 'hard',
     nextIds: ['top-antechamber'],
     position: { x: 560, y: 20 },

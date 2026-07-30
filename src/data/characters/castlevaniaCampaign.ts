@@ -633,6 +633,40 @@ export const golem: CharacterDef = {
   },
 }
 
+// Iron Golem — a canon Aria of Sorrow enemy: an even more stubborn stonework
+// bruiser than the plain Golem. Reuses the armoredSkeleton/skeleton sheets.
+export const ironGolem: CharacterDef = {
+  ...armoredSkeleton,
+  id: 'ironGolem',
+  name: 'IRON GOLEM',
+  meta: {
+    ...armoredSkeleton.meta,
+    archetype: 'UNFLINCHING STONEWORK',
+    bio: 'Masonry bound in old iron bands. Weak strikes barely register — it keeps walking through them.',
+  },
+  moves: {
+    ...armoredSkeleton.moves,
+    heavy: { ...armoredSkeleton.moves.heavy, id: 'iron-golem-slam', damage: 17 },
+  },
+}
+
+// Wooden Golem — a canon Aria of Sorrow enemy: a lighter, older stonework
+// variant. Reuses the armoredSkeleton/skeleton sheets.
+export const woodenGolem: CharacterDef = {
+  ...armoredSkeleton,
+  id: 'woodenGolem',
+  name: 'WOODEN GOLEM',
+  meta: {
+    ...armoredSkeleton.meta,
+    archetype: 'HOLLOW OLD GUARDIAN',
+    bio: 'An older, hollower construct than the stone golems the castle keeps now. Slower, but it has not stopped moving in centuries.',
+  },
+  moves: {
+    ...armoredSkeleton.moves,
+    light: { ...armoredSkeleton.moves.light, id: 'wooden-golem-fist', damage: 11 },
+  },
+}
+
 // Evil Butcher — a canon Aria of Sorrow enemy: a zombie still clutching its
 // trade, flinging a cleaver rather than biting. Reuses the zombie sheets.
 export const evilButcher: CharacterDef = {
@@ -868,6 +902,24 @@ export const sealGuardian: CharacterDef = {
         hitbox: { offsetX: 28, offsetY: -72, width: 168, height: 72 },
       },
     },
+  },
+}
+
+// Succubus — a canon Aria of Sorrow enemy: a demon that heals on a landed
+// hit. Reuses the demon-Files sheet, scaled between Tiny Devil and Demon Lord.
+export const succubus: CharacterDef = {
+  ...sealGuardian,
+  id: 'succubus',
+  name: 'SUCCUBUS',
+  meta: {
+    ...sealGuardian.meta,
+    archetype: 'FEEDING DEMON',
+    bio: 'A demon that takes more from a hit than it gives. It fights like it has nothing to lose, because it heals whatever it loses back.',
+  },
+  visual: { ...sealGuardian.visual, scale: sealGuardian.visual.scale * 0.62 },
+  moves: {
+    ...sealGuardian.moves,
+    special: { ...sealGuardian.moves.special, id: 'succubus-drain-claw', damage: 11 },
   },
 }
 
@@ -1171,12 +1223,15 @@ export const CAMPAIGN_ENEMIES: readonly CharacterDef[] = [
   waiterSkeleton,
   deadCrusader,
   golem,
+  ironGolem,
+  woodenGolem,
   evilButcher,
   skullMillone,
   tinyDevil,
   demonLord,
   flameDemon,
   arcDemon,
+  succubus,
   ...CAMPAIGN_BOSSES,
 ]
 
