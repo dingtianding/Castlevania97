@@ -2,3 +2,7 @@ node_modules/
 .DS_Store
 dist/
 *.local
+# Reference art and screenshots kept locally, not part of the game assets
+# (all real assets live under assets/)
+/*.png
+/*.jpg
