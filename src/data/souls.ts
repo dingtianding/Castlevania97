@@ -30,10 +30,11 @@ export interface SoulModifiers {
 // Canon check (see docs/ARIA_PARITY.md): zombie-soul, headhunter-soul,
 // creaking-skull-soul, skeleton-knight-soul, zombie-officer-soul,
 // dead-crusader-soul, golem-soul, arc-demon-soul, iron-golem-soul,
-// wooden-golem-soul, and succubus-soul all correspond to a real Aria of
-// Sorrow soul-dropper. The "-original" entries are homebrew for enemies with
-// no confirmed canon soul — kept as gameplay content but labeled honestly
-// instead of faking a source.
+// wooden-golem-soul, succubus-soul, minotaur-soul, ectoplasm-soul, and
+// poison-worm-soul all correspond to a real Aria of Sorrow soul-dropper.
+// The "-original" entries are homebrew for enemies with no confirmed canon
+// soul — kept as gameplay content but labeled honestly instead of faking a
+// source.
 export const SOUL_POOL: readonly SoulDef[] = [
   {
     id: 'zombie-soul',
@@ -167,6 +168,30 @@ export const SOUL_POOL: readonly SoulDef[] = [
     blurb: 'Not from Aria of Sorrow — an original antagonist form made for this project, distinct from canon final boss Chaos. Original content: +15% attack, faster meter.',
     damageMultiplier: 1.15,
     meterGainMultiplier: 1.2,
+  },
+  {
+    id: 'minotaur-soul',
+    name: 'Minotaur Soul',
+    enemyId: 'minotaur',
+    dropChance: 0.24,
+    blurb: 'Canon effect: STR +8. A direct match — a solid, permanent attack boost.',
+    damageMultiplier: 1.08,
+  },
+  {
+    id: 'ectoplasm-soul',
+    name: 'Ectoplasm Soul',
+    enemyId: 'ectoplasm',
+    dropChance: 0.22,
+    blurb: 'Canon effect: curse immunity. No curse status exists in this engine yet, so it grants +6 max health instead.',
+    maxHealthBonus: 6,
+  },
+  {
+    id: 'poison-worm-soul',
+    name: 'Poison Worm Soul',
+    enemyId: 'poisonWorm',
+    dropChance: 0.22,
+    blurb: 'Canon effect: poison immunity. No poison status exists in this engine yet, so it grants +6 max health instead.',
+    maxHealthBonus: 6,
   },
   {
     id: 'drowned-soul',

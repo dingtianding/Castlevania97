@@ -997,6 +997,78 @@ export const arcDemon: CharacterDef = {
   },
 }
 
+// Minotaur — a canon Aria of Sorrow enemy: a horned brute swinging an axe.
+// Reuses the armoredSkeleton sheets; one of the four still-open candidates
+// named in docs/ARIA_PARITY.md's recommendation section.
+export const minotaur: CharacterDef = {
+  ...armoredSkeleton,
+  id: 'minotaur',
+  name: 'MINOTAUR',
+  meta: {
+    ...armoredSkeleton.meta,
+    archetype: 'HORNED BRUTE',
+    bio: 'A bull-headed brute left to guard the upper halls. It does not need finesse when the axe hits this hard.',
+  },
+  moves: {
+    ...armoredSkeleton.moves,
+    heavy: { ...armoredSkeleton.moves.heavy, id: 'minotaur-cleave', damage: 19 },
+  },
+}
+
+// Cagnazzo — a canon Aria of Sorrow enemy: a demon that fights in a wild,
+// uncountable flurry of bare-fisted punches. Reuses the demon-Files sheet.
+export const cagnazzo: CharacterDef = {
+  ...sealGuardian,
+  id: 'cagnazzo',
+  name: 'CAGNAZZO',
+  meta: {
+    ...sealGuardian.meta,
+    archetype: 'FERAL DEMON',
+    bio: 'A demon that never learned a weapon, and never needed one. It closes distance and just keeps throwing hands.',
+  },
+  visual: { ...sealGuardian.visual, scale: sealGuardian.visual.scale * 0.7 },
+  moves: {
+    ...sealGuardian.moves,
+    light: { ...sealGuardian.moves.light, id: 'cagnazzo-flurry', damage: 8 },
+    heavy: { ...sealGuardian.moves.heavy, id: 'cagnazzo-haymaker', damage: 18 },
+  },
+}
+
+// Ectoplasm — a canon Aria of Sorrow enemy: a translucent haunting spirit
+// that drifts through sealed rooms. Reuses the zombie sheets with a pale,
+// wispy glow rather than a rotted-flesh tint.
+export const ectoplasm: CharacterDef = {
+  ...zombie,
+  id: 'ectoplasm',
+  name: 'ECTOPLASM',
+  meta: {
+    ...zombie.meta,
+    archetype: 'HAUNTING SPIRIT',
+    bio: 'A wisp of the dead that never quite left the archive. It drifts between the shelves, more chill than threat.',
+  },
+  moves: {
+    ...zombie.moves,
+    light: { ...zombie.moves.light, id: 'ectoplasm-chill', damage: 5 },
+  },
+}
+
+// Poison Worm — a canon Aria of Sorrow enemy: a pale burrower that coils
+// before it strikes. Reuses the zombie sheets.
+export const poisonWorm: CharacterDef = {
+  ...zombie,
+  id: 'poisonWorm',
+  name: 'POISON WORM',
+  meta: {
+    ...zombie.meta,
+    archetype: 'BURROWING COIL',
+    bio: 'A pale worm as long as the flooded hall is wide. It coils tight in the shallows before it strikes all at once.',
+  },
+  moves: {
+    ...zombie.moves,
+    special: { ...zombie.moves.special, id: 'poison-worm-coil-strike', damage: 9 },
+  },
+}
+
 export const dracula1999: CharacterDef = {
   id: 'dracula1999',
   name: 'DRACULA SHADOW',
@@ -1232,6 +1304,10 @@ export const CAMPAIGN_ENEMIES: readonly CharacterDef[] = [
   flameDemon,
   arcDemon,
   succubus,
+  minotaur,
+  cagnazzo,
+  ectoplasm,
+  poisonWorm,
   ...CAMPAIGN_BOSSES,
 ]
 

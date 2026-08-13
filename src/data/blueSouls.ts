@@ -28,13 +28,14 @@ export const BASE_BLUE_SOUL = 'guard-panther'
 // Canon check (see docs/ARIA_PARITY.md): guard-panther (Black Panther, "Sonic
 // Dash" — real speed boost + real contact damage, see CampaignScene's panther
 // hit check) and guard-flight (Flying Armor) are both exact canon matches.
-// guard-golem and guard-great-armor are real canon Guardian souls approximated
-// onto this engine's four-effect model (their true canon effects — a rock-arm
-// melee attachment and a lightning-wreathed STR buff — are both
-// attack-boost-flavored, so both map to 'frenzy'; only the numbers differ).
-// guard-manticore approximates Manticore's "charging beast form" as a speed
-// buff, the closest available slot. guard-bulwark has no confirmed canon
-// Guardian-soul source among enemies built here and is labeled original.
+// guard-golem, guard-great-armor, and guard-cagnazzo are real canon Guardian
+// souls approximated onto this engine's four-effect model (their true canon
+// effects — a rock-arm melee attachment, a lightning-wreathed STR buff, and a
+// wild punching flurry — are all attack-boost-flavored, so all three map to
+// 'frenzy'; only the numbers differ). guard-manticore approximates
+// Manticore's "charging beast form" as a speed buff, the closest available
+// slot. guard-bulwark has no confirmed canon Guardian-soul source among
+// enemies built here and is labeled original.
 export const BLUE_SOUL_POOL: readonly BlueSoulDef[] = [
   {
     id: 'guard-panther',
@@ -90,6 +91,17 @@ export const BLUE_SOUL_POOL: readonly BlueSoulDef[] = [
     duration: 240,
     effect: 'haste',
     blurb: 'Canon effect: a charging beast form. Approximated here as a burst of move speed.',
+  },
+  {
+    id: 'guard-cagnazzo',
+    name: 'Cagnazzo Soul',
+    enemyId: 'cagnazzo',
+    dropChance: 0.2,
+    mpCost: 36,
+    cooldown: 190,
+    duration: 170,
+    effect: 'frenzy',
+    blurb: 'Canon effect: a wild, uncountable flurry of bare-fisted punches. Approximated here as a battle-fury attack buff.',
   },
   {
     id: 'guard-bulwark-original',

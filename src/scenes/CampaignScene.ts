@@ -327,6 +327,10 @@ const ENEMY_GLOW: Record<string, string> = {
   ironGolem: '120,120,130',
   woodenGolem: '160,130,90',
   succubus: '200,60,140',
+  minotaur: '160,90,50',
+  cagnazzo: '224,140,60',
+  ectoplasm: '210,224,224',
+  poisonWorm: '150,190,90',
 }
 
 

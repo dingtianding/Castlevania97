@@ -19,26 +19,36 @@ and `src/data/campaign.ts`).
 (Gravekeeper) all match canon in name-in-spirit and effect — implemented as relic pickups /base moves
 rather than boss/enemy soul drops (a deliberate simplification, not an oversight).
 
-**Nineteen new canon regular enemies added, across six passes**, plus souls added to two enemies that
-already existed under the right canon name. Zombie Officer, Skeleton Knight, Giant Skeleton, Zombie
+**Twenty-three new canon regular enemies added, across seven passes**, plus souls added to two enemies
+that already existed under the right canon name. Zombie Officer, Skeleton Knight, Giant Skeleton, Zombie
 Soldier, Winged Skeleton, Beam Skeleton, Skull Archer, Waiter Skeleton, Dead Crusader, Golem, Iron
-Golem, Wooden Golem, Evil Butcher, and Skull Millone are recolored variants of the
+Golem, Wooden Golem, Evil Butcher, Skull Millone, and Minotaur are recolored variants of the
 zombie/skeleton/armoredSkeleton sprite sheets (the only reskinnable assets this project had at first —
 see `ENEMY_GLOW` in `CampaignScene.ts` for the aura tint that tells each apart from its base at a
-glance). Tiny Devil, Demon Lord, Flame Demon, Arc Demon, and Succubus open a fourth family, reusing the
-demon-Files sheet already used by Seal Guardian/Big Golem/Manticore/Legion but scaled down (0.36x–0.68x)
-so they read as regular threats, not mini-bosses. Separately, `axeArmor` and `bat` — already correctly
+glance). Ectoplasm and Poison Worm reuse the zombie sheets under this same family. Tiny Devil, Demon
+Lord, Flame Demon, Arc Demon, Succubus, and Cagnazzo open a fourth family, reusing the demon-Files
+sheet already used by Seal Guardian/Big Golem/Manticore/Legion but scaled down (0.36x–0.7x) so they
+read as regular threats, not mini-bosses. Separately, `axeArmor` and `bat` — already correctly
 canon-named enemies that had no soul at all — turned out to themselves be real canon Bullet Souls (Axe
 Armor: boomerang, Bat: sonar wave), so those were added directly with zero new enemy work. Each
 new/newly-souled enemy drops its own real canon soul — direct stat matches (Skeleton Knight, Dead
-Crusader, Golem, Arc Demon's STR portion), MP-cost-and-pattern matches (Giant Skeleton, Winged Skeleton,
-Beam Skeleton, Skull Archer, Axe Armor, Bat, Tiny Devil, Demon Lord, Flame Demon), and honestly-
-approximated ones where the canon effect needs a system this engine doesn't have yet (Zombie Officer's
-mid-air-KO heal, Zombie Soldier's timed-grenade fuse, Waiter Skeleton's damage-over-time, Axe Armor's
-boomerang return, Arc Demon's HP-drain-on-hit, Iron Golem's poise, Wooden Golem's MP regen, Succubus's
-lifesteal). Skull Archer and Beam Skeleton also got real kiting/stationary AI instead of falling back to
-generic melee-approach. All nineteen new enemies are placed into two existing rooms each, additively, so
-existing encounter balance is unchanged.
+Crusader, Golem, Arc Demon's STR portion, Minotaur), MP-cost-and-pattern matches (Giant Skeleton, Winged
+Skeleton, Beam Skeleton, Skull Archer, Axe Armor, Bat, Tiny Devil, Demon Lord, Flame Demon), a
+Guardian-soul approximation (Cagnazzo's wild-punching flurry onto the `frenzy` slot, alongside Big Golem
+and Great Armor), and honestly-approximated ones where the canon effect needs a system this engine
+doesn't have yet (Zombie Officer's mid-air-KO heal, Zombie Soldier's timed-grenade fuse, Waiter
+Skeleton's damage-over-time, Axe Armor's boomerang return, Arc Demon's HP-drain-on-hit, Iron Golem's
+poise, Wooden Golem's MP regen, Succubus's lifesteal, Ectoplasm's curse immunity, Poison Worm's poison
+immunity). Skull Archer and Beam Skeleton also got real kiting/stationary AI instead of falling back to
+generic melee-approach. The nineteen enemies from earlier passes are placed into two existing rooms
+each, additively. The fourth pass's Minotaur, Cagnazzo, and Ectoplasm are placed into one room each —
+Top Floor, Floating Garden, and Study each have only one room that isn't a save/warp room (buildEnemies
+in `CampaignScene.ts` never spawns anyone in those, by design), so a second placement would have been
+dead data; Poison Worm's area (Underground Reservoir) has two live rooms and got both. While fixing
+this, three genuinely dead `extraEnemies` entries left over from earlier passes were found and removed
+(Ghoul/Bone Thrower/Zombie Soldier on the Study save room, Bone Thrower/Waiter Skeleton/Demon Lord on
+the Floating Garden warp room, Ghoul/Bone Thrower/Zombie Officer on the Top Floor save room) — all six
+of those enemy types still spawn elsewhere in the castle, so nothing became unreachable, just honest.
 
 **Souls have been renamed to their real canon identity where a match exists, honestly labeled
 "(original)" where it does not.** `souls.ts`, `blueSouls.ts`, and `bulletSouls.ts` now source
@@ -78,7 +88,7 @@ a simplification, but worth knowing it's a deliberate deviation, not an oversigh
 | Black Panther | Damaging dash | ❌ |
 | Bone Pillar | Flamethrower | ❌ |
 | Buer | Rotating flame orbs | ❌ |
-| Cagnazzo | Wild punching demon | ❌ |
+| Cagnazzo | Wild punching demon | ✅ built — `guard-cagnazzo` in `blueSouls.ts`, approximated as an attack-boost buff (`frenzy` slot) |
 | Cateoblepas | Petrifying ground beam | ❌ |
 | Creaking Skull | Giant skeleton arm | ⚠️ modeled in `souls.ts` (`creaking-skull-soul`) as a stat buff instead of a Guardian soul — no free Guardian effect slot left |
 | Curly | Charging beast form | ❌ |
@@ -111,7 +121,7 @@ shields, projectile summons) would need new `BlueSoulEffect` variants and matchi
 | Bael | INT +12 | ❌ |
 | Basilisk | STR down / DEF up | ❌ |
 | Dead Crusader | CON +16 | ✅ built — `dead-crusader-soul` in `souls.ts`, direct match |
-| Ectoplasm | Curse immunity | ❌ |
+| Ectoplasm | Curse immunity | ✅ built — `ectoplasm-soul` in `souls.ts`; curse immunity not modeled (no curse status exists), approximated as +6 max health |
 | Erinys | +120% EXP | ❌ |
 | Flesh Golem | HP-drain items heal instead | ❌ |
 | Gargoyle | Petrification immunity | ❌ |
@@ -125,9 +135,9 @@ shields, projectile summons) would need new `BlueSoulEffect` variants and matchi
 | Lilith | INT +8 | ❌ |
 | Lubicant | Lower HP = stronger attacks | ❌ |
 | Mimic | Gain money when hurt | ❌ |
-| Minotaur | STR +8 | ❌ |
+| Minotaur | STR +8 | ✅ built — `minotaur-soul` in `souls.ts`, direct match |
 | Peeping Eye | Reveals hidden passages | ❌ |
-| Poison Worm | Poison immunity | ❌ |
+| Poison Worm | Poison immunity | ✅ built — `poison-worm-soul` in `souls.ts`; poison immunity not modeled (no poison status exists), approximated as +6 max health |
 | Quetzalcoatl | CON +8 | ❌ |
 | Red Crow | INT +4 | ❌ |
 | Skeleton Knight | STR +4 | ✅ built — `skeleton-knight-soul` in `souls.ts`, direct match |
@@ -263,20 +273,29 @@ Done as of this pass:
    sheet (scaled down from Seal Guardian's boss proportions). Each drops its own real canon soul, placed
    into two existing rooms each. Also gave `axeArmor` and `bat` — already-existing, already-correctly-
    named enemies — their real canon Bullet Souls, at zero new-enemy cost.
+4. ✅ Added a seventh pass closing the four candidates named below: Minotaur (armoredSkeleton family,
+   direct STR+8 Enchant soul), Cagnazzo (demon-Files family, its wild-punching-flurry Guardian soul
+   approximated onto the `frenzy` slot alongside Big Golem/Great Armor), and Ectoplasm + Poison Worm
+   (zombie family, both Enchant souls whose canon immunity effects aren't modeled yet so they land as
+   small honest +6 max-health bonuses). Placed into Top Floor, Floating Garden, Study, and Underground
+   Reservoir respectively — one room each for the first three (their areas have only one room that
+   isn't a save/warp safe room), both rooms for Poison Worm. Also found and removed three dead
+   `extraEnemies` entries left on save/warp rooms by earlier passes (see the status section above).
 
 Still open, for a later pass if pursued:
 
-4. More real canon regular enemies remain unbuilt (e.g. Ectoplasm, Poison Worm, Minotaur, Cagnazzo) but
-   need either a new sprite or start feeling like the same 4 reskins (now including demon-Files) worn
-   thin — at this point closing more of this list means genuinely new sprites, not further recolors.
-5. Curate a subset of the remaining ~60 souls (mostly Bullet/Enchant, tied to enemies not built here)
+5. More real canon regular enemies remain unbuilt, but closing more of the list now means genuinely new
+   sprites, not further recolors — the 4 reskinnable families (zombie/skeleton/armoredSkeleton/
+   demon-Files) are fully worn thin after 23 variants.
+6. Curate a subset of the remaining ~60 souls (mostly Bullet/Enchant, tied to enemies not built here)
    that's realistic for this engine's scope — not all of them need modeling, but what gets modeled
    should stay honestly sourced.
-6. If real mechanical differentiation matters more than naming (distinct familiars, shields, projectile
+7. If real mechanical differentiation matters more than naming (distinct familiars, shields, projectile
    summons per Guardian soul, rather than several souls sharing the same 4 stat-buff slots), that
    requires extending `BlueSoulEffect` and the logic in `CampaignScene.updateBlueGuardian`/
    `blueBuffMult` — genuine engine work, not a data rename.
-7. Underground Cemetery, The Arena, and Chaotic Realm (plus Balore, Graham Jones, Julius Belmont as
+8. Underground Cemetery, The Arena, and Chaotic Realm (plus Balore, Graham Jones, Julius Belmont as
    bosses) are the three canon areas and three bosses not built at all yet.
-8. A damage-over-time system (poison, curse, burn, the curry plate) would let several already-flagged
-   approximations become exact — Zombie, Zombie Officer, and Waiter Skeleton souls all wait on this.
+9. A damage-over-time system (poison, curse, burn, the curry plate) would let several already-flagged
+   approximations become exact — Zombie, Zombie Officer, Waiter Skeleton, Ectoplasm, and Poison Worm
+   souls all wait on this.

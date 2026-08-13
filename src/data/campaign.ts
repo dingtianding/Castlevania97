@@ -1,5 +1,5 @@
 import type { CharacterDef } from './characters/CharacterDef.ts'
-import { arcDemon, armoredSkeleton, axeArmor, bat, beamSkeleton, bigGolem, boneThrower, chaos, creakingSkull, deadCrusader, death, demonLord, evilButcher, flameDemon, ghoul, giantSkeleton, golem, greatArmor, headhunter, grey, ironGolem, legion, manticore, skeleton, skeletonKnight, skullArcher, skullMillone, succubus, tinyDevil, waiterSkeleton, wingedSkeleton, woodenGolem, zombie, zombieOfficer, zombieSoldier } from './characters/castlevaniaCampaign.ts'
+import { arcDemon, armoredSkeleton, axeArmor, bat, beamSkeleton, bigGolem, boneThrower, cagnazzo, chaos, creakingSkull, deadCrusader, death, demonLord, ectoplasm, evilButcher, flameDemon, ghoul, giantSkeleton, golem, greatArmor, headhunter, grey, ironGolem, legion, manticore, minotaur, poisonWorm, skeleton, skeletonKnight, skullArcher, skullMillone, succubus, tinyDevil, waiterSkeleton, wingedSkeleton, woodenGolem, zombie, zombieOfficer, zombieSoldier } from './characters/castlevaniaCampaign.ts'
 import type { StageId } from './stages.ts'
 import { RELIC_POOL, type RelicId } from './relics.ts'
 import { SOUL_POOL } from './souls.ts'
@@ -352,7 +352,7 @@ export const CAMPAIGN_NODES: readonly CampaignNodeDef[] = [
       'The stair descends into standing water. Things that drowned here long ago wake at the sound of a living step.',
     stage: 'catacombs',
     enemy: zombie,
-    extraEnemies: [{ def: ghoul, count: 2 }, { def: zombieSoldier, count: 1 }, { def: tinyDevil, count: 1 }],
+    extraEnemies: [{ def: ghoul, count: 2 }, { def: zombieSoldier, count: 1 }, { def: tinyDevil, count: 1 }, { def: poisonWorm, count: 1 }],
     difficulty: 'normal',
     nextIds: ['res-cistern', 'res-golem'],
     position: { x: 440, y: 220 },
@@ -367,7 +367,7 @@ export const CAMPAIGN_NODES: readonly CampaignNodeDef[] = [
       'A flooded side chamber hoards the castle’s overflow. Red wades it and cuts down the iron thing left to guard the dark.',
     stage: 'catacombs',
     enemy: zombie,
-    extraEnemies: [{ def: armoredSkeleton, count: 1 }, { def: beamSkeleton, count: 1 }, { def: demonLord, count: 1 }, { def: arcDemon, count: 1 }],
+    extraEnemies: [{ def: armoredSkeleton, count: 1 }, { def: beamSkeleton, count: 1 }, { def: demonLord, count: 1 }, { def: arcDemon, count: 1 }, { def: poisonWorm, count: 1 }],
     difficulty: 'normal',
     nextIds: [],
     position: { x: 440, y: 120 },
@@ -443,8 +443,11 @@ export const CAMPAIGN_NODES: readonly CampaignNodeDef[] = [
     story:
       'The study hoards scripture the castle plans to unwrite. Red reads enough to know the war’s shape and cuts down its keepers.',
     stage: 'library',
+    // NOTE: std-reading is a save room (CASTLE_SAVE_ROOMS) — buildEnemies
+    // treats save/warp rooms as safe and never spawns anyone here, so no
+    // extraEnemies belongs on this node. See std-archive for this area's
+    // one enemy-bearing room.
     enemy: zombie,
-    extraEnemies: [{ def: ghoul, count: 1 }, { def: boneThrower, count: 1 }, { def: zombieSoldier, count: 1 }],
     difficulty: 'normal',
     nextIds: ['std-archive'],
     position: { x: 560, y: 200 },
@@ -459,7 +462,7 @@ export const CAMPAIGN_NODES: readonly CampaignNodeDef[] = [
       'Behind the study lies the archive, and in it the name the cult has been circling for years. Red commits it to memory and burns the rest.',
     stage: 'library',
     enemy: skeleton,
-    extraEnemies: [{ def: armoredSkeleton, count: 1 }, { def: axeArmor, count: 1 }, { def: wingedSkeleton, count: 1 }, { def: woodenGolem, count: 1 }],
+    extraEnemies: [{ def: armoredSkeleton, count: 1 }, { def: axeArmor, count: 1 }, { def: wingedSkeleton, count: 1 }, { def: woodenGolem, count: 1 }, { def: ectoplasm, count: 1 }],
     difficulty: 'hard',
     nextIds: ['dnc-ballroom'],
     position: { x: 460, y: 200 },
@@ -582,8 +585,11 @@ export const CAMPAIGN_NODES: readonly CampaignNodeDef[] = [
     story:
       'The garden floats on nothing, its beds spilling over a bottomless drop. Red fights across it while the wind pulls at every step.',
     stage: 'outer_wall',
+    // NOTE: grd-hanging is a warp room (CASTLE_WARP_ROOMS) — buildEnemies
+    // treats save/warp rooms as safe and never spawns anyone here, so no
+    // extraEnemies belongs on this node. See grd-skybridge for this area's
+    // regular encounter room.
     enemy: skeleton,
-    extraEnemies: [{ def: boneThrower, count: 2 }, { def: waiterSkeleton, count: 1 }, { def: demonLord, count: 1 }],
     difficulty: 'hard',
     nextIds: ['grd-skybridge', 'grd-legion'],
     position: { x: 660, y: 90 },
@@ -598,7 +604,7 @@ export const CAMPAIGN_NODES: readonly CampaignNodeDef[] = [
       'A bridge of light arcs off to a lonely terrace. Red crosses it to break the archers picking at the garden from afar.',
     stage: 'outer_wall',
     enemy: skeleton,
-    extraEnemies: [{ def: armoredSkeleton, count: 1 }, { def: giantSkeleton, count: 1 }, { def: deadCrusader, count: 1 }, { def: woodenGolem, count: 1 }],
+    extraEnemies: [{ def: armoredSkeleton, count: 1 }, { def: giantSkeleton, count: 1 }, { def: deadCrusader, count: 1 }, { def: woodenGolem, count: 1 }, { def: cagnazzo, count: 1 }],
     difficulty: 'hard',
     nextIds: [],
     position: { x: 760, y: 90 },
@@ -629,7 +635,7 @@ export const CAMPAIGN_NODES: readonly CampaignNodeDef[] = [
       'The upper keep barely pretends to be a building now. Red holds his ground against everything the castle can still spare.',
     stage: 'throne_room',
     enemy: skeleton,
-    extraEnemies: [{ def: armoredSkeleton, count: 1 }, { def: boneThrower, count: 1 }, { def: giantSkeleton, count: 1 }, { def: golem, count: 1 }, { def: ironGolem, count: 1 }],
+    extraEnemies: [{ def: armoredSkeleton, count: 1 }, { def: boneThrower, count: 1 }, { def: giantSkeleton, count: 1 }, { def: golem, count: 1 }, { def: ironGolem, count: 1 }, { def: minotaur, count: 1 }],
     difficulty: 'hard',
     nextIds: ['top-antechamber'],
     position: { x: 560, y: 20 },
@@ -643,8 +649,11 @@ export const CAMPAIGN_NODES: readonly CampaignNodeDef[] = [
     story:
       'The antechamber is the castle’s final held breath. Red clears the last of its defenders and faces the door it never meant to open.',
     stage: 'throne_room',
+    // NOTE: top-antechamber is a save room (CASTLE_SAVE_ROOMS) — buildEnemies
+    // treats save/warp rooms as safe and never spawns anyone here, so no
+    // extraEnemies belongs on this node. See top-keep for this area's
+    // regular encounter room.
     enemy: zombie,
-    extraEnemies: [{ def: ghoul, count: 2 }, { def: boneThrower, count: 1 }, { def: zombieOfficer, count: 1 }],
     difficulty: 'hard',
     nextIds: ['fbd-gate'],
     position: { x: 460, y: 20 },
