@@ -48,8 +48,15 @@ Make the castle actually walkable instead of isolated arenas.
   Griffon Wing relic remains as flavor), **slide ✅** (Fleet Greaves,
   low-tunnel-gates the cistern Life Max Up), grapple. Areas stay closed
   until you earn the ability.
-- **Key items / colored doors** — ✅ first lock-and-key done (Silver Key → the
-  Chapel's barred bell-loft branch → a Life Max Up).
+- **Key items / colored doors** — ✅ two lock-and-key pairs now: Silver Key → the
+  Chapel's barred bell-loft branch → a Life Max Up (a "far key": found deeper in
+  the Study, chapters after the Chapel, so it's a genuine cross-area
+  backtrack); Bronze Key → the Corridor Larder's barred chest (a "near key":
+  found one branch over, off the same alcove, in the Watch Post — a tighter
+  find-key-see-lock loop within a single room cluster). The larder also has a
+  second, unsealed entrance down from the West Tower — an intentional
+  alternate route, not a bypass of the gate's intent (by the time you reach
+  the tower in Dance Hall you'll almost certainly already have the key).
 - **Backtracking payoffs:** early dead-ends open up later — ✅ demonstrated
   (find the key deeper in the Study, backtrack to the Chapel).
 - Three gate flavors now exist: keyed door, height gate, low-tunnel gate.

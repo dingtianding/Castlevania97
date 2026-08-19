@@ -90,6 +90,10 @@ const ABILITIES: Record<string, { name: string; blurb: string; getSub: string }>
   // Backdash (L on the ground) is already a base move, same as high jump — this
   // relic is flavor-only naming for the canon Gravekeeper ability soul.
   'back-dash': { name: 'Gravekeeper Soul', blurb: 'A gravedigger\'s parting step — a clean backward dash.', getSub: 'BACKDASH — GRAVEKEEPER SOUL FOUND' },
+  // Second lock-and-key gate (see docs/ROADMAP.md Phase 2's "colored door
+  // tiers"). Original content, not a canon Aria of Sorrow item — the Silver
+  // Key is the only keyed door with a confirmed canon name.
+  'bronze-key': { name: 'Bronze Key', blurb: 'Opens the barred door in the Corridor Larder.', getSub: 'A BARRED DOOR WILL NOW OPEN — THE LARDER' },
 }
 // Rooms that hold an ability relic, keyed to its x-position and the ability id.
 const ABILITY_PICKUPS: Record<string, { x: number; ability: string }> = Object.fromEntries(
@@ -145,10 +149,14 @@ const BIG_ROOMS: Record<string, { width: number; top: number }> = Object.fromEnt
 )
 // Doors sealed until an ability/key is owned: nodeId -> direction -> required id.
 // The Chapel's bell-loft branch is barred until you find the Silver Key.
+// The Corridor Larder's chest is barred until you find the Bronze Key (in the
+// Watch Post, one branch over off the same alcove — the key and the lock are
+// visible within a few rooms of each other, classic near-key-far-key loop).
 // (The West Tower's high-jump seals came off when the high jump became a base
 // move: always on, W on the ground or L mid-air.)
 const SEALED_DOORS: Record<string, Partial<Record<MapDir, string>>> = {
   'chp-nave': { e: 'silver-key' },
+  'cor-alcove': { w: 'bronze-key' },
 }
 const GRAVITY = 0.78
 const WALK_SPEED = 3.4
@@ -213,7 +221,7 @@ const DEBUG_HITBOXES = new URLSearchParams(location.search).has('hitbox')
 // Backquote-toggled warp-to-any-room overlay, so testing a specific room/enemy
 // doesn't require a real playthrough to reach it. Never on by default.
 const DEBUG_MODE = new URLSearchParams(location.search).has('debug')
-const DEBUG_ABILITIES = ['double-jump', 'silver-key', 'high-jump', 'slide', 'back-dash']
+const DEBUG_ABILITIES = ['double-jump', 'silver-key', 'high-jump', 'slide', 'back-dash', 'bronze-key']
 // Optional GBA-style downscale of the game world — OFF by default so the source
 // art stays crisp. Opt in with ?pixel; PIXELATE_FACTOR tunes the chunkiness.
 const GBA_PIXELATE = new URLSearchParams(location.search).has('pixel')

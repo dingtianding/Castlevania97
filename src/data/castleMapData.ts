@@ -39,6 +39,9 @@ export const CASTLE_ITEM_ROOMS = [
   // Flavor-only: backdash is already a base move, this just names the canon
   // Gravekeeper Ability Soul. Placed in the Undercroft for the gravedigger fit.
   { id: 'cor-undercroft', x: 320, ability: 'back-dash' },
+  // Second keyed door (see SEALED_DOORS['cor-alcove']): the key sits one branch
+  // over from the lock, off the same alcove.
+  { id: 'cor-watch', x: 320, ability: 'bronze-key' },
 ] as const
 
 /** Rooms holding a permanent Life Max Up. `high` ones sit on a raised ledge only
