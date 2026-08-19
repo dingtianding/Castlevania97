@@ -463,6 +463,14 @@ interface FloatingText {
   ticksLeft: number
 }
 
+/** A pause-and-explain popup: what you just got, and what it does. */
+interface InfoPopup {
+  subtitle: string
+  title: string
+  blurb: string
+  color: string
+}
+
 /** Short-lived debris bit — e.g. wax shards and sparks from a shattered candle. */
 interface Particle {
   position: Vec2
@@ -1648,6 +1656,13 @@ export class CampaignScene extends Scene {
   private abilityGetTicks = 0
   private abilityGetName = ''
   private abilityGetSub = ''
+  // Pause-and-explain popup: shown the first time an ability relic or a new
+  // soul (any of the three types) is obtained. Queued so simultaneous grants
+  // (e.g. two enemies dropping different souls the same tick) don't clobber
+  // each other — one popup shows at a time, world frozen until dismissed.
+  private popupQueue: InfoPopup[] = []
+  private activePopup: InfoPopup | null = null
+  private popupTicks = 0
   private selectedSubweaponIndex = 0
   private enemyFreezeTicks = 0
   // Continuous zombie spawner (active only in zombie rooms).
@@ -1746,6 +1761,14 @@ export class CampaignScene extends Scene {
       if (isMenuConfirm(e.code) || isMenuCancel(e.code)) {
         e.preventDefault()
         this.dismissLevelUp()
+      }
+      return
+    }
+    if (this.activePopup) {
+      if (this.popupTicks > 0) return // let the entrance settle before it can be dismissed
+      if (isMenuConfirm(e.code) || isMenuCancel(e.code)) {
+        e.preventDefault()
+        this.activePopup = null
       }
       return
     }
@@ -2231,7 +2254,15 @@ export class CampaignScene extends Scene {
     if (this.contactHitCooldown > 0) this.contactHitCooldown -= 1
     if (this.pantherHitCooldown > 0) this.pantherHitCooldown -= 1
     if (this.levelUpTicks > 0) this.levelUpTicks -= 1
-    if (this.ending || this.drafting || this.perkChoosing || this.levelUpScreen || this.shopping || this.showStatus || this.showEquipment || this.showSouls || this.showItems || this.showMap || this.showWarp || this.showDebugWarp || this.showMenu) return
+    if (this.popupTicks > 0) this.popupTicks -= 1
+    const otherModalOpen = this.ending || this.drafting || this.perkChoosing || this.levelUpScreen || this.shopping || this.showStatus || this.showEquipment || this.showSouls || this.showItems || this.showMap || this.showWarp || this.showDebugWarp || this.showMenu
+    // Pick up the next queued ability/soul popup once nothing else is showing
+    // — freezes gameplay (see the guard below) until dismissed.
+    if (!this.activePopup && this.popupQueue.length > 0 && !otherModalOpen) {
+      this.activePopup = this.popupQueue.shift()!
+      this.popupTicks = 18
+    }
+    if (otherModalOpen || this.activePopup) return
     if (this.defeatTicks > 0) {
       this.defeatTicks += 1
       if (this.defeatTicks > DEFEAT_RETRY_TICKS) this.reloadNode(this.node.id, true)
@@ -2413,6 +2444,7 @@ export class CampaignScene extends Scene {
     if (this.ending) this.drawEnding()
     else if (this.perkChoosing) this.drawPerkChoice()
     else if (this.levelUpScreen) this.drawLevelUpScreen()
+    else if (this.activePopup) this.drawInfoPopup()
     else if (this.drafting) this.drawDraft()
     else if (this.shopping) this.drawShop()
     else if (this.showMenu) { this.drawMenu(); if (this.confirmTitle) this.drawTitleConfirm() }
@@ -3140,6 +3172,7 @@ export class CampaignScene extends Scene {
     this.spawnFloatingText(cx, hurt.y - 40, 'BULLET SOUL!', '#ff9ad6')
     this.spawnFloatingText(cx, hurt.y - 22, soul.name.toUpperCase(), '#ff9ad6')
     this.ctx.audio.hit()
+    this.queuePopup({ subtitle: 'RED SOUL — NEW BULLET SOUL', title: soul.name, blurb: soul.blurb, color: '#ff9ad6' })
   }
 
   /** True when an actor has moved well outside the visible viewport. */
@@ -3195,6 +3228,7 @@ export class CampaignScene extends Scene {
     this.spawnFloatingText(cx, hurt.y - 52, 'GUARDIAN SOUL!', '#7ad6ff')
     this.spawnFloatingText(cx, hurt.y - 34, soul.name.toUpperCase(), '#7ad6ff')
     this.ctx.audio.hit()
+    this.queuePopup({ subtitle: 'BLUE SOUL — NEW GUARDIAN SOUL', title: soul.name, blurb: soul.blurb, color: '#7ad6ff' })
   }
 
   private tryDropSoul(enemy: CastleActor, hurt: Rect): void {
@@ -3204,9 +3238,11 @@ export class CampaignScene extends Scene {
     this.save = addCampaignSoul(this.save, soul.id)
     this.applySoulMods()
     const cx = hurt.x + hurt.width / 2
-    this.spawnFloatingText(cx, hurt.y - 28, 'SOUL!', '#7ad6ff')
-    this.spawnFloatingText(cx, hurt.y - 10, soul.name.toUpperCase(), '#7ad6ff')
+    // Yellow (Enchanted) soul — gold, not the Blue Guardian soul's cyan.
+    this.spawnFloatingText(cx, hurt.y - 28, 'SOUL!', '#f0d060')
+    this.spawnFloatingText(cx, hurt.y - 10, soul.name.toUpperCase(), '#f0d060')
     this.ctx.audio.hit()
+    this.queuePopup({ subtitle: 'YELLOW SOUL — NEW ENCHANTED SOUL', title: soul.name, blurb: soul.blurb, color: '#f0d060' })
   }
 
   /** Only the equipped Yellow (Enchanted) soul's passive applies (Aria-style). */
@@ -3355,6 +3391,12 @@ export class CampaignScene extends Scene {
     this.player.hasSlide = this.save.abilities.includes('slide')
   }
 
+  /** Queue a pause-and-explain popup. If nothing is showing, update() picks it
+   *  up next tick and freezes gameplay until the player dismisses it. */
+  private queuePopup(popup: InfoPopup): void {
+    this.popupQueue.push(popup)
+  }
+
   private tryPickupAbility(): void {
     const pk = ABILITY_PICKUPS[this.node.id]
     if (!pk || this.save.abilities.includes(pk.ability) || this.player.isDead) return
@@ -3362,11 +3404,9 @@ export class CampaignScene extends Scene {
     this.save = addCampaignAbility(this.save, pk.ability)
     this.mapService.state.collectItem(this.node.id)
     this.applyAbilities()
-    this.abilityGetTicks = 200
-    this.abilityGetName = ABILITIES[pk.ability]?.name ?? pk.ability
-    this.abilityGetSub = ABILITIES[pk.ability]?.getSub ?? ''
     this.ctx.audio.hit()
-    this.spawnFloatingText(this.player.position.x, this.player.position.y - 118, 'ABILITY GET', '#f6b74a')
+    const ability = ABILITIES[pk.ability]
+    this.queuePopup({ subtitle: 'ABILITY GAINED', title: ability?.name ?? pk.ability, blurb: ability?.blurb ?? '', color: '#f6b74a' })
   }
 
   /** A permanent Life Max Up hidden in the castle — raises max HP for good.
@@ -4057,6 +4097,57 @@ export class CampaignScene extends Scene {
     }
 
     if (this.levelUpTicks <= 0 && Math.floor(this.blink / 30) % 2 === 0) {
+      ctx.fillStyle = '#e8d4a0'
+      ctx.font = '8px "Press Start 2P", monospace'
+      ctx.fillText('J CONTINUE', cx, py + panelH - 18)
+    }
+    ctx.restore()
+  }
+
+  /** Pause-and-explain popup for a newly-gained ability relic or the first
+   *  copy of a soul (red/blue/yellow) — freezes gameplay until dismissed. */
+  private drawInfoPopup(): void {
+    const popup = this.activePopup
+    if (!popup) return
+    const { ctx } = this.ctx.renderer
+    const { width, height } = this.ctx
+    const t = 1 - Math.min(1, this.popupTicks / 18)
+    const ease = t * (2 - t)
+    ctx.save()
+    ctx.fillStyle = `rgba(8, 6, 14, ${0.82 * ease})`
+    ctx.fillRect(0, 0, width, height)
+
+    const panelW = 480
+    const panelH = 200
+    const px = (width - panelW) / 2
+    const py = (height - panelH) / 2 + (1 - ease) * 16
+    ctx.globalAlpha = ease
+    ctx.fillStyle = 'rgba(20, 16, 28, 0.96)'
+    ctx.fillRect(px, py, panelW, panelH)
+    ctx.strokeStyle = popup.color
+    ctx.lineWidth = 3
+    ctx.strokeRect(px, py, panelW, panelH)
+
+    const cx = width / 2
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillStyle = popup.color
+    ctx.font = '10px "Press Start 2P", monospace'
+    ctx.fillText(popup.subtitle, cx, py + 32)
+
+    ctx.fillStyle = '#ffffff'
+    ctx.font = '18px "Press Start 2P", monospace'
+    ctx.fillText(popup.title, cx, py + 66)
+
+    ctx.fillStyle = '#b7c7e6'
+    ctx.font = '10px "Press Start 2P", monospace'
+    ctx.textAlign = 'left'
+    ctx.textBaseline = 'top'
+    wrapText(ctx, popup.blurb, px + 30, py + 104, panelW - 60, 20, 4)
+
+    if (this.popupTicks <= 0 && Math.floor(this.blink / 30) % 2 === 0) {
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'middle'
       ctx.fillStyle = '#e8d4a0'
       ctx.font = '8px "Press Start 2P", monospace'
       ctx.fillText('J CONTINUE', cx, py + panelH - 18)
