@@ -318,7 +318,7 @@ export const CAMPAIGN_NODES: readonly CampaignNodeDef[] = [
     title: 'Undercroft',
     blurb: 'A low vault beneath the grand corridor, where the floor gives way.',
     story:
-      'A shaft in the grand corridor drops into the undercroft below. The dark down here is older than the castle, and it does not like the torchlight Red brings with him.',
+      'A shaft in the grand corridor drops into the undercroft below. The dark down here is older than the castle, and it does not like the torchlight Red brings with him. Past the far wall a collapsed archway drops to knee height — nothing short of a slide gets a body through it.',
     stage: 'outer_wall',
     enemy: skeleton,
     extraEnemies: [{ def: bat, count: 1 }, { def: skullMillone, count: 1 }],

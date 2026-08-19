@@ -58,8 +58,14 @@ Make the castle actually walkable instead of isolated arenas.
   alternate route, not a bypass of the gate's intent (by the time you reach
   the tower in Dance Hall you'll almost certainly already have the key).
 - **Backtracking payoffs:** early dead-ends open up later — ✅ demonstrated
-  (find the key deeper in the Study, backtrack to the Chapel).
-- Three gate flavors now exist: keyed door, height gate, low-tunnel gate.
+  (find the key deeper in the Study, backtrack to the Chapel; and now the
+  Flooded Drain's collapsed archway, sealed with the `slide` ability itself
+  rather than a key item — seen in chapter 1 but not openable until Fleet
+  Greaves turns up in the Dance Hall, four chapters later, the game's longest
+  gate-to-unlock distance yet).
+- Three gate flavors now exist: keyed door, height gate, low-tunnel gate — plus
+  this ability-gated *door* (as opposed to ability-gated in-room content,
+  which the height/low-tunnel gates already did).
 - **Warp network ✅** — three warp rooms (entrance alcove, chapel nave, garden
   hanging walk); Up at a pad opens a map-based warp select; any discovered warp
   teleports to any other. Eases backtracking across the gates.

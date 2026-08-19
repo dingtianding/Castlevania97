@@ -152,11 +152,15 @@ const BIG_ROOMS: Record<string, { width: number; top: number }> = Object.fromEnt
 // The Corridor Larder's chest is barred until you find the Bronze Key (in the
 // Watch Post, one branch over off the same alcove — the key and the lock are
 // visible within a few rooms of each other, classic near-key-far-key loop).
+// The Flooded Drain's collapsed archway needs the slide relic — a genuine
+// long-distance backtrack, since slide isn't found until the Dance Hall,
+// four chapters after the Corridor.
 // (The West Tower's high-jump seals came off when the high jump became a base
 // move: always on, W on the ground or L mid-air.)
 const SEALED_DOORS: Record<string, Partial<Record<MapDir, string>>> = {
   'chp-nave': { e: 'silver-key' },
   'cor-alcove': { w: 'bronze-key' },
+  'cor-undercroft': { e: 'slide' },
 }
 const GRAVITY = 0.78
 const WALK_SPEED = 3.4
