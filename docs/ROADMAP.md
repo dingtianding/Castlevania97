@@ -80,11 +80,19 @@ Make the castle actually walkable instead of isolated arenas.
 Round out the Aria soul trinity + payoffs:
 - **Guardian souls** (blue): hold-to-channel familiars / persistent effects.
 - **Enchant souls** (yellow): formalize the existing passive souls as this tier.
-- **Item Crash / super:** spend a full MP bar for a screen-clearing version of
-  the equipped Bullet Soul.
+- **Item Crash / super** — ✅ done. Casting the equipped Bullet Soul at a full MP
+  bar spends the whole bar instead of the soul's normal cost and fires a
+  bigger, harder-hitting, further-piercing burst of the same pattern (more/
+  wider bolts, ~2.2x damage each, gold-tinted and larger) — a payoff for
+  banking MP rather than a new button. The MP bar pulses gold at 100 to
+  signal it's ready. `castSoul()` in `CampaignScene.ts`.
 - **Weapon variety:** multiple main weapons (whip / sword / spear) with distinct
   movesets — the hook for multiple characters.
-- **Status effects** (poison / curse / stone) on enemies and player.
+- **Status effects** (poison / curse / stone) on enemies and player. Would let
+  several already-shipped soul approximations become exact matches (Zombie,
+  Waiter Skeleton, Ectoplasm, Poison Worm souls all currently substitute a
+  flat stat bonus for a status effect that doesn't exist yet — see
+  `docs/ARIA_PARITY.md`).
 - *Effort: M. Mostly independent of Phase 1/2.*
 
 ## Phase 4 — Characters

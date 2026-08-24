@@ -506,6 +506,10 @@ interface SoulBolt {
   /** Arcing spear: pulled down by gravity and drawn as a spear along its heading. */
   arc: boolean
   hitTargets: Set<CastleActor>
+  /** How many enemies this bolt can pierce before it's spent. */
+  hitLimit: number
+  /** Item Crash bolt: drawn bigger and gold-tinted (see castSoul). */
+  crash: boolean
 }
 
 const MP_REGEN = 0.18
@@ -518,6 +522,13 @@ const SOUL_ARC_LIFETIME = 96
 const SOUL_HOMING_LIFETIME = 100
 const SOUL_HIT_LIMIT = 3
 const SOUL_CAST_COOLDOWN = 22
+// Item Crash: spend the whole MP bar for a bigger, screen-clearing version of
+// the equipped Bullet Soul's pattern (more bolts, harder-hitting, and each
+// pierces more targets) — a full-bar payoff rather than a new button.
+const SOUL_CRASH_DAMAGE_MULT = 2.2
+const SOUL_CRASH_HIT_LIMIT = SOUL_HIT_LIMIT + 2
+const SOUL_CRASH_COOLDOWN = 46
+const SOUL_CRASH_FLASH_TICKS = 20
 
 const BONE_DAMAGE = 8
 const AXE_DAMAGE = 12
@@ -2375,7 +2386,7 @@ export class CampaignScene extends Scene {
     this.projectiles = this.projectiles.filter((p) => p.ticksLeft > 0 && !p.hasHit)
     this.subweapons = this.subweapons.filter((p) => p.ticksLeft > 0 && !p.hasHit)
     this.enemyBones = this.enemyBones.filter((b) => b.ticksLeft > 0 && !b.hasHit && b.position.y < FLOOR_Y + 30)
-    this.soulBolts = this.soulBolts.filter((b) => b.ticksLeft > 0 && b.hitTargets.size < SOUL_HIT_LIMIT)
+    this.soulBolts = this.soulBolts.filter((b) => b.ticksLeft > 0 && b.hitTargets.size < b.hitLimit)
     this.resolveCandles()
     this.resolvePickups()
     this.pickups = this.pickups.filter((pickup) => pickup.ticksLeft > 0)
@@ -2884,7 +2895,7 @@ export class CampaignScene extends Scene {
     this.ctx.audio.swing()
   }
 
-  private spawnSoulBolt(vx: number, vy: number, damage: number, homing: boolean, x: number, y: number, arc = false): void {
+  private spawnSoulBolt(vx: number, vy: number, damage: number, homing: boolean, x: number, y: number, arc = false, crash = false): void {
     this.soulBolts.push({
       position: { x, y },
       velocity: { x: vx, y: vy },
@@ -2895,17 +2906,23 @@ export class CampaignScene extends Scene {
       homing,
       arc,
       hitTargets: new Set<CastleActor>(),
+      hitLimit: crash ? SOUL_CRASH_HIT_LIMIT : SOUL_HIT_LIMIT,
+      crash,
     })
   }
 
   /** Spend MP to cast the equipped Red (Bullet) Soul, whose pattern shapes the
-   *  volley. Returns true if it actually fired. */
+   *  volley. At a full MP bar this becomes an Item Crash instead: the whole
+   *  bar buys a bigger, harder-hitting, further-piercing burst of the same
+   *  pattern rather than a new button to learn. Returns true if it fired. */
   private castSoul(): boolean {
     if (this.player.isDead || this.soulCooldown > 0 || this.bossIntroTicks > 0) return false
     const soul = this.equippedSoulDef()
     if (this.player.meter < soul.mpCost) return false
-    this.player.meter -= soul.mpCost
-    this.soulCooldown = SOUL_CAST_COOLDOWN
+    const crash = this.player.meter >= 100
+    this.player.meter -= crash ? this.player.meter : soul.mpCost
+    this.soulCooldown = crash ? SOUL_CRASH_COOLDOWN : SOUL_CAST_COOLDOWN
+    const dmg = crash ? (base: number) => Math.round(base * SOUL_CRASH_DAMAGE_MULT) : (base: number) => base
     const f = this.player.facing
     const ox = this.player.position.x + f * 36
     const oy = this.player.position.y - 62
@@ -2914,25 +2931,42 @@ export class CampaignScene extends Scene {
     switch (soul.pattern) {
       case 'spear':
         // A curved spear-cast: launched forward and up, it arcs down as it flies.
-        this.spawnSoulBolt(f * SOUL_SPEED * 0.82, -5.4, 22, false, ox, oy - 6, true)
+        // Crash: three spears fanned across the arc instead of one.
+        for (const dv of crash ? [-2.4, 0, 2.4] : [0]) {
+          this.spawnSoulBolt(f * SOUL_SPEED * 0.82, -5.4 + dv, dmg(22), false, ox, oy - 6, true, crash)
+        }
         break
       case 'bolt':
-        this.spawnSoulBolt(f * SOUL_SPEED, 0, 24, false, ox, oy)
+        // Crash: a three-high wall instead of a single shot.
+        for (const dy of crash ? [-26, 0, 26] : [0]) {
+          this.spawnSoulBolt(f * SOUL_SPEED, 0, dmg(24), false, ox, oy + dy, false, crash)
+        }
         break
       case 'spread':
-        for (const a of [-0.34, 0, 0.34]) this.spawnSoulBolt(f * SOUL_SPEED * Math.cos(a), SOUL_SPEED * Math.sin(a), 16, false, ox, oy)
+        for (const a of crash ? [-0.9, -0.6, -0.3, 0, 0.3, 0.6, 0.9] : [-0.34, 0, 0.34]) {
+          this.spawnSoulBolt(f * SOUL_SPEED * Math.cos(a), SOUL_SPEED * Math.sin(a), dmg(16), false, ox, oy, false, crash)
+        }
         break
       case 'homing':
-        this.spawnSoulBolt(f * SOUL_SPEED * 0.8, 0, 22, true, ox, oy)
+        // Crash: four seeking bolts instead of one.
+        for (let i = 0; i < (crash ? 4 : 1); i += 1) {
+          this.spawnSoulBolt(f * SOUL_SPEED * 0.8, 0, dmg(22), true, ox, oy, false, crash)
+        }
         break
       case 'nova':
-        for (let i = 0; i < 8; i += 1) {
-          const a = (i / 8) * Math.PI * 2
-          this.spawnSoulBolt(Math.cos(a) * SOUL_SPEED, Math.sin(a) * SOUL_SPEED, 14, false, cx, cy)
+        // Crash: a denser double-count ring.
+        for (let i = 0; i < (crash ? 16 : 8); i += 1) {
+          const a = (i / (crash ? 16 : 8)) * Math.PI * 2
+          this.spawnSoulBolt(Math.cos(a) * SOUL_SPEED, Math.sin(a) * SOUL_SPEED, dmg(14), false, cx, cy, false, crash)
         }
         break
     }
+    if (crash) {
+      this.flashTicks = SOUL_CRASH_FLASH_TICKS
+      this.spawnFloatingText(this.player.position.x, this.player.position.y - 128, 'SOUL CRASH!', '#f6b74a')
+    }
     this.ctx.audio.swing()
+    this.ctx.audio.hit()
     return true
   }
 
@@ -2979,7 +3013,7 @@ export class CampaignScene extends Scene {
 
   private resolveSoulBolts(): void {
     for (const bolt of this.soulBolts) {
-      if (bolt.hitTargets.size >= SOUL_HIT_LIMIT) continue
+      if (bolt.hitTargets.size >= bolt.hitLimit) continue
       const box = soulBoltBox(bolt)
       for (const enemy of this.enemies) {
         if (enemy.isDead || bolt.hitTargets.has(enemy)) continue
@@ -2990,7 +3024,7 @@ export class CampaignScene extends Scene {
         this.ctx.audio.hit()
         this.hitstop = Math.max(this.hitstop, 5)
         if (enemy.isDead) this.flashTicks = BIG_HIT_FLASH_TICKS
-        if (bolt.hitTargets.size >= SOUL_HIT_LIMIT) break
+        if (bolt.hitTargets.size >= bolt.hitLimit) break
       }
     }
   }
@@ -4003,15 +4037,23 @@ export class CampaignScene extends Scene {
     ctx.lineWidth = 1
     ctx.strokeRect(barX + 0.5, hpY - 6.5, barW - 1, 13)
 
-    // MP bar (blue).
+    // MP bar (blue) — pulses gold at a full bar: an Item Crash is ready.
     ctx.fillStyle = '#0e1a2a'
     ctx.fillRect(barX, mpY - 5, barW, 10)
     ctx.fillStyle = '#3a86d0'
     ctx.fillRect(barX, mpY - 5, barW * mpFill, 10)
     ctx.fillStyle = 'rgba(200, 230, 255, 0.28)'
     ctx.fillRect(barX, mpY - 5, barW * mpFill, 2)
-    ctx.strokeStyle = '#5a86b0'
-    ctx.strokeRect(barX + 0.5, mpY - 4.5, barW - 1, 9)
+    if (mpFill >= 1) {
+      const pulse = 0.5 + 0.5 * Math.sin(this.blink * 0.15)
+      ctx.strokeStyle = `rgba(246, 183, 74, ${0.5 + 0.5 * pulse})`
+      ctx.lineWidth = 2
+      ctx.strokeRect(barX - 1, mpY - 6, barW + 2, 11)
+    } else {
+      ctx.strokeStyle = '#5a86b0'
+      ctx.lineWidth = 1
+      ctx.strokeRect(barX + 0.5, mpY - 4.5, barW - 1, 9)
+    }
 
     // One small essentials line beneath the bars.
     ctx.textAlign = 'left'
@@ -5748,25 +5790,29 @@ function drawSoulBolt(bolt: SoulBolt, renderer: Renderer, cameraX: number): void
   const y = bolt.position.y
   const fade = clamp(bolt.ticksLeft / 12, 0, 1)
   if (bolt.arc) { drawSoulSpear(bolt, ctx, x, y, fade); return }
+  // Item Crash bolts run bigger and gold-tinted instead of the usual blue.
+  const scale = bolt.crash ? 1.5 : 1
+  const auraRgb = bolt.crash ? '246, 183, 74' : '120, 200, 255'
+  const coreStroke = bolt.crash ? '#d08a1a' : '#3aa0e0'
   ctx.save()
   // Soft outer aura.
-  const aura = ctx.createRadialGradient(x, y, 0, x, y, 22)
-  aura.addColorStop(0, `rgba(120, 200, 255, ${0.5 * fade})`)
-  aura.addColorStop(1, 'rgba(120, 200, 255, 0)')
+  const aura = ctx.createRadialGradient(x, y, 0, x, y, 22 * scale)
+  aura.addColorStop(0, `rgba(${auraRgb}, ${0.5 * fade})`)
+  aura.addColorStop(1, `rgba(${auraRgb}, 0)`)
   ctx.fillStyle = aura
   ctx.beginPath()
-  ctx.arc(x, y, 22, 0, Math.PI * 2)
+  ctx.arc(x, y, 22 * scale, 0, Math.PI * 2)
   ctx.fill()
   // Spinning four-point core.
   ctx.translate(x, y)
   ctx.rotate(bolt.spin)
   ctx.globalAlpha = fade
   ctx.fillStyle = '#eaf6ff'
-  ctx.strokeStyle = '#3aa0e0'
+  ctx.strokeStyle = coreStroke
   ctx.lineWidth = 2
   ctx.beginPath()
   for (let i = 0; i < 8; i += 1) {
-    const r = i % 2 === 0 ? 11 : 5
+    const r = (i % 2 === 0 ? 11 : 5) * scale
     const a = (i / 8) * Math.PI * 2
     const px = Math.cos(a) * r
     const py = Math.sin(a) * r
@@ -5782,27 +5828,31 @@ function drawSoulBolt(bolt: SoulBolt, renderer: Renderer, cameraX: number): void
 /** The default soul: a spirit spear that points along its arcing flight path. */
 function drawSoulSpear(bolt: SoulBolt, ctx: CanvasRenderingContext2D, x: number, y: number, fade: number): void {
   const angle = Math.atan2(bolt.velocity.y, bolt.velocity.x)
+  const scale = bolt.crash ? 1.5 : 1
+  const auraRgb = bolt.crash ? '246, 183, 74' : '120, 200, 255'
+  const shaftStroke = bolt.crash ? '#f6d9a0' : '#bfe6ff'
+  const headStroke = bolt.crash ? '#d08a1a' : '#3aa0e0'
   ctx.save()
   ctx.translate(x, y)
   ctx.rotate(angle)
   ctx.globalAlpha = fade
   // Trailing glow behind the head.
-  const aura = ctx.createRadialGradient(0, 0, 0, 0, 0, 26)
-  aura.addColorStop(0, `rgba(120, 200, 255, ${0.45 * fade})`)
-  aura.addColorStop(1, 'rgba(120, 200, 255, 0)')
+  const aura = ctx.createRadialGradient(0, 0, 0, 0, 0, 26 * scale)
+  aura.addColorStop(0, `rgba(${auraRgb}, ${0.45 * fade})`)
+  aura.addColorStop(1, `rgba(${auraRgb}, 0)`)
   ctx.fillStyle = aura
-  ctx.beginPath(); ctx.arc(0, 0, 26, 0, Math.PI * 2); ctx.fill()
+  ctx.beginPath(); ctx.arc(0, 0, 26 * scale, 0, Math.PI * 2); ctx.fill()
   // Shaft.
-  ctx.strokeStyle = '#bfe6ff'
+  ctx.strokeStyle = shaftStroke
   ctx.lineWidth = 3
   ctx.lineCap = 'round'
-  ctx.beginPath(); ctx.moveTo(-20, 0); ctx.lineTo(9, 0); ctx.stroke()
+  ctx.beginPath(); ctx.moveTo(-20 * scale, 0); ctx.lineTo(9 * scale, 0); ctx.stroke()
   // Spearhead.
   ctx.fillStyle = '#eaf6ff'
-  ctx.strokeStyle = '#3aa0e0'
+  ctx.strokeStyle = headStroke
   ctx.lineWidth = 1.5
   ctx.beginPath()
-  ctx.moveTo(22, 0); ctx.lineTo(8, -6); ctx.lineTo(11, 0); ctx.lineTo(8, 6)
+  ctx.moveTo(22 * scale, 0); ctx.lineTo(8 * scale, -6 * scale); ctx.lineTo(11 * scale, 0); ctx.lineTo(8 * scale, 6 * scale)
   ctx.closePath(); ctx.fill(); ctx.stroke()
   ctx.restore()
 }
