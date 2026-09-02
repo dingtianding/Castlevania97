@@ -34,8 +34,8 @@ Armor: boomerang, Bat: sonar wave), so those were added directly with zero new e
 new/newly-souled enemy drops its own real canon soul — direct stat matches (Skeleton Knight, Dead
 Crusader, Golem, Arc Demon's STR portion, Minotaur), MP-cost-and-pattern matches (Giant Skeleton, Winged
 Skeleton, Beam Skeleton, Skull Archer, Axe Armor, Bat, Tiny Devil, Demon Lord, Flame Demon), a
-Guardian-soul approximation (Cagnazzo's wild-punching flurry onto the `frenzy` slot, alongside Big Golem
-and Great Armor), and honestly-approximated ones where the canon effect needs a system this engine
+Guardian-soul approximation (Cagnazzo's wild-punching flurry onto the `frenzy` slot, alongside Great
+Armor), and honestly-approximated ones where the canon effect needs a system this engine
 doesn't have yet (Zombie Officer's mid-air-KO heal, Zombie Soldier's timed-grenade fuse, Waiter
 Skeleton's damage-over-time, Axe Armor's boomerang return, Arc Demon's HP-drain-on-hit, Iron Golem's
 poise, Wooden Golem's MP regen, Succubus's lifesteal, Ectoplasm's curse immunity, Poison Worm's poison
@@ -84,7 +84,7 @@ a simplification, but worth knowing it's a deliberate deviation, not an oversigh
 |---|---|---|
 | Alastor | Sword familiar orbits and attacks | ❌ |
 | Alura Une | Large HP heal | ❌ |
-| Big Golem | Rock-arm heavy melee | ✅ built — `guard-golem`, approximated as an attack-boost buff (`frenzy` slot) |
+| Big Golem | Rock-arm heavy melee | ✅ built — `guard-golem`, its own `golemslam` effect (a periodic ground-slam AoE pulse around the player while held, see `CampaignScene.ts`'s golem-slam check) — a closer mechanical match than the shared `frenzy` stat buff it used before |
 | Black Panther | Damaging dash | ❌ |
 | Bone Pillar | Flamethrower | ❌ |
 | Buer | Rotating flame orbs | ❌ |
@@ -107,11 +107,16 @@ a simplification, but worth knowing it's a deliberate deviation, not an oversigh
 | Sky Fish | Temp STR/LCK boost | ❌ |
 | Witch | Repels bullets | ❌ |
 
-Engine limitation worth naming: `BlueSoulEffect` only has 4 mechanical slots (glide/aegis/frenzy/haste),
-so multiple canon Guardian souls with genuinely different effects (Big Golem, Great Armor, Creaking
-Skull, Death) get compressed onto the same 1-2 buff types. Real mechanical differentiation (familiars,
-shields, projectile summons) would need new `BlueSoulEffect` variants and matching logic in
-`CampaignScene.updateBlueGuardian`/`blueBuffMult` — deliberately out of scope for a naming/sourcing pass.
+Engine limitation, partially addressed: `BlueSoulEffect` had 5 mechanical slots (glide/aegis/frenzy/
+haste/panther) with several genuinely different canon Guardian souls compressed onto the same buff
+type. Big Golem got its own `golemslam` effect (a periodic ground-slam AoE pulse, distinct from
+Panther's moving dash-trail or Frenzy's passive stat buff) — see `CampaignScene.ts`'s golem-slam check
+and `resolveCombat`. Great Armor, Creaking Skull, and Death still share slots with other souls (Great
+Armor/Cagnazzo both `frenzy`; Creaking Skull and Death aren't Guardian souls in this engine at all, see
+their own rows). Real mechanical differentiation for the rest (familiars, shields, projectile summons)
+would need more new `BlueSoulEffect` variants and matching logic in
+`CampaignScene.updateBlueGuardian`/`resolveCombat` — real engine work, not a data rename, but the
+pattern is now proven out for one soul.
 
 ## 3. Enchant Souls (33 total — passive stat/utility)
 
@@ -242,7 +247,7 @@ intentionally modeled as a Bullet Soul instead. Not in the table below since Dea
 | 1 | Creaking Skull | Castle Corridor | Creaking Skull (Guardian) | ✅ boss built; soul built as a stat-soul approximation (`souls.ts`) |
 | 2 | Manticore | Chapel | Manticore (Guardian) | ✅ boss built; soul built (`guard-manticore`, `haste` slot) |
 | 3 | Great Armor | Study | Great Armor (Guardian); Malphas is a separate room pickup, not this boss's drop | ✅ boss built; soul built (`guard-great-armor`, `frenzy` slot) |
-| 4 | Big Golem | Dance Hall (canon: also fought regular-enemy in Reservoir) | Big Golem (Guardian) | ✅ boss built; real soul built (`guard-golem`, `frenzy` slot); the underwater/Skula effect stays on this boss too, now labeled `drowned-soul (original)` rather than pretending to be canon |
+| 4 | Big Golem | Dance Hall (canon: also fought regular-enemy in Reservoir) | Big Golem (Guardian) | ✅ boss built; real soul built (`guard-golem`, its own `golemslam` effect, not a shared stat-buff slot); the underwater/Skula effect stays on this boss too, now labeled `drowned-soul (original)` rather than pretending to be canon |
 | 5 | Headhunter | Inner Quarters | Headhunter (Enchant, stats scale with souls) | ✅ boss built; soul built (`headhunter-soul`) |
 | 6 | Death | Clock Tower | Death (Guardian); Skula found in the adjoining room, not this boss's drop | ✅ boss built; soul built (`death-soul`, reclassified as a Bullet Soul — see note above) |
 | 7 | Legion | Underground Cemetery | Legion (Bullet) | ✅ boss built (placed in Floating Garden here, not Underground Cemetery); soul built (`legion-soul`) |
@@ -275,27 +280,29 @@ Done as of this pass:
    named enemies — their real canon Bullet Souls, at zero new-enemy cost.
 4. ✅ Added a seventh pass closing the four candidates named below: Minotaur (armoredSkeleton family,
    direct STR+8 Enchant soul), Cagnazzo (demon-Files family, its wild-punching-flurry Guardian soul
-   approximated onto the `frenzy` slot alongside Big Golem/Great Armor), and Ectoplasm + Poison Worm
+   approximated onto the `frenzy` slot alongside Great Armor), and Ectoplasm + Poison Worm
    (zombie family, both Enchant souls whose canon immunity effects aren't modeled yet so they land as
    small honest +6 max-health bonuses). Placed into Top Floor, Floating Garden, Study, and Underground
    Reservoir respectively — one room each for the first three (their areas have only one room that
    isn't a save/warp safe room), both rooms for Poison Worm. Also found and removed three dead
    `extraEnemies` entries left on save/warp rooms by earlier passes (see the status section above).
+5. ✅ Gave Big Golem's Guardian soul real mechanical differentiation instead of sharing the `frenzy`
+   slot: a new `golemslam` effect (periodic ground-slam AoE pulse while held) — see the engine-limitation
+   note in section 2 above. First step on item 7 below; Great Armor/Cagnazzo still share `frenzy`.
 
 Still open, for a later pass if pursued:
 
-5. More real canon regular enemies remain unbuilt, but closing more of the list now means genuinely new
+6. More real canon regular enemies remain unbuilt, but closing more of the list now means genuinely new
    sprites, not further recolors — the 4 reskinnable families (zombie/skeleton/armoredSkeleton/
    demon-Files) are fully worn thin after 23 variants.
-6. Curate a subset of the remaining ~60 souls (mostly Bullet/Enchant, tied to enemies not built here)
+7. Curate a subset of the remaining ~60 souls (mostly Bullet/Enchant, tied to enemies not built here)
    that's realistic for this engine's scope — not all of them need modeling, but what gets modeled
    should stay honestly sourced.
-7. If real mechanical differentiation matters more than naming (distinct familiars, shields, projectile
-   summons per Guardian soul, rather than several souls sharing the same 4 stat-buff slots), that
-   requires extending `BlueSoulEffect` and the logic in `CampaignScene.updateBlueGuardian`/
-   `blueBuffMult` — genuine engine work, not a data rename.
-8. Underground Cemetery, The Arena, and Chaotic Realm (plus Balore, Graham Jones, Julius Belmont as
+8. More Guardian-soul mechanical differentiation beyond Big Golem's `golemslam` (distinct familiars,
+   shields, projectile summons for Great Armor/Cagnazzo/others still sharing `frenzy`) — genuine engine
+   work per soul, not a data rename.
+9. Underground Cemetery, The Arena, and Chaotic Realm (plus Balore, Graham Jones, Julius Belmont as
    bosses) are the three canon areas and three bosses not built at all yet.
-9. A damage-over-time system (poison, curse, burn, the curry plate) would let several already-flagged
+10. A damage-over-time system (poison, curse, burn, the curry plate) would let several already-flagged
    approximations become exact — Zombie, Zombie Officer, Waiter Skeleton, Ectoplasm, and Poison Worm
    souls all wait on this.

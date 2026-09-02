@@ -4,7 +4,7 @@
  * is always owned, and stronger guardians drop from certain enemies. Owned blue
  * souls live on the campaign save; only the equipped one is castable.
  */
-export type BlueSoulEffect = 'glide' | 'aegis' | 'frenzy' | 'haste' | 'panther'
+export type BlueSoulEffect = 'glide' | 'aegis' | 'frenzy' | 'haste' | 'panther' | 'golemslam'
 
 export interface BlueSoulDef {
   id: string
@@ -28,14 +28,17 @@ export const BASE_BLUE_SOUL = 'guard-panther'
 // Canon check (see docs/ARIA_PARITY.md): guard-panther (Black Panther, "Sonic
 // Dash" — real speed boost + real contact damage, see CampaignScene's panther
 // hit check) and guard-flight (Flying Armor) are both exact canon matches.
-// guard-golem, guard-great-armor, and guard-cagnazzo are real canon Guardian
-// souls approximated onto this engine's four-effect model (their true canon
-// effects — a rock-arm melee attachment, a lightning-wreathed STR buff, and a
-// wild punching flurry — are all attack-boost-flavored, so all three map to
-// 'frenzy'; only the numbers differ). guard-manticore approximates
-// Manticore's "charging beast form" as a speed buff, the closest available
-// slot. guard-bulwark has no confirmed canon Guardian-soul source among
-// enemies built here and is labeled original.
+// guard-golem now has its own effect ('golemslam' — a periodic ground-slam AoE
+// pulse, see CampaignScene's golem-slam check) instead of sharing 'frenzy',
+// a closer mechanical match to its canon rock-arm melee attachment than a
+// flat stat buff. guard-great-armor and guard-cagnazzo are real canon
+// Guardian souls still approximated onto this engine's effect model (their
+// true canon effects — a lightning-wreathed STR buff and a wild punching
+// flurry — are both attack-boost-flavored, so both map to 'frenzy'; only the
+// numbers differ). guard-manticore approximates Manticore's "charging beast
+// form" as a speed buff, the closest available slot. guard-bulwark has no
+// confirmed canon Guardian-soul source among enemies built here and is
+// labeled original.
 export const BLUE_SOUL_POOL: readonly BlueSoulDef[] = [
   {
     id: 'guard-panther',
@@ -67,8 +70,8 @@ export const BLUE_SOUL_POOL: readonly BlueSoulDef[] = [
     mpCost: 42,
     cooldown: 200,
     duration: 180,
-    effect: 'frenzy',
-    blurb: 'A rock arm grafts to your back — heavy blows for a while.',
+    effect: 'golemslam',
+    blurb: 'Canon effect: a rock-arm melee attachment. A rock arm grafts to your back and periodically slams the ground, hitting everything nearby.',
   },
   {
     id: 'guard-great-armor',

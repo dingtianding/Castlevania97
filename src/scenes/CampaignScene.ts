@@ -197,6 +197,22 @@ const DIVE_DAMAGE = 16
 // shockwave rather than a per-frame instant-kill.
 const PANTHER_DASH_DAMAGE = 10
 const PANTHER_HIT_INTERVAL = 10
+// Big Golem Soul: a stationary ground-slam pulse instead of Black Panther's
+// moving dash-trail — hits everything in a radius around the player on a
+// cadence, regardless of movement, mirroring its canon rock-arm melee.
+const GOLEM_SLAM_DAMAGE = 18
+const GOLEM_SLAM_INTERVAL = 46
+const GOLEM_SLAM_RADIUS = 96
+// HUD label per active Guardian buff — a Record (not a ternary chain) so
+// TypeScript flags a missing entry the moment a new BlueSoulEffect is added.
+const BLUE_BUFF_LABELS: Record<BlueSoulEffect, string> = {
+  glide: 'GLIDE',
+  aegis: 'WARD',
+  frenzy: 'FRENZY',
+  haste: 'HASTE',
+  panther: 'SONIC DASH',
+  golemslam: 'ROCK ARM',
+}
 // A low tunnel's floor gap — a standing player is blocked, a sliding one fits.
 const CRAWL_GAP = 46
 const JUMP_VELOCITY = -15.5
@@ -1654,6 +1670,7 @@ export class CampaignScene extends Scene {
   private flashTicks = 0
   private contactHitCooldown = 0
   private pantherHitCooldown = 0
+  private golemSlamCooldown = 0
   private defeatTicks = 0
   private bossIntroTicks = 0
   // Zone title card: freeze timer + name for the "first time entering a zone" banner.
@@ -2264,6 +2281,7 @@ export class CampaignScene extends Scene {
     if (this.flashTicks > 0) this.flashTicks -= 1
     if (this.contactHitCooldown > 0) this.contactHitCooldown -= 1
     if (this.pantherHitCooldown > 0) this.pantherHitCooldown -= 1
+    if (this.golemSlamCooldown > 0) this.golemSlamCooldown -= 1
     if (this.levelUpTicks > 0) this.levelUpTicks -= 1
     if (this.popupTicks > 0) this.popupTicks -= 1
     const otherModalOpen = this.ending || this.drafting || this.perkChoosing || this.levelUpScreen || this.shopping || this.showStatus || this.showEquipment || this.showSouls || this.showItems || this.showMap || this.showWarp || this.showDebugWarp || this.showMenu
@@ -2709,6 +2727,31 @@ export class CampaignScene extends Scene {
         this.pantherHitCooldown = PANTHER_HIT_INTERVAL
         this.ctx.audio.hit()
         this.hitstop = Math.max(this.hitstop, 3)
+      }
+    }
+    // Big Golem Soul: while held, periodically slam the ground — a radius
+    // pulse around the player, hitting standing still or moving alike (unlike
+    // Panther's dash-trail, this one doesn't need you to be running).
+    if (this.blueBuffEffect === 'golemslam' && this.golemSlamCooldown <= 0) {
+      const px = this.player.position.x
+      const py = this.player.position.y - 40
+      let hitAny = false
+      for (const enemy of this.enemies) {
+        if (enemy.isDead) continue
+        const hb = enemy.hurtbox()
+        const ex = hb.x + hb.width / 2
+        const ey = hb.y + hb.height / 2
+        if (Math.hypot(ex - px, ey - py) > GOLEM_SLAM_RADIUS) continue
+        if (!enemy.applyFlatDamage(GOLEM_SLAM_DAMAGE, px, -6, this.playerDamageMult)) continue
+        hitAny = true
+        this.spawnDamageNumber(enemy, '#e0b878')
+        if (enemy.isDead) this.flashTicks = BIG_HIT_FLASH_TICKS
+      }
+      this.spawnGolemSlamFx(px, this.player.position.y)
+      this.golemSlamCooldown = GOLEM_SLAM_INTERVAL
+      if (hitAny) {
+        this.ctx.audio.hit()
+        this.hitstop = Math.max(this.hitstop, 4)
       }
     }
     // A diving slam damages every enemy it drops onto (each once per dive).
@@ -3621,6 +3664,24 @@ export class CampaignScene extends Scene {
     }
   }
 
+  /** Big Golem Soul's periodic ground slam: rock chips kicked outward at the
+   *  player's feet, in a ring, so the radius reads without a dedicated shader. */
+  private spawnGolemSlamFx(x: number, y: number): void {
+    const rng = this.ctx.rng
+    for (let i = 0; i < 12; i += 1) {
+      const a = (i / 12) * Math.PI * 2 + rng.next() * 0.3
+      const speed = 2.6 + rng.next() * 2.4
+      const life = 16 + Math.floor(rng.next() * 10)
+      this.particles.push({
+        position: { x, y: y - 6 },
+        velocity: { x: Math.cos(a) * speed, y: Math.sin(a) * speed * 0.5 - 1.6 },
+        ticksLeft: life, life, size: 3 + Math.floor(rng.next() * 2),
+        color: rng.next() < 0.5 ? '#9a8264' : '#6e5c46',
+        gravity: 0.3,
+      })
+    }
+  }
+
   private spawnCandleBreak(x: number, y: number): void {
     const rng = this.ctx.rng
     for (let i = 0; i < 7; i += 1) {
@@ -4079,7 +4140,7 @@ export class CampaignScene extends Scene {
     // Active guardian buff: its label pulses to the right of the meters while the
     // ; button is held (MP itself is the draining resource, shown by the MP bar).
     if (this.blueBuffEffect !== null) {
-      const label = this.blueBuffEffect === 'glide' ? 'GLIDE' : this.blueBuffEffect === 'aegis' ? 'WARD' : this.blueBuffEffect === 'frenzy' ? 'FRENZY' : this.blueBuffEffect === 'panther' ? 'SONIC DASH' : 'HASTE'
+      const label = BLUE_BUFF_LABELS[this.blueBuffEffect]
       ctx.textAlign = 'left'
       ctx.textBaseline = 'middle'
       ctx.font = '8px "Press Start 2P", monospace'
