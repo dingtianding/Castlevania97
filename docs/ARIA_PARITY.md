@@ -34,8 +34,8 @@ Armor: boomerang, Bat: sonar wave), so those were added directly with zero new e
 new/newly-souled enemy drops its own real canon soul — direct stat matches (Skeleton Knight, Dead
 Crusader, Golem, Arc Demon's STR portion, Minotaur), MP-cost-and-pattern matches (Giant Skeleton, Winged
 Skeleton, Beam Skeleton, Skull Archer, Axe Armor, Bat, Tiny Devil, Demon Lord, Flame Demon), a
-Guardian-soul approximation (Cagnazzo's wild-punching flurry onto the `frenzy` slot, alongside Great
-Armor), and honestly-approximated ones where the canon effect needs a system this engine
+Guardian-soul approximation (Cagnazzo's wild-punching flurry, later given its own `flurry` effect — see
+the seventh-pass follow-up below), and honestly-approximated ones where the canon effect needs a system this engine
 doesn't have yet (Zombie Officer's mid-air-KO heal, Zombie Soldier's timed-grenade fuse, Waiter
 Skeleton's damage-over-time, Axe Armor's boomerang return, Arc Demon's HP-drain-on-hit, Iron Golem's
 poise, Wooden Golem's MP regen, Succubus's lifesteal, Ectoplasm's curse immunity, Poison Worm's poison
@@ -88,7 +88,7 @@ a simplification, but worth knowing it's a deliberate deviation, not an oversigh
 | Black Panther | Damaging dash | ❌ |
 | Bone Pillar | Flamethrower | ❌ |
 | Buer | Rotating flame orbs | ❌ |
-| Cagnazzo | Wild punching demon | ✅ built — `guard-cagnazzo` in `blueSouls.ts`, approximated as an attack-boost buff (`frenzy` slot) |
+| Cagnazzo | Wild punching demon | ✅ built — `guard-cagnazzo` in `blueSouls.ts`, its own `flurry` effect (a rapid, close-range multi-tick pulse while held, see `CampaignScene.ts`'s flurry check) — matches "wild, uncountable" better than the `frenzy` stat buff it used before |
 | Cateoblepas | Petrifying ground beam | ❌ |
 | Creaking Skull | Giant skeleton arm | ⚠️ modeled in `souls.ts` (`creaking-skull-soul`) as a stat buff instead of a Guardian soul — no free Guardian effect slot left |
 | Curly | Charging beast form | ❌ |
@@ -110,11 +110,13 @@ a simplification, but worth knowing it's a deliberate deviation, not an oversigh
 Engine limitation, partially addressed: `BlueSoulEffect` had 5 mechanical slots (glide/aegis/frenzy/
 haste/panther) with several genuinely different canon Guardian souls compressed onto the same buff
 type. Big Golem got its own `golemslam` effect (a periodic ground-slam AoE pulse, distinct from
-Panther's moving dash-trail or Frenzy's passive stat buff) — see `CampaignScene.ts`'s golem-slam check
-and `resolveCombat`. Great Armor, Creaking Skull, and Death still share slots with other souls (Great
-Armor/Cagnazzo both `frenzy`; Creaking Skull and Death aren't Guardian souls in this engine at all, see
-their own rows). Real mechanical differentiation for the rest (familiars, shields, projectile summons)
-would need more new `BlueSoulEffect` variants and matching logic in
+Panther's moving dash-trail or Frenzy's passive stat buff) and Cagnazzo got its own `flurry` effect (a
+much faster, smaller, shorter-range tick — "wild and uncountable" reads differently from one heavy
+slam) — see `CampaignScene.ts`'s golem-slam/flurry checks in `resolveCombat`. Great Armor genuinely is
+a flat STR buff in canon, so it keeping `frenzy` isn't a compression — that one's an accurate match, not
+a placeholder. Creaking Skull and Death aren't Guardian souls in this engine at all (see their own
+rows). Real mechanical differentiation for the rest (familiars, shields, projectile summons) would need
+more new `BlueSoulEffect` variants and matching logic in
 `CampaignScene.updateBlueGuardian`/`resolveCombat` — real engine work, not a data rename, but the
 pattern is now proven out for one soul.
 
@@ -279,16 +281,19 @@ Done as of this pass:
    into two existing rooms each. Also gave `axeArmor` and `bat` — already-existing, already-correctly-
    named enemies — their real canon Bullet Souls, at zero new-enemy cost.
 4. ✅ Added a seventh pass closing the four candidates named below: Minotaur (armoredSkeleton family,
-   direct STR+8 Enchant soul), Cagnazzo (demon-Files family, its wild-punching-flurry Guardian soul
-   approximated onto the `frenzy` slot alongside Great Armor), and Ectoplasm + Poison Worm
+   direct STR+8 Enchant soul), Cagnazzo (demon-Files family, its wild-punching-flurry Guardian soul,
+   initially approximated onto the `frenzy` slot alongside Great Armor, later given its own effect —
+   see item 5), and Ectoplasm + Poison Worm
    (zombie family, both Enchant souls whose canon immunity effects aren't modeled yet so they land as
    small honest +6 max-health bonuses). Placed into Top Floor, Floating Garden, Study, and Underground
    Reservoir respectively — one room each for the first three (their areas have only one room that
    isn't a save/warp safe room), both rooms for Poison Worm. Also found and removed three dead
    `extraEnemies` entries left on save/warp rooms by earlier passes (see the status section above).
-5. ✅ Gave Big Golem's Guardian soul real mechanical differentiation instead of sharing the `frenzy`
-   slot: a new `golemslam` effect (periodic ground-slam AoE pulse while held) — see the engine-limitation
-   note in section 2 above. First step on item 7 below; Great Armor/Cagnazzo still share `frenzy`.
+5. ✅ Gave Big Golem's and Cagnazzo's Guardian souls real mechanical differentiation instead of sharing
+   the `frenzy` slot: `golemslam` (periodic ground-slam AoE pulse while held) for Big Golem, `flurry`
+   (much faster, smaller, closer-range tick) for Cagnazzo — see the engine-limitation note in section 2
+   above. Great Armor keeps `frenzy` deliberately: its canon effect genuinely is a flat STR buff, so
+   that's an accurate match, not a placeholder.
 
 Still open, for a later pass if pursued:
 
@@ -298,8 +303,8 @@ Still open, for a later pass if pursued:
 7. Curate a subset of the remaining ~60 souls (mostly Bullet/Enchant, tied to enemies not built here)
    that's realistic for this engine's scope — not all of them need modeling, but what gets modeled
    should stay honestly sourced.
-8. More Guardian-soul mechanical differentiation beyond Big Golem's `golemslam` (distinct familiars,
-   shields, projectile summons for Great Armor/Cagnazzo/others still sharing `frenzy`) — genuine engine
+8. More Guardian-soul mechanical differentiation beyond `golemslam`/`flurry` (distinct familiars,
+   shields, projectile summons for the still-unbuilt canon Guardian souls in the table above) — genuine engine
    work per soul, not a data rename.
 9. Underground Cemetery, The Arena, and Chaotic Realm (plus Balore, Graham Jones, Julius Belmont as
    bosses) are the three canon areas and three bosses not built at all yet.

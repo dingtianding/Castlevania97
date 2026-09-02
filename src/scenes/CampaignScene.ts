@@ -203,6 +203,12 @@ const PANTHER_HIT_INTERVAL = 10
 const GOLEM_SLAM_DAMAGE = 18
 const GOLEM_SLAM_INTERVAL = 46
 const GOLEM_SLAM_RADIUS = 96
+// Cagnazzo Soul: a rapid, short-range flurry tick instead of a flat attack
+// buff — smaller hits than the golem slam, but far more often and in close,
+// mirroring its canon "wild, uncountable" punching flurry.
+const FLURRY_DAMAGE = 6
+const FLURRY_INTERVAL = 12
+const FLURRY_RADIUS = 60
 // HUD label per active Guardian buff — a Record (not a ternary chain) so
 // TypeScript flags a missing entry the moment a new BlueSoulEffect is added.
 const BLUE_BUFF_LABELS: Record<BlueSoulEffect, string> = {
@@ -212,6 +218,7 @@ const BLUE_BUFF_LABELS: Record<BlueSoulEffect, string> = {
   haste: 'HASTE',
   panther: 'SONIC DASH',
   golemslam: 'ROCK ARM',
+  flurry: 'FLURRY',
 }
 // A low tunnel's floor gap — a standing player is blocked, a sliding one fits.
 const CRAWL_GAP = 46
@@ -1671,6 +1678,7 @@ export class CampaignScene extends Scene {
   private contactHitCooldown = 0
   private pantherHitCooldown = 0
   private golemSlamCooldown = 0
+  private flurryCooldown = 0
   private defeatTicks = 0
   private bossIntroTicks = 0
   // Zone title card: freeze timer + name for the "first time entering a zone" banner.
@@ -2282,6 +2290,7 @@ export class CampaignScene extends Scene {
     if (this.contactHitCooldown > 0) this.contactHitCooldown -= 1
     if (this.pantherHitCooldown > 0) this.pantherHitCooldown -= 1
     if (this.golemSlamCooldown > 0) this.golemSlamCooldown -= 1
+    if (this.flurryCooldown > 0) this.flurryCooldown -= 1
     if (this.levelUpTicks > 0) this.levelUpTicks -= 1
     if (this.popupTicks > 0) this.popupTicks -= 1
     const otherModalOpen = this.ending || this.drafting || this.perkChoosing || this.levelUpScreen || this.shopping || this.showStatus || this.showEquipment || this.showSouls || this.showItems || this.showMap || this.showWarp || this.showDebugWarp || this.showMenu
@@ -2752,6 +2761,31 @@ export class CampaignScene extends Scene {
       if (hitAny) {
         this.ctx.audio.hit()
         this.hitstop = Math.max(this.hitstop, 4)
+      }
+    }
+    // Cagnazzo Soul: while held, a rapid, close-in punching flurry — smaller
+    // hits than the golem slam, but far more often and shorter range, so it
+    // reads as "wild and uncountable" rather than one heavy blow.
+    if (this.blueBuffEffect === 'flurry' && this.flurryCooldown <= 0) {
+      const px = this.player.position.x
+      const py = this.player.position.y - 40
+      let hitAny = false
+      for (const enemy of this.enemies) {
+        if (enemy.isDead) continue
+        const hb = enemy.hurtbox()
+        const ex = hb.x + hb.width / 2
+        const ey = hb.y + hb.height / 2
+        if (Math.hypot(ex - px, ey - py) > FLURRY_RADIUS) continue
+        if (!enemy.applyFlatDamage(FLURRY_DAMAGE, px, -3, this.playerDamageMult)) continue
+        hitAny = true
+        this.spawnDamageNumber(enemy, '#ff9a6a')
+        if (enemy.isDead) this.flashTicks = BIG_HIT_FLASH_TICKS
+      }
+      this.flurryCooldown = FLURRY_INTERVAL
+      if (hitAny) {
+        this.spawnFlurryFx(px, py)
+        this.ctx.audio.hit()
+        this.hitstop = Math.max(this.hitstop, 2)
       }
     }
     // A diving slam damages every enemy it drops onto (each once per dive).
@@ -3678,6 +3712,22 @@ export class CampaignScene extends Scene {
         ticksLeft: life, life, size: 3 + Math.floor(rng.next() * 2),
         color: rng.next() < 0.5 ? '#9a8264' : '#6e5c46',
         gravity: 0.3,
+      })
+    }
+  }
+
+  /** Cagnazzo Soul's flurry tick: a couple of small orange knuckle sparks at
+   *  the point of impact — quick and cheap since this fires often. */
+  private spawnFlurryFx(x: number, y: number): void {
+    const rng = this.ctx.rng
+    for (let i = 0; i < 3; i += 1) {
+      const life = 8 + Math.floor(rng.next() * 6)
+      this.particles.push({
+        position: { x: x + (rng.next() - 0.5) * 20, y: y + (rng.next() - 0.5) * 16 },
+        velocity: { x: (rng.next() - 0.5) * 4, y: -1 - rng.next() * 1.6 },
+        ticksLeft: life, life, size: 2,
+        color: rng.next() < 0.5 ? '#ff9a4a' : '#ffce8a',
+        gravity: 0.2,
       })
     }
   }

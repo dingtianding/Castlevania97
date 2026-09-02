@@ -4,7 +4,7 @@
  * is always owned, and stronger guardians drop from certain enemies. Owned blue
  * souls live on the campaign save; only the equipped one is castable.
  */
-export type BlueSoulEffect = 'glide' | 'aegis' | 'frenzy' | 'haste' | 'panther' | 'golemslam'
+export type BlueSoulEffect = 'glide' | 'aegis' | 'frenzy' | 'haste' | 'panther' | 'golemslam' | 'flurry'
 
 export interface BlueSoulDef {
   id: string
@@ -28,17 +28,19 @@ export const BASE_BLUE_SOUL = 'guard-panther'
 // Canon check (see docs/ARIA_PARITY.md): guard-panther (Black Panther, "Sonic
 // Dash" — real speed boost + real contact damage, see CampaignScene's panther
 // hit check) and guard-flight (Flying Armor) are both exact canon matches.
-// guard-golem now has its own effect ('golemslam' — a periodic ground-slam AoE
+// guard-golem has its own effect ('golemslam' — a periodic ground-slam AoE
 // pulse, see CampaignScene's golem-slam check) instead of sharing 'frenzy',
 // a closer mechanical match to its canon rock-arm melee attachment than a
-// flat stat buff. guard-great-armor and guard-cagnazzo are real canon
-// Guardian souls still approximated onto this engine's effect model (their
-// true canon effects — a lightning-wreathed STR buff and a wild punching
-// flurry — are both attack-boost-flavored, so both map to 'frenzy'; only the
-// numbers differ). guard-manticore approximates Manticore's "charging beast
-// form" as a speed buff, the closest available slot. guard-bulwark has no
-// confirmed canon Guardian-soul source among enemies built here and is
-// labeled original.
+// flat stat buff. guard-cagnazzo likewise has its own ('flurry' — a rapid,
+// short-range multi-hit tick, see CampaignScene's flurry check): its canon
+// effect is an action (a punching flurry), not a number, so it earned its
+// own effect rather than sharing 'frenzy' with a soul whose canon effect
+// really is a flat stat ("+120% STR"). guard-great-armor keeps 'frenzy' —
+// unlike the other two, its canon effect is genuinely a stat multiplier, so
+// the shared slot is an accurate match, not a compression. guard-manticore
+// approximates Manticore's "charging beast form" as a speed buff, the
+// closest available slot. guard-bulwark has no confirmed canon Guardian-soul
+// source among enemies built here and is labeled original.
 export const BLUE_SOUL_POOL: readonly BlueSoulDef[] = [
   {
     id: 'guard-panther',
@@ -103,8 +105,8 @@ export const BLUE_SOUL_POOL: readonly BlueSoulDef[] = [
     mpCost: 36,
     cooldown: 190,
     duration: 170,
-    effect: 'frenzy',
-    blurb: 'Canon effect: a wild, uncountable flurry of bare-fisted punches. Approximated here as a battle-fury attack buff.',
+    effect: 'flurry',
+    blurb: 'Canon effect: a wild, uncountable flurry of bare-fisted punches. A short-range flurry of rapid punches lands on anything close while held.',
   },
   {
     id: 'guard-bulwark-original',
