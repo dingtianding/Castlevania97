@@ -18,6 +18,12 @@ export interface SoulDef {
   meterGainMultiplier?: number
   /** Passive traversal: lets you breathe and sink underwater instead of floating. */
   underwater?: boolean
+  /** Immune to the poison DoT (Poison Worm's canon effect). */
+  poisonImmune?: boolean
+  /** Canon "stronger while poisoned" — a live conditional bonus, not a flat
+   *  one, so it isn't folded into SoulModifiers; see CampaignScene's
+   *  zombieSoulPoisonMult and CastleActor.isPoisoned. */
+  strongerWhilePoisoned?: boolean
 }
 
 export interface SoulModifiers {
@@ -32,17 +38,20 @@ export interface SoulModifiers {
 // dead-crusader-soul, golem-soul, arc-demon-soul, iron-golem-soul,
 // wooden-golem-soul, succubus-soul, minotaur-soul, ectoplasm-soul, and
 // poison-worm-soul all correspond to a real Aria of Sorrow soul-dropper.
-// The "-original" entries are homebrew for enemies with no confirmed canon
-// soul — kept as gameplay content but labeled honestly instead of faking a
-// source.
+// zombie-soul and poison-worm-soul are now EXACT matches (not just
+// name/source), since the poison DoT they needed now exists — see
+// strongerWhilePoisoned/poisonImmune above and CampaignScene's poison
+// check. The "-original" entries are homebrew for enemies with no
+// confirmed canon soul — kept as gameplay content but labeled honestly
+// instead of faking a source.
 export const SOUL_POOL: readonly SoulDef[] = [
   {
     id: 'zombie-soul',
     name: 'Zombie Soul',
     enemyId: 'zombie',
     dropChance: 0.24,
-    blurb: 'Canon effect: stronger while poisoned. No poison status exists in this engine yet, so it grants +12 max health instead.',
-    maxHealthBonus: 12,
+    blurb: 'Canon effect: stronger while poisoned. Now modeled exactly — no bonus while clean, but +25% attack and move speed for as long as poison is ticking on you.',
+    strongerWhilePoisoned: true,
   },
   {
     id: 'skeleton-knight-soul',
@@ -190,8 +199,8 @@ export const SOUL_POOL: readonly SoulDef[] = [
     name: 'Poison Worm Soul',
     enemyId: 'poisonWorm',
     dropChance: 0.22,
-    blurb: 'Canon effect: poison immunity. No poison status exists in this engine yet, so it grants +6 max health instead.',
-    maxHealthBonus: 6,
+    blurb: 'Canon effect: poison immunity. Now modeled exactly — poison never lands on you while this is equipped.',
+    poisonImmune: true,
   },
   {
     id: 'drowned-soul',

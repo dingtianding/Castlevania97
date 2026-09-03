@@ -209,6 +209,16 @@ const GOLEM_SLAM_RADIUS = 96
 const FLURRY_DAMAGE = 6
 const FLURRY_INTERVAL = 12
 const FLURRY_RADIUS = 60
+// Poison DoT: a lingering condition (see CastleActor.applyPoison), ticking
+// independently of hit-invulnerability. Poison Worm's bite applies it
+// directly; the Skull Millone soul's poisonOnHit lives on its own soul def
+// in bulletSouls.ts. See docs/ARIA_PARITY.md's damage-over-time note.
+const POISON_TICK_INTERVAL = 30
+const POISON_WORM_BITE_DURATION = 300
+const POISON_WORM_BITE_DAMAGE = 3
+// Zombie Soul's real canon effect (stronger while poisoned), gated on both
+// the equipped soul and the live poisoned state.
+const ZOMBIE_SOUL_POISON_MULT = 1.25
 // HUD label per active Guardian buff — a Record (not a ternary chain) so
 // TypeScript flags a missing entry the moment a new BlueSoulEffect is added.
 const BLUE_BUFF_LABELS: Record<BlueSoulEffect, string> = {
@@ -533,6 +543,8 @@ interface SoulBolt {
   hitLimit: number
   /** Item Crash bolt: drawn bigger and gold-tinted (see castSoul). */
   crash: boolean
+  /** Poison DoT to apply on a successful hit (Skull Millone Soul). */
+  poisonOnHit: { durationTicks: number; damagePerTick: number } | null
 }
 
 const MP_REGEN = 0.18
@@ -633,6 +645,17 @@ class CastleActor {
   private jumpCount = 0
   maxJumps = 2
   lastDamageTaken = 0
+  /** Poison DoT: ticks health down on a fixed cadence, bypassing hit-invulnerability
+   *  (a lingering condition, not a fresh hit). Set externally by CampaignScene's
+   *  per-tick poison loop; see applyPoison/applyPoisonTick below. */
+  poisonTicksLeft = 0
+  poisonTickTimer = 0
+  poisonDamagePerTick = 0
+  /** Set by the scene when the Poison Worm Soul (yellow) is equipped. */
+  poisonImmune = false
+  get isPoisoned(): boolean {
+    return this.poisonTicksLeft > 0
+  }
   /** Whether the high-jump relic (Griffon Wing) is owned. */
   hasHighJump = false
   // True during a Griffon high jump: exempts it from the variable-jump cutoff
@@ -893,6 +916,27 @@ class CastleActor {
     this.invulnerableTicks = this.shouldUseHitInvulnerability() && this.state !== 'death' ? INVULNERABLE_TICKS : 0
     if (this.state === 'death') this.animator.play(this.sheets.death, 6, false)
     else this.animator.play(this.sheets.takeHit, 4, false)
+    return true
+  }
+
+  /** Start (or refresh — no stacking) a poison DoT. No-op if immune or already dead. */
+  applyPoison(durationTicks: number, damagePerTick: number): void {
+    if (this.poisonImmune || this.state === 'death') return
+    this.poisonTicksLeft = durationTicks
+    this.poisonTickTimer = POISON_TICK_INTERVAL
+    this.poisonDamagePerTick = damagePerTick
+  }
+
+  /** One poison tick's damage: no knockback or hit-invulnerability, unlike
+   *  applyFlatDamage — a lingering condition, not a fresh hit. */
+  applyPoisonTick(damage: number): boolean {
+    if (this.state === 'death') return false
+    this.lastDamageTaken = Math.max(1, Math.round(damage))
+    this.health = Math.max(0, this.health - this.lastDamageTaken)
+    if (this.health <= 0) {
+      this.state = 'death'
+      this.animator.play(this.sheets.death, 6, false)
+    }
     return true
   }
 
@@ -2408,6 +2452,7 @@ export class CampaignScene extends Scene {
     }
 
     this.resolveCombat()
+    this.updatePoisonEffects()
     this.resolveEnemyBones()
     this.resolveSoulBolts()
     this.projectiles = this.projectiles.filter((p) => p.ticksLeft > 0 && !p.hasHit)
@@ -2661,6 +2706,7 @@ export class CampaignScene extends Scene {
     this.player.floorGap = this.layout.floorGap
     this.player.water = this.layout.water
     this.player.canDive = this.hasUnderwaterSoul()
+    this.player.poisonImmune = this.hasPoisonImmuneSoul()
     this.player.roomWidth = this.layout.width
     this.player.roomTop = this.layout.top
     this.player.weaponProfile = this.equippedWeaponProfile()
@@ -2817,6 +2863,12 @@ export class CampaignScene extends Scene {
           enemy.markAttackConnected()
           this.spawnDamageNumber(this.player, '#ff7a6a')
           this.onHit(enemyAtk.spec, this.player.isDead)
+          // Poison Worm's coil strike is venomous — its canon soul-drop
+          // stat (poison immunity) only matters if poison is a real threat.
+          if (enemy.def.id === 'poisonWorm') {
+            this.player.applyPoison(POISON_WORM_BITE_DURATION, Math.max(1, Math.round(POISON_WORM_BITE_DAMAGE * this.playerDamageTakenMult)))
+            this.refreshLivePlayerStats() // Zombie Soul's live poisoned-state bonus
+          }
         }
       }
       if (this.contactHitCooldown <= 0 && rectsOverlap(this.player.hurtbox(), enemy.hurtbox())) {
@@ -2870,6 +2922,24 @@ export class CampaignScene extends Scene {
   private spawnDamageNumber(actor: CastleActor, color: string): void {
     const hb = actor.hurtbox()
     this.spawnFloatingText(hb.x + hb.width / 2 + (this.ctx.rng.next() - 0.5) * 18, hb.y + 10, String(actor.lastDamageTaken), color)
+  }
+
+  /** Poison ticks for the player and every enemy alike — a lingering condition
+   *  independent of the combat-hit resolution above (see CastleActor.applyPoison). */
+  private updatePoisonEffects(): void {
+    for (const actor of [this.player, ...this.enemies]) {
+      if (actor.poisonTicksLeft <= 0) continue
+      actor.poisonTicksLeft -= 1
+      // Zombie Soul's bonus depends on isPoisoned live, so refresh the cached
+      // multiplier the instant it expires (applyPoison already does so on start).
+      if (actor === this.player && actor.poisonTicksLeft <= 0) this.refreshLivePlayerStats()
+      actor.poisonTickTimer -= 1
+      if (actor.poisonTickTimer > 0) continue
+      actor.poisonTickTimer = POISON_TICK_INTERVAL
+      if (!actor.applyPoisonTick(actor.poisonDamagePerTick)) continue
+      this.spawnDamageNumber(actor, '#8fdc5a')
+      if (actor !== this.player && actor.isDead) this.flashTicks = BIG_HIT_FLASH_TICKS
+    }
   }
 
   /** The currently equipped Bullet Soul definition (falls back to the base). */
@@ -2972,7 +3042,17 @@ export class CampaignScene extends Scene {
     this.ctx.audio.swing()
   }
 
-  private spawnSoulBolt(vx: number, vy: number, damage: number, homing: boolean, x: number, y: number, arc = false, crash = false): void {
+  private spawnSoulBolt(
+    vx: number,
+    vy: number,
+    damage: number,
+    homing: boolean,
+    x: number,
+    y: number,
+    arc = false,
+    crash = false,
+    poisonOnHit: { durationTicks: number; damagePerTick: number } | null = null,
+  ): void {
     this.soulBolts.push({
       position: { x, y },
       velocity: { x: vx, y: vy },
@@ -2985,6 +3065,7 @@ export class CampaignScene extends Scene {
       hitTargets: new Set<CastleActor>(),
       hitLimit: crash ? SOUL_CRASH_HIT_LIMIT : SOUL_HIT_LIMIT,
       crash,
+      poisonOnHit,
     })
   }
 
@@ -3000,6 +3081,7 @@ export class CampaignScene extends Scene {
     this.player.meter -= crash ? this.player.meter : soul.mpCost
     this.soulCooldown = crash ? SOUL_CRASH_COOLDOWN : SOUL_CAST_COOLDOWN
     const dmg = crash ? (base: number) => Math.round(base * SOUL_CRASH_DAMAGE_MULT) : (base: number) => base
+    const poison = soul.poisonOnHit ?? null
     const f = this.player.facing
     const ox = this.player.position.x + f * 36
     const oy = this.player.position.y - 62
@@ -3010,31 +3092,31 @@ export class CampaignScene extends Scene {
         // A curved spear-cast: launched forward and up, it arcs down as it flies.
         // Crash: three spears fanned across the arc instead of one.
         for (const dv of crash ? [-2.4, 0, 2.4] : [0]) {
-          this.spawnSoulBolt(f * SOUL_SPEED * 0.82, -5.4 + dv, dmg(22), false, ox, oy - 6, true, crash)
+          this.spawnSoulBolt(f * SOUL_SPEED * 0.82, -5.4 + dv, dmg(22), false, ox, oy - 6, true, crash, poison)
         }
         break
       case 'bolt':
         // Crash: a three-high wall instead of a single shot.
         for (const dy of crash ? [-26, 0, 26] : [0]) {
-          this.spawnSoulBolt(f * SOUL_SPEED, 0, dmg(24), false, ox, oy + dy, false, crash)
+          this.spawnSoulBolt(f * SOUL_SPEED, 0, dmg(24), false, ox, oy + dy, false, crash, poison)
         }
         break
       case 'spread':
         for (const a of crash ? [-0.9, -0.6, -0.3, 0, 0.3, 0.6, 0.9] : [-0.34, 0, 0.34]) {
-          this.spawnSoulBolt(f * SOUL_SPEED * Math.cos(a), SOUL_SPEED * Math.sin(a), dmg(16), false, ox, oy, false, crash)
+          this.spawnSoulBolt(f * SOUL_SPEED * Math.cos(a), SOUL_SPEED * Math.sin(a), dmg(16), false, ox, oy, false, crash, poison)
         }
         break
       case 'homing':
         // Crash: four seeking bolts instead of one.
         for (let i = 0; i < (crash ? 4 : 1); i += 1) {
-          this.spawnSoulBolt(f * SOUL_SPEED * 0.8, 0, dmg(22), true, ox, oy, false, crash)
+          this.spawnSoulBolt(f * SOUL_SPEED * 0.8, 0, dmg(22), true, ox, oy, false, crash, poison)
         }
         break
       case 'nova':
         // Crash: a denser double-count ring.
         for (let i = 0; i < (crash ? 16 : 8); i += 1) {
           const a = (i / (crash ? 16 : 8)) * Math.PI * 2
-          this.spawnSoulBolt(Math.cos(a) * SOUL_SPEED, Math.sin(a) * SOUL_SPEED, dmg(14), false, cx, cy, false, crash)
+          this.spawnSoulBolt(Math.cos(a) * SOUL_SPEED, Math.sin(a) * SOUL_SPEED, dmg(14), false, cx, cy, false, crash, poison)
         }
         break
     }
@@ -3100,6 +3182,7 @@ export class CampaignScene extends Scene {
         this.spawnDamageNumber(enemy, '#ffe08a')
         this.ctx.audio.hit()
         this.hitstop = Math.max(this.hitstop, 5)
+        if (bolt.poisonOnHit) enemy.applyPoison(bolt.poisonOnHit.durationTicks, Math.max(1, Math.round(bolt.poisonOnHit.damagePerTick * this.playerDamageMult)))
         if (enemy.isDead) this.flashTicks = BIG_HIT_FLASH_TICKS
         if (bolt.hitTargets.size >= bolt.hitLimit) break
       }
@@ -3241,7 +3324,7 @@ export class CampaignScene extends Scene {
   }
 
   private computeDamageMult(): number {
-    return this.runMods.damageMultiplier * this.soulMods.damageMultiplier * this.equipMods.damageMultiplier * (1 + (this.save.level - 1) * 0.04) * (1 + this.save.atkUpgrades * 0.06) * (1 + this.perkStacks('might') * 0.07) * this.blueBuffMult('frenzy')
+    return this.runMods.damageMultiplier * this.soulMods.damageMultiplier * this.equipMods.damageMultiplier * (1 + (this.save.level - 1) * 0.04) * (1 + this.save.atkUpgrades * 0.06) * (1 + this.perkStacks('might') * 0.07) * this.blueBuffMult('frenzy') * this.zombieSoulPoisonMult()
   }
 
   private computeDamageTakenMult(): number {
@@ -3249,7 +3332,15 @@ export class CampaignScene extends Scene {
   }
 
   private computeMoveSpeedMult(): number {
-    return this.runMods.moveSpeedMultiplier * this.soulMods.moveSpeedMultiplier * this.equipMods.moveSpeedMultiplier * (1 + this.perkStacks('swiftness') * 0.06) * this.blueBuffMult('haste') * this.blueBuffMult('panther')
+    return this.runMods.moveSpeedMultiplier * this.soulMods.moveSpeedMultiplier * this.equipMods.moveSpeedMultiplier * (1 + this.perkStacks('swiftness') * 0.06) * this.blueBuffMult('haste') * this.blueBuffMult('panther') * this.zombieSoulPoisonMult()
+  }
+
+  /** Zombie Soul's real canon effect: a live conditional bonus while the
+   *  player is actually poisoned, not a flat number — see souls.ts's
+   *  strongerWhilePoisoned. */
+  private zombieSoulPoisonMult(): number {
+    const soul = this.save.equippedYellowSoul ? getSoul(this.save.equippedYellowSoul) : undefined
+    return soul?.strongerWhilePoisoned && this.player.isPoisoned ? ZOMBIE_SOUL_POISON_MULT : 1
   }
 
   private computeMeterGainMult(): number {
@@ -3367,10 +3458,16 @@ export class CampaignScene extends Scene {
     return soul?.underwater === true
   }
 
+  private hasPoisonImmuneSoul(): boolean {
+    const soul = this.save.equippedYellowSoul ? getSoul(this.save.equippedYellowSoul) : undefined
+    return soul?.poisonImmune === true
+  }
+
   /** Re-apply soul bonuses to the live player when the passive soul changes. */
   private applySoulMods(): void {
     this.soulMods = this.yellowSoulMods()
     this.player.canDive = this.hasUnderwaterSoul()
+    this.player.poisonImmune = this.hasPoisonImmuneSoul()
     this.refreshLivePlayerStats()
   }
 
@@ -4137,16 +4234,24 @@ export class CampaignScene extends Scene {
     ctx.fillStyle = '#f4ece0'
     ctx.fillText(String(Math.max(0, Math.ceil(p.health))), barX - 10, hpY)
 
-    // HP bar (red).
+    // HP bar (red) — pulses green while poisoned (Poison Worm's bite, or the
+    // Skull Millone soul landing on an enemy shows the same pulse on them).
     ctx.fillStyle = '#2a1014'
     ctx.fillRect(barX, hpY - 7, barW, 14)
     ctx.fillStyle = '#c8323a'
     ctx.fillRect(barX, hpY - 7, barW * hpFill, 14)
     ctx.fillStyle = 'rgba(255, 210, 200, 0.28)'
     ctx.fillRect(barX, hpY - 7, barW * hpFill, 3)
-    ctx.strokeStyle = '#e8d4a0'
-    ctx.lineWidth = 1
-    ctx.strokeRect(barX + 0.5, hpY - 6.5, barW - 1, 13)
+    if (p.isPoisoned) {
+      const pulse = 0.5 + 0.5 * Math.sin(this.blink * 0.15)
+      ctx.strokeStyle = `rgba(143, 220, 90, ${0.5 + 0.5 * pulse})`
+      ctx.lineWidth = 2
+      ctx.strokeRect(barX - 1, hpY - 7.5, barW + 2, 15)
+    } else {
+      ctx.strokeStyle = '#e8d4a0'
+      ctx.lineWidth = 1
+      ctx.strokeRect(barX + 0.5, hpY - 6.5, barW - 1, 13)
+    }
 
     // MP bar (blue) — pulses gold at a full bar: an Item Crash is ready.
     ctx.fillStyle = '#0e1a2a'

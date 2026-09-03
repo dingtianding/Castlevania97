@@ -38,8 +38,9 @@ Guardian-soul approximation (Cagnazzo's wild-punching flurry, later given its ow
 the seventh-pass follow-up below), and honestly-approximated ones where the canon effect needs a system this engine
 doesn't have yet (Zombie Officer's mid-air-KO heal, Zombie Soldier's timed-grenade fuse, Waiter
 Skeleton's damage-over-time, Axe Armor's boomerang return, Arc Demon's HP-drain-on-hit, Iron Golem's
-poise, Wooden Golem's MP regen, Succubus's lifesteal, Ectoplasm's curse immunity, Poison Worm's poison
-immunity). Skull Archer and Beam Skeleton also got real kiting/stationary AI instead of falling back to
+poise, Wooden Golem's MP regen, Succubus's lifesteal, and Ectoplasm's curse immunity. Poison Worm's
+poison immunity was in this list too, until a poison DoT system was added — see the poison follow-up
+below). Skull Archer and Beam Skeleton also got real kiting/stationary AI instead of falling back to
 generic melee-approach. The nineteen enemies from earlier passes are placed into two existing rooms
 each, additively. The fourth pass's Minotaur, Cagnazzo, and Ectoplasm are placed into one room each —
 Top Floor, Floating Garden, and Study each have only one room that isn't a save/warp room (buildEnemies
@@ -144,7 +145,7 @@ pattern is now proven out for one soul.
 | Mimic | Gain money when hurt | ❌ |
 | Minotaur | STR +8 | ✅ built — `minotaur-soul` in `souls.ts`, direct match |
 | Peeping Eye | Reveals hidden passages | ❌ |
-| Poison Worm | Poison immunity | ✅ built — `poison-worm-soul` in `souls.ts`; poison immunity not modeled (no poison status exists), approximated as +6 max health |
+| Poison Worm | Poison immunity | ✅ built — `poison-worm-soul` in `souls.ts`, now an EXACT match: poison exists (`CastleActor.applyPoison`) and this soul sets `player.poisonImmune`, so it never lands while equipped |
 | Quetzalcoatl | CON +8 | ❌ |
 | Red Crow | INT +4 | ❌ |
 | Skeleton Knight | STR +4 | ✅ built — `skeleton-knight-soul` in `souls.ts`, direct match |
@@ -156,7 +157,7 @@ pattern is now proven out for one soul.
 | Undine | Walk on top of water | ❌ |
 | White Dragon | CON +4 | ❌ |
 | Wooden Golem | Faster MP regen | ✅ built — `wooden-golem-soul`; no MP-regen mechanic exists, approximated as faster meter gain |
-| Zombie | Stronger while poisoned | ✅ built — `zombie-soul` in `souls.ts`, name + source correct; effect approximated as flat +12 max health since this engine has no poison status yet |
+| Zombie | Stronger while poisoned | ✅ built — `zombie-soul` in `souls.ts`, now an EXACT match: +25% attack and move speed for as long as `player.isPoisoned`, checked live in `CampaignScene`'s `zombieSoulPoisonMult` (no bonus while clean, matching canon — a genuine build-around soul, not a flat number) |
 | Zombie Officer | Restore HP if KO'd mid-jump | ✅ built — `zombie-officer-soul`, conditional trigger not modeled, approximated as +8 max health |
 
 ## 4. Bullet Souls (57 total — MP-cost directional attacks; best-effort compilation, not independently cross-verified)
@@ -210,7 +211,7 @@ intentionally modeled as a Bullet Soul instead. Not in the table below since Dea
 | Siren | 10 | Musical-note shot | ❌ |
 | Skeleton | 8 | Arced bone toss | ✅ built — `skeleton-soul`, now the base Bullet Soul (`BASE_BULLET_SOUL`), name/source/MP-cost/pattern all match canon |
 | Skull Archer | 8 | Summoned bow arrow | ✅ built — `skull-archer-soul`, name/source/MP-cost match canon |
-| Skull Millone | 25 | Poison claw slash | ✅ built — `skull-millone-soul`, poison not modeled so it lands as extra flat damage |
+| Skull Millone | 25 | Poison claw slash | ✅ built — `skull-millone-soul`, now an EXACT match: the direct hit still lands, and it also poisons whatever it strikes (`BulletSoulDef.poisonOnHit`) |
 | Slime | 20 | Bouncing comet | ❌ |
 | Student Witch | 20 | Cat familiar | ❌ |
 | Tiny Devil | 16 | Blades fly around screen | ✅ built — `tiny-devil-soul`, name/source/MP-cost match canon, nova pattern is a direct fit |
@@ -294,20 +295,30 @@ Done as of this pass:
    (much faster, smaller, closer-range tick) for Cagnazzo — see the engine-limitation note in section 2
    above. Great Armor keeps `frenzy` deliberately: its canon effect genuinely is a flat STR buff, so
    that's an accurate match, not a placeholder.
+6. ✅ Added a poison damage-over-time system (`CastleActor.applyPoison`/`applyPoisonTick`, ticking every
+   `POISON_TICK_INTERVAL` independent of hit-invulnerability, in `CampaignScene.ts`'s `updatePoisonEffects`)
+   and used it to turn three approximations into exact matches: Zombie Soul (+25% attack/speed while
+   poisoned, checked live — no bonus while clean, a genuine build-around soul, not a flat number), Poison
+   Worm Soul (real immunity via `player.poisonImmune`), and Skull Millone's Bullet Soul (its claw hit now
+   also poisons the target via `BulletSoulDef.poisonOnHit`, on top of the existing direct damage). Poison
+   Worm's own coil-strike attack is the one enemy source that poisons the player, so the immunity soul has
+   something real to guard against. Poison tick damage scales with the same `playerDamageMult`/
+   `playerDamageTakenMult` every other hit source uses, so it stays consistent across level/gear.
 
 Still open, for a later pass if pursued:
 
-6. More real canon regular enemies remain unbuilt, but closing more of the list now means genuinely new
+7. More real canon regular enemies remain unbuilt, but closing more of the list now means genuinely new
    sprites, not further recolors — the 4 reskinnable families (zombie/skeleton/armoredSkeleton/
    demon-Files) are fully worn thin after 23 variants.
-7. Curate a subset of the remaining ~60 souls (mostly Bullet/Enchant, tied to enemies not built here)
+8. Curate a subset of the remaining ~60 souls (mostly Bullet/Enchant, tied to enemies not built here)
    that's realistic for this engine's scope — not all of them need modeling, but what gets modeled
    should stay honestly sourced.
-8. More Guardian-soul mechanical differentiation beyond `golemslam`/`flurry` (distinct familiars,
+9. More Guardian-soul mechanical differentiation beyond `golemslam`/`flurry` (distinct familiars,
    shields, projectile summons for the still-unbuilt canon Guardian souls in the table above) — genuine engine
    work per soul, not a data rename.
-9. Underground Cemetery, The Arena, and Chaotic Realm (plus Balore, Graham Jones, Julius Belmont as
+10. Underground Cemetery, The Arena, and Chaotic Realm (plus Balore, Graham Jones, Julius Belmont as
    bosses) are the three canon areas and three bosses not built at all yet.
-10. A damage-over-time system (poison, curse, burn, the curry plate) would let several already-flagged
-   approximations become exact — Zombie, Zombie Officer, Waiter Skeleton, Ectoplasm, and Poison Worm
-   souls all wait on this.
+11. Poison is the only status effect built; curse and stone (petrification) don't exist yet. That still
+   leaves Zombie Officer's mid-air-KO heal and Waiter Skeleton's curry-plate DoT as flagged
+   approximations — Waiter Skeleton's in particular could reuse the same poison plumbing (a DoT is a
+   DoT) in a future pass, flavored as the curry rather than literal poison.

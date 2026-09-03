@@ -17,6 +17,8 @@ export interface BulletSoulDef {
   blurb: string
   /** The base soul is always owned and cannot be dropped. */
   base?: boolean
+  /** Poison DoT applied on top of the direct hit (see CastleActor.applyPoison). */
+  poisonOnHit?: { durationTicks: number; damagePerTick: number }
 }
 
 export const BASE_BULLET_SOUL = 'skeleton-soul'
@@ -113,7 +115,8 @@ export const BULLET_SOUL_POOL: readonly BulletSoulDef[] = [
     dropChance: 0.22,
     mpCost: 25,
     pattern: 'bolt',
-    blurb: 'Canon effect: a poison claw slash. Name, source, and MP cost all match canon; poison is not modeled, so it lands as extra flat damage.',
+    blurb: 'Canon effect: a poison claw slash. Now modeled exactly — the hit poisons whatever it strikes on top of its direct damage.',
+    poisonOnHit: { durationTicks: 180, damagePerTick: 4 },
   },
   {
     id: 'tiny-devil-soul',

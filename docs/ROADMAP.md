@@ -78,7 +78,11 @@ Make the castle actually walkable instead of isolated arenas.
 
 ## Phase 3 — Combat identity & build depth  *(can interleave)*
 Round out the Aria soul trinity + payoffs:
-- **Guardian souls** (blue): hold-to-channel familiars / persistent effects.
+- **Guardian souls** (blue) — started. Big Golem (`golemslam`, a periodic
+  ground-slam AoE pulse) and Cagnazzo (`flurry`, a rapid close-range tick) each
+  got their own hold-to-channel effect instead of sharing the generic `frenzy`
+  stat buff. Still to do: distinct familiars/shields/projectile summons for the
+  rest of the still-unbuilt canon Guardian souls (see `docs/ARIA_PARITY.md`).
 - **Enchant souls** (yellow): formalize the existing passive souls as this tier.
 - **Item Crash / super** — ✅ done. Casting the equipped Bullet Soul at a full MP
   bar spends the whole bar instead of the soul's normal cost and fires a
@@ -88,11 +92,13 @@ Round out the Aria soul trinity + payoffs:
   signal it's ready. `castSoul()` in `CampaignScene.ts`.
 - **Weapon variety:** multiple main weapons (whip / sword / spear) with distinct
   movesets — the hook for multiple characters.
-- **Status effects** (poison / curse / stone) on enemies and player. Would let
-  several already-shipped soul approximations become exact matches (Zombie,
-  Waiter Skeleton, Ectoplasm, Poison Worm souls all currently substitute a
-  flat stat bonus for a status effect that doesn't exist yet — see
-  `docs/ARIA_PARITY.md`).
+- **Status effects** (poison ✅ / curse / stone). A poison DoT now exists
+  (`CastleActor.applyPoison`, ticks independent of hit-invulnerability) —
+  Poison Worm's bite inflicts it on the player, and it turned three soul
+  approximations into exact matches (Zombie, Poison Worm, Skull Millone — see
+  `docs/ARIA_PARITY.md`). Curse and stone (petrification) still don't exist;
+  Waiter Skeleton's curry-plate DoT and Ectoplasm's curse immunity remain
+  approximated.
 - *Effort: M. Mostly independent of Phase 1/2.*
 
 ## Phase 4 — Characters
