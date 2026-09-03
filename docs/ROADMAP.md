@@ -94,11 +94,11 @@ Round out the Aria soul trinity + payoffs:
   movesets — the hook for multiple characters.
 - **Status effects** (poison ✅ / curse / stone). A poison DoT now exists
   (`CastleActor.applyPoison`, ticks independent of hit-invulnerability) —
-  Poison Worm's bite inflicts it on the player, and it turned three soul
-  approximations into exact matches (Zombie, Poison Worm, Skull Millone — see
-  `docs/ARIA_PARITY.md`). Curse and stone (petrification) still don't exist;
-  Waiter Skeleton's curry-plate DoT and Ectoplasm's curse immunity remain
-  approximated.
+  Poison Worm's bite inflicts it on the player, and it turned four soul
+  approximations into exact matches (Zombie, Poison Worm, Skull Millone,
+  Waiter Skeleton — see `docs/ARIA_PARITY.md`). Curse and stone
+  (petrification) still don't exist; Zombie Officer's mid-air-KO heal and
+  Ectoplasm's curse immunity remain approximated.
 - *Effort: M. Mostly independent of Phase 1/2.*
 
 ## Phase 4 — Characters

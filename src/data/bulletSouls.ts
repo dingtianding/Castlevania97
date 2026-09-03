@@ -161,7 +161,8 @@ export const BULLET_SOUL_POOL: readonly BulletSoulDef[] = [
     dropChance: 0.18,
     mpCost: 30,
     pattern: 'nova',
-    blurb: 'Canon effect: a curry plate that deals continuous damage. Modeled here as a one-shot burst since this engine has no damage-over-time system yet.',
+    blurb: 'Canon effect: a curry plate that deals continuous damage. Now modeled exactly — the plate still bursts outward, and whatever it hits keeps burning.',
+    poisonOnHit: { durationTicks: 150, damagePerTick: 5 },
   },
   {
     id: 'legion-soul',

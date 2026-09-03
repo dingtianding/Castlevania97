@@ -36,10 +36,10 @@ Crusader, Golem, Arc Demon's STR portion, Minotaur), MP-cost-and-pattern matches
 Skeleton, Beam Skeleton, Skull Archer, Axe Armor, Bat, Tiny Devil, Demon Lord, Flame Demon), a
 Guardian-soul approximation (Cagnazzo's wild-punching flurry, later given its own `flurry` effect — see
 the seventh-pass follow-up below), and honestly-approximated ones where the canon effect needs a system this engine
-doesn't have yet (Zombie Officer's mid-air-KO heal, Zombie Soldier's timed-grenade fuse, Waiter
-Skeleton's damage-over-time, Axe Armor's boomerang return, Arc Demon's HP-drain-on-hit, Iron Golem's
-poise, Wooden Golem's MP regen, Succubus's lifesteal, and Ectoplasm's curse immunity. Poison Worm's
-poison immunity was in this list too, until a poison DoT system was added — see the poison follow-up
+doesn't have yet (Zombie Officer's mid-air-KO heal, Zombie Soldier's timed-grenade fuse, Axe Armor's
+boomerang return, Arc Demon's HP-drain-on-hit, Iron Golem's poise, Wooden Golem's MP regen, Succubus's
+lifesteal, and Ectoplasm's curse immunity. Poison Worm's poison immunity and Waiter Skeleton's
+damage-over-time were in this list too, until a poison DoT system was added — see the poison follow-up
 below). Skull Archer and Beam Skeleton also got real kiting/stationary AI instead of falling back to
 generic melee-approach. The nineteen enemies from earlier passes are placed into two existing rooms
 each, additively. The fourth pass's Minotaur, Cagnazzo, and Ectoplasm are placed into one room each —
@@ -218,7 +218,7 @@ intentionally modeled as a Bullet Soul instead. Not in the table below since Dea
 | Ukoback | 12 | Screen flames | ❌ |
 | Une | 20 | Vine mine | ❌ |
 | Valkyrie | 50 | Spirit strike | ❌ |
-| Waiter Skeleton | 30 | Curry-plate DoT | ✅ built — `waiter-skeleton-soul`, modeled as a one-shot burst since no DoT system exists yet |
+| Waiter Skeleton | 30 | Curry-plate DoT | ✅ built — `waiter-skeleton-soul`, now an EXACT match: the plate still bursts outward on cast, and the DoT lands too (`BulletSoulDef.poisonOnHit`) |
 | Weretiger | 40 | Uppercut | ❌ |
 | Werejaguar | 40 | Strong punch | ❌ |
 | Werewolf | 28 | Foot-ignite flame | ❌ |
@@ -297,10 +297,11 @@ Done as of this pass:
    that's an accurate match, not a placeholder.
 6. ✅ Added a poison damage-over-time system (`CastleActor.applyPoison`/`applyPoisonTick`, ticking every
    `POISON_TICK_INTERVAL` independent of hit-invulnerability, in `CampaignScene.ts`'s `updatePoisonEffects`)
-   and used it to turn three approximations into exact matches: Zombie Soul (+25% attack/speed while
+   and used it to turn four approximations into exact matches: Zombie Soul (+25% attack/speed while
    poisoned, checked live — no bonus while clean, a genuine build-around soul, not a flat number), Poison
-   Worm Soul (real immunity via `player.poisonImmune`), and Skull Millone's Bullet Soul (its claw hit now
-   also poisons the target via `BulletSoulDef.poisonOnHit`, on top of the existing direct damage). Poison
+   Worm Soul (real immunity via `player.poisonImmune`), and Skull Millone's and Waiter Skeleton's Bullet
+   Souls (their hits now also poison the target via `BulletSoulDef.poisonOnHit`, on top of the existing
+   direct damage — the curry plate reused the same plumbing as the poison claw, a DoT is a DoT). Poison
    Worm's own coil-strike attack is the one enemy source that poisons the player, so the immunity soul has
    something real to guard against. Poison tick damage scales with the same `playerDamageMult`/
    `playerDamageTakenMult` every other hit source uses, so it stays consistent across level/gear.
@@ -319,6 +320,5 @@ Still open, for a later pass if pursued:
 10. Underground Cemetery, The Arena, and Chaotic Realm (plus Balore, Graham Jones, Julius Belmont as
    bosses) are the three canon areas and three bosses not built at all yet.
 11. Poison is the only status effect built; curse and stone (petrification) don't exist yet. That still
-   leaves Zombie Officer's mid-air-KO heal and Waiter Skeleton's curry-plate DoT as flagged
-   approximations — Waiter Skeleton's in particular could reuse the same poison plumbing (a DoT is a
-   DoT) in a future pass, flavored as the curry rather than literal poison.
+   leaves Zombie Officer's mid-air-KO heal and Ectoplasm's curse immunity as flagged approximations with
+   no system behind them yet.
