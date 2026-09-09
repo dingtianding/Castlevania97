@@ -24,6 +24,10 @@ export interface SoulDef {
    *  one, so it isn't folded into SoulModifiers; see CampaignScene's
    *  zombieSoulPoisonMult and CastleActor.isPoisoned. */
   strongerWhilePoisoned?: boolean
+  /** Canon "restore HP if knocked out mid-jump" — a one-time-per-death
+   *  conditional revive, not a flat bonus; see CampaignScene's
+   *  tryZombieOfficerRevive. */
+  reviveIfAirborneKO?: boolean
 }
 
 export interface SoulModifiers {
@@ -41,7 +45,9 @@ export interface SoulModifiers {
 // zombie-soul and poison-worm-soul are now EXACT matches (not just
 // name/source), since the poison DoT they needed now exists — see
 // strongerWhilePoisoned/poisonImmune above and CampaignScene's poison
-// check. The "-original" entries are homebrew for enemies with no
+// check. zombie-officer-soul is now an EXACT match too, via
+// reviveIfAirborneKO and CampaignScene's tryZombieOfficerRevive. The
+// "-original" entries are homebrew for enemies with no
 // confirmed canon soul — kept as gameplay content but labeled honestly
 // instead of faking a source.
 export const SOUL_POOL: readonly SoulDef[] = [
@@ -66,8 +72,8 @@ export const SOUL_POOL: readonly SoulDef[] = [
     name: 'Zombie Officer Soul',
     enemyId: 'zombieOfficer',
     dropChance: 0.28,
-    blurb: 'Canon effect: restore HP if knocked out mid-jump. That conditional trigger is not modeled yet, so it grants +8 max health instead.',
-    maxHealthBonus: 8,
+    blurb: 'Canon effect: restore HP if knocked out mid-jump. Now modeled exactly — a killing blow taken while airborne instead knocks you back to a fraction of max HP.',
+    reviveIfAirborneKO: true,
   },
   {
     id: 'dead-crusader-soul',

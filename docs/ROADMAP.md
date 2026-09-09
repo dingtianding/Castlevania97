@@ -96,9 +96,11 @@ Round out the Aria soul trinity + payoffs:
   (`CastleActor.applyPoison`, ticks independent of hit-invulnerability) —
   Poison Worm's bite inflicts it on the player, and it turned four soul
   approximations into exact matches (Zombie, Poison Worm, Skull Millone,
-  Waiter Skeleton — see `docs/ARIA_PARITY.md`). Curse and stone
-  (petrification) still don't exist; Zombie Officer's mid-air-KO heal and
-  Ectoplasm's curse immunity remain approximated.
+  Waiter Skeleton — see `docs/ARIA_PARITY.md`). Zombie Officer Soul also got
+  its real effect (`reviveIfAirborneKO`): a killing blow taken mid-jump pops
+  you back up at 30% max HP instead of ending the run. Curse and stone
+  (petrification) still don't exist; Ectoplasm's curse immunity is the last
+  approximation waiting on a system.
 - *Effort: M. Mostly independent of Phase 1/2.*
 
 ## Phase 4 — Characters

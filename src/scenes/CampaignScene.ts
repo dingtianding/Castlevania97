@@ -219,6 +219,9 @@ const POISON_WORM_BITE_DAMAGE = 3
 // Zombie Soul's real canon effect (stronger while poisoned), gated on both
 // the equipped soul and the live poisoned state.
 const ZOMBIE_SOUL_POISON_MULT = 1.25
+// Zombie Officer Soul's real canon effect: cheat a killing blow taken
+// mid-air, popping back up at this fraction of max health instead.
+const ZOMBIE_OFFICER_REVIVE_FRACTION = 0.3
 // HUD label per active Guardian buff — a Record (not a ternary chain) so
 // TypeScript flags a missing entry the moment a new BlueSoulEffect is added.
 const BLUE_BUFF_LABELS: Record<BlueSoulEffect, string> = {
@@ -938,6 +941,19 @@ class CastleActor {
       this.animator.play(this.sheets.death, 6, false)
     }
     return true
+  }
+
+  /** Zombie Officer Soul's canon revive: cheats a killing blow taken mid-air,
+   *  popping back up with a fraction of max health and a longer invulnerable
+   *  window instead of dying. */
+  revive(health: number): void {
+    this.health = health
+    this.state = 'hurt'
+    this.velocity.y = -6
+    this.grounded = false
+    this.invulnerableTicks = INVULNERABLE_TICKS * 2
+    this.hurtTick = 0
+    this.animator.play(this.sheets.takeHit, 4, false)
   }
 
   consumeProjectileSpawn(): ProjectileSpawn | null {
@@ -2451,6 +2467,10 @@ export class CampaignScene extends Scene {
       pickup.ticksLeft -= 1
     }
 
+    // Captured before combat resolution (which knocks grounded false on any
+    // hit) so a Zombie Officer Soul revive can tell "was mid-jump when hit"
+    // apart from "knocked airborne by the hit itself".
+    const playerWasAirborne = !this.player.grounded
     this.resolveCombat()
     this.updatePoisonEffects()
     this.resolveEnemyBones()
@@ -2468,6 +2488,7 @@ export class CampaignScene extends Scene {
     this.updateParticles()
 
     if (this.player.isDead && this.player.hurtbox().y > 0) {
+      if (this.tryZombieOfficerRevive(playerWasAirborne)) return
       this.defeatTicks = 1
       this.hitstop = 0
       this.contactHitCooldown = CONTACT_HIT_COOLDOWN
@@ -3461,6 +3482,20 @@ export class CampaignScene extends Scene {
   private hasPoisonImmuneSoul(): boolean {
     const soul = this.save.equippedYellowSoul ? getSoul(this.save.equippedYellowSoul) : undefined
     return soul?.poisonImmune === true
+  }
+
+  /** Zombie Officer Soul's canon effect: cheat a killing blow taken mid-jump.
+   *  Returns true if the revive fired (the caller should skip the defeat
+   *  sequence entirely). No charge/cooldown — canon has none either, and it
+   *  only matters on the specific circumstance of dying while airborne. */
+  private tryZombieOfficerRevive(wasAirborne: boolean): boolean {
+    if (!wasAirborne) return false
+    const soul = this.save.equippedYellowSoul ? getSoul(this.save.equippedYellowSoul) : undefined
+    if (!soul?.reviveIfAirborneKO) return false
+    this.player.revive(Math.max(1, Math.round(this.player.maxHealth * ZOMBIE_OFFICER_REVIVE_FRACTION)))
+    this.spawnFloatingText(this.player.position.x, this.player.position.y - 118, 'ZOMBIE OFFICER SOUL!', '#d68a4a')
+    this.ctx.audio.hit()
+    return true
   }
 
   /** Re-apply soul bonuses to the live player when the passive soul changes. */

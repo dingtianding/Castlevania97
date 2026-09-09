@@ -36,10 +36,11 @@ Crusader, Golem, Arc Demon's STR portion, Minotaur), MP-cost-and-pattern matches
 Skeleton, Beam Skeleton, Skull Archer, Axe Armor, Bat, Tiny Devil, Demon Lord, Flame Demon), a
 Guardian-soul approximation (Cagnazzo's wild-punching flurry, later given its own `flurry` effect — see
 the seventh-pass follow-up below), and honestly-approximated ones where the canon effect needs a system this engine
-doesn't have yet (Zombie Officer's mid-air-KO heal, Zombie Soldier's timed-grenade fuse, Axe Armor's
-boomerang return, Arc Demon's HP-drain-on-hit, Iron Golem's poise, Wooden Golem's MP regen, Succubus's
-lifesteal, and Ectoplasm's curse immunity. Poison Worm's poison immunity and Waiter Skeleton's
-damage-over-time were in this list too, until a poison DoT system was added — see the poison follow-up
+doesn't have yet (Zombie Soldier's timed-grenade fuse, Axe Armor's boomerang return, Arc Demon's
+HP-drain-on-hit, Iron Golem's poise, Wooden Golem's MP regen, Succubus's lifesteal, and Ectoplasm's
+curse immunity. Zombie Officer's mid-air-KO heal, Poison Worm's poison immunity, and Waiter Skeleton's
+damage-over-time were in this list too, until a poison DoT system — and, for Zombie Officer, a one-off
+conditional revive — were added; see the poison follow-up
 below). Skull Archer and Beam Skeleton also got real kiting/stationary AI instead of falling back to
 generic melee-approach. The nineteen enemies from earlier passes are placed into two existing rooms
 each, additively. The fourth pass's Minotaur, Cagnazzo, and Ectoplasm are placed into one room each —
@@ -158,7 +159,7 @@ pattern is now proven out for one soul.
 | White Dragon | CON +4 | ❌ |
 | Wooden Golem | Faster MP regen | ✅ built — `wooden-golem-soul`; no MP-regen mechanic exists, approximated as faster meter gain |
 | Zombie | Stronger while poisoned | ✅ built — `zombie-soul` in `souls.ts`, now an EXACT match: +25% attack and move speed for as long as `player.isPoisoned`, checked live in `CampaignScene`'s `zombieSoulPoisonMult` (no bonus while clean, matching canon — a genuine build-around soul, not a flat number) |
-| Zombie Officer | Restore HP if KO'd mid-jump | ✅ built — `zombie-officer-soul`, conditional trigger not modeled, approximated as +8 max health |
+| Zombie Officer | Restore HP if KO'd mid-jump | ✅ built — `zombie-officer-soul`, now an EXACT match: `reviveIfAirborneKO` (`CampaignScene.tryZombieOfficerRevive`) catches a killing blow taken while airborne and pops back up at 30% max HP instead of ending the run |
 
 ## 4. Bullet Souls (57 total — MP-cost directional attacks; best-effort compilation, not independently cross-verified)
 
@@ -305,20 +306,26 @@ Done as of this pass:
    Worm's own coil-strike attack is the one enemy source that poisons the player, so the immunity soul has
    something real to guard against. Poison tick damage scales with the same `playerDamageMult`/
    `playerDamageTakenMult` every other hit source uses, so it stays consistent across level/gear.
+7. ✅ Gave Zombie Officer Soul its own real effect too: `reviveIfAirborneKO` on `SoulDef`, checked in
+   `CampaignScene.tryZombieOfficerRevive` right before the death sequence would otherwise start. A killing
+   blow taken while airborne (captured as `playerWasAirborne`, read *before* combat resolution knocks
+   `grounded` false on any hit — the hit's own knockback would otherwise erase the "was mid-jump" signal)
+   pops the player back up at 30% max HP (`CastleActor.revive`, `ZOMBIE_OFFICER_REVIVE_FRACTION`) instead
+   of ending the run. No charge or cooldown, matching canon — it only matters on the specific
+   circumstance of dying mid-jump.
 
 Still open, for a later pass if pursued:
 
-7. More real canon regular enemies remain unbuilt, but closing more of the list now means genuinely new
+8. More real canon regular enemies remain unbuilt, but closing more of the list now means genuinely new
    sprites, not further recolors — the 4 reskinnable families (zombie/skeleton/armoredSkeleton/
    demon-Files) are fully worn thin after 23 variants.
-8. Curate a subset of the remaining ~60 souls (mostly Bullet/Enchant, tied to enemies not built here)
+9. Curate a subset of the remaining ~60 souls (mostly Bullet/Enchant, tied to enemies not built here)
    that's realistic for this engine's scope — not all of them need modeling, but what gets modeled
    should stay honestly sourced.
-9. More Guardian-soul mechanical differentiation beyond `golemslam`/`flurry` (distinct familiars,
+10. More Guardian-soul mechanical differentiation beyond `golemslam`/`flurry` (distinct familiars,
    shields, projectile summons for the still-unbuilt canon Guardian souls in the table above) — genuine engine
    work per soul, not a data rename.
-10. Underground Cemetery, The Arena, and Chaotic Realm (plus Balore, Graham Jones, Julius Belmont as
+11. Underground Cemetery, The Arena, and Chaotic Realm (plus Balore, Graham Jones, Julius Belmont as
    bosses) are the three canon areas and three bosses not built at all yet.
-11. Poison is the only status effect built; curse and stone (petrification) don't exist yet. That still
-   leaves Zombie Officer's mid-air-KO heal and Ectoplasm's curse immunity as flagged approximations with
-   no system behind them yet.
+12. Poison is the only status effect built; curse and stone (petrification) don't exist yet. Ectoplasm's
+   curse immunity is the last flagged approximation with no system behind it.
