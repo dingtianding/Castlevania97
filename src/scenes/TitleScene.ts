@@ -2,14 +2,15 @@ import { Scene } from './Scene.ts'
 import { ModeSelectScene } from './ModeSelectScene.ts'
 import { CampaignScene } from './CampaignScene.ts'
 import { SettingsScene } from './SettingsScene.ts'
+import { SlotSelectScene } from './SlotSelectScene.ts'
 import { TICK_RATE } from '../core/Time.ts'
-import { campaignHasProgress, loadCampaignSave, resetCampaignSave, startNewGamePlus } from '../data/campaign.ts'
+import { campaignHasProgress, getActiveSaveSlot, loadCampaignSave, resetCampaignSave, startNewGamePlus } from '../data/campaign.ts'
 import type { CampaignSave } from '../data/campaign.ts'
 import { isMenuConfirm } from '../input/menuButtons.ts'
 
 interface TitleOption {
   label: string
-  action: 'start' | 'continue' | 'archive' | 'settings'
+  action: 'start' | 'continue' | 'slots' | 'archive' | 'settings'
 }
 
 export class TitleScene extends Scene {
@@ -28,6 +29,7 @@ export class TitleScene extends Scene {
       })
     }
     options.push(
+      { label: `SAVE SLOTS (${getActiveSaveSlot() + 1})`, action: 'slots' },
       { label: 'ARCHIVE', action: 'archive' },
       { label: 'SETTINGS', action: 'settings' },
     )
@@ -155,6 +157,9 @@ export class TitleScene extends Scene {
       case 'continue':
         if (this.save.finished) startNewGamePlus(this.save)
         this.ctx.scenes.replace(new CampaignScene(this.ctx))
+        break
+      case 'slots':
+        this.ctx.scenes.replace(new SlotSelectScene(this.ctx))
         break
       case 'archive':
         this.ctx.scenes.replace(new ModeSelectScene(this.ctx))

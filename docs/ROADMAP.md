@@ -189,8 +189,19 @@ past the panel's left border.
   (the entrance is both a merchant and an ability-item room) rendered them
   stacked exactly on top of each other with no offset; both now space
   correctly.
-- **Meta polish:** save slots, options, accessibility (reduce-motion exists),
-  touch controls, performance/mobile pass.
+- **Meta polish:** save slots ✅ done, options, accessibility (reduce-motion
+  exists), touch controls, performance/mobile pass.
+  - **Save slots**: 3 independent slots (`SAVE_SLOT_COUNT` in `campaign.ts`),
+    picked from a new `SAVE SLOTS` title option → `SlotSelectScene`. Slot 0
+    deliberately keeps the original, un-suffixed `localStorage` key so
+    existing single-save progress from before this shipped loads exactly
+    where it always did — slots 1/2 use new suffixed keys. The active slot
+    is a tiny separate pointer key; `loadCampaignSave`/`saveCampaignSave`
+    (the only two functions that ever touched `localStorage` directly)
+    resolve it transparently, so every one of the ~20 existing call sites
+    across the codebase keeps working unchanged. The picker shows each
+    slot's level/area/clear-status or EMPTY without touching which slot is
+    actually active, so browsing is non-destructive.
 
 ---
 

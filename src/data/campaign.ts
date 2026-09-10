@@ -10,6 +10,54 @@ import { CONSUMABLE_POOL } from './consumables.ts'
 import { EQUIP_SLOTS, EQUIPMENT_POOL, getEquipment, type EquipmentDef, type EquipmentId, type EquipSlot } from './equipment.ts'
 
 const STORAGE_KEY = 'castlevania97.campaign.v1'
+const ACTIVE_SLOT_KEY = 'castlevania97.activeSlot'
+export const SAVE_SLOT_COUNT = 3
+
+/** Slot 0 keeps the original, un-suffixed key so existing single-save
+ *  progress from before slots existed loads exactly where it always did. */
+function storageKeyForSlot(slot: number): string {
+  return slot <= 0 ? STORAGE_KEY : `${STORAGE_KEY}.slot${slot}`
+}
+
+export function getActiveSaveSlot(): number {
+  try {
+    const raw = localStorage.getItem(ACTIVE_SLOT_KEY)
+    const slot = raw === null ? 0 : Number.parseInt(raw, 10)
+    return Number.isInteger(slot) && slot >= 0 && slot < SAVE_SLOT_COUNT ? slot : 0
+  } catch {
+    return 0
+  }
+}
+
+export function setActiveSaveSlot(slot: number): void {
+  try {
+    localStorage.setItem(ACTIVE_SLOT_KEY, String(Math.min(SAVE_SLOT_COUNT - 1, Math.max(0, Math.floor(slot)))))
+  } catch {
+    // Slot selection is a convenience; keep playing on the default slot if storage is blocked.
+  }
+}
+
+/** Read a specific slot without changing which one is active — for the
+ *  slot-picker screen to show each slot's summary. */
+export function loadCampaignSaveFromSlot(slot: number): CampaignSave {
+  try {
+    const raw = localStorage.getItem(storageKeyForSlot(slot))
+    if (!raw) return initialCampaignSave()
+    return sanitizeCampaignSave(JSON.parse(raw) as Partial<CampaignSave>)
+  } catch {
+    return initialCampaignSave()
+  }
+}
+
+/** Whether a slot has ever been written to (vs. just showing the fresh
+ *  default because nothing's there yet). */
+export function saveSlotIsEmpty(slot: number): boolean {
+  try {
+    return localStorage.getItem(storageKeyForSlot(slot)) === null
+  } catch {
+    return true
+  }
+}
 
 export interface CampaignNodeDef {
   id: string
@@ -916,19 +964,12 @@ export function equippedDefs(save: CampaignSave): EquipmentDef[] {
 }
 
 export function loadCampaignSave(): CampaignSave {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    if (!raw) return initialCampaignSave()
-    const parsed = JSON.parse(raw) as Partial<CampaignSave>
-    return sanitizeCampaignSave(parsed)
-  } catch {
-    return initialCampaignSave()
-  }
+  return loadCampaignSaveFromSlot(getActiveSaveSlot())
 }
 
 export function saveCampaignSave(save: CampaignSave): void {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(save))
+    localStorage.setItem(storageKeyForSlot(getActiveSaveSlot()), JSON.stringify(save))
   } catch {
     // Campaign progress is a convenience; keep playing if storage is blocked.
   }
