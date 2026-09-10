@@ -4893,13 +4893,16 @@ export class CampaignScene extends Scene {
     ctx.fillText(this.chapter.title.toUpperCase(), width / 2, 84)
 
     // The reusable map module renders the discovered castle, fit to the panel.
+    // (Height trimmed slightly from the full available space to leave room
+    // for the legend row below.)
     const pulse = 0.5 + 0.5 * Math.sin(this.blink * 0.12)
     this.mapRenderer.draw(
       ctx,
       this.mapService,
-      { x: 100, y: 112, width: width - 200, height: height - 240, cellSize: 48 },
+      { x: 100, y: 112, width: width - 200, height: height - 260, cellSize: 48 },
       { pulse, showConnections: true, fit: true },
     )
+    this.drawMapLegend(ctx, width / 2, height - 128)
 
     // Current-room caption.
     ctx.textAlign = 'center'
@@ -4914,6 +4917,50 @@ export class CampaignScene extends Scene {
     ctx.fillStyle = '#5a567a'
     ctx.font = '8px "Press Start 2P", monospace'
     ctx.fillText('SPACE / K  CLOSE', width / 2, height - 40)
+  }
+
+  /** A compact one-line key for the map's icons — mirrors the shapes/colors
+   *  MapRenderer actually draws, at a smaller scale, so the legend can never
+   *  silently drift out of sync with what's on the map. */
+  private drawMapLegend(ctx: CanvasRenderingContext2D, centerX: number, y: number): void {
+    const entries: { draw: (x: number, y: number) => void; label: string }[] = [
+      { label: 'SAVE', draw: (x, cy) => { ctx.fillStyle = '#bfe6ff'; ctx.beginPath(); ctx.moveTo(x, cy - 5); ctx.lineTo(x + 5, cy); ctx.lineTo(x, cy + 5); ctx.lineTo(x - 5, cy); ctx.closePath(); ctx.fill() } },
+      { label: 'WARP', draw: (x, cy) => { ctx.fillStyle = '#c86adc'; ctx.beginPath(); ctx.arc(x, cy, 5, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(x, cy, 2, 0, Math.PI * 2); ctx.fill() } },
+      { label: 'SHOP', draw: (x, cy) => { ctx.fillStyle = '#7ad67a'; ctx.fillRect(x - 4, cy - 4, 8, 8) } },
+      { label: 'ITEM', draw: (x, cy) => { ctx.fillStyle = '#f6b74a'; this.legendStar(ctx, x, cy, 6) } },
+      { label: 'BOSS', draw: (x, cy) => { ctx.fillStyle = '#e0393a'; ctx.beginPath(); ctx.arc(x, cy, 5, 0, Math.PI * 2); ctx.fill() } },
+    ]
+    ctx.save()
+    ctx.font = '7px "Press Start 2P", monospace'
+    const labelWidths = entries.map((e) => ctx.measureText(e.label).width)
+    const entryGap = 26
+    const iconLabelGap = 12
+    const totalWidth = labelWidths.reduce((sum, w, i) => sum + iconLabelGap + w + (i < entries.length - 1 ? entryGap : 0), 0)
+    let x = centerX - totalWidth / 2
+    ctx.textAlign = 'left'
+    ctx.textBaseline = 'middle'
+    entries.forEach((entry, i) => {
+      entry.draw(x + 4, y)
+      x += iconLabelGap
+      ctx.fillStyle = '#8a8aa0'
+      ctx.fillText(entry.label, x, y)
+      x += labelWidths[i]! + entryGap
+    })
+    ctx.restore()
+  }
+
+  private legendStar(ctx: CanvasRenderingContext2D, cx: number, cy: number, r: number): void {
+    ctx.beginPath()
+    for (let i = 0; i < 8; i++) {
+      const rad = i % 2 === 0 ? r : r * 0.45
+      const a = (i / 8) * Math.PI * 2 - Math.PI / 2
+      const px = cx + Math.cos(a) * rad
+      const py = cy + Math.sin(a) * rad
+      if (i === 0) ctx.moveTo(px, py)
+      else ctx.lineTo(px, py)
+    }
+    ctx.closePath()
+    ctx.fill()
   }
 
   /** The warp-select overlay: the castle map with a gold ring on the currently

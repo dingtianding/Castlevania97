@@ -175,9 +175,20 @@ centered on its intended left edge instead of starting there, overflowing
 past the panel's left border.
 
 ## Phase 7 — Presentation & polish  *(ongoing)*
-- **Audio:** per-area music, boss themes, richer SFX.
+- **Audio:** per-area music, boss themes, richer SFX. Blocked on assets —
+  only one BGM track exists (`heart of fire.mp3`); this needs actual music,
+  not just code.
 - **Story delivery:** intro/outro cutscenes, in-room dialogue, lore items.
-- **UI:** tabbed pause menu, tutorial/onboarding, map legend.
+- **UI:** tabbed pause menu, tutorial/onboarding, **map legend — ✅ done**
+  (a compact icon key drawn under the map panel in `CampaignScene.drawMap`,
+  mirroring `MapRenderer`'s actual shapes/colors so it can't silently drift
+  out of sync with what's on the map). Found and fixed two real bugs while
+  building it: the `'shop'` room-icon case was entirely missing from
+  `MapRenderer.drawIcon` — the merchant room's map data tracked it, but
+  nothing ever drew it — and rooms carrying more than one non-save/warp icon
+  (the entrance is both a merchant and an ability-item room) rendered them
+  stacked exactly on top of each other with no offset; both now space
+  correctly.
 - **Meta polish:** save slots, options, accessibility (reduce-motion exists),
   touch controls, performance/mobile pass.
 

@@ -58,6 +58,7 @@ const COLORS = {
   boss: '#e0393a',
   item: '#f6b74a',
   itemDim: '#7a6a3a',
+  shop: '#7ad67a',
 }
 
 export class MapRenderer {
@@ -203,10 +204,15 @@ export class MapRenderer {
     ctx.strokeRect(r.x + 0.5, r.y + 0.5, r.w - 1, r.h - 1)
 
     // The red cell already signals a save/warp; only draw the non-save icons.
-    for (const icon of room.icons) {
-      if (icon === 'save' || icon === 'warp') continue
-      this.drawIcon(ctx, icon, r.x + r.w / 2, r.y + r.h / 2, room, service)
-    }
+    // A room can carry more than one (e.g. the entrance is both a merchant
+    // and an ability-item room), so space them out instead of stacking them
+    // on the same center point.
+    const shownIcons = room.icons.filter((icon) => icon !== 'save' && icon !== 'warp')
+    const iconSpacing = 11
+    shownIcons.forEach((icon, i) => {
+      const dx = (i - (shownIcons.length - 1) / 2) * iconSpacing
+      this.drawIcon(ctx, icon, r.x + r.w / 2 + dx, r.y + r.h / 2, room, service)
+    })
   }
 
   /** Corridors bridging the gap between a room and its linked neighbours, drawn
@@ -256,6 +262,12 @@ export class MapRenderer {
       const collected = service.state.isItemCollected(room.id)
       ctx.fillStyle = collected ? COLORS.itemDim : COLORS.item
       this.star(ctx, cx, cy, collected ? 4 : 6)
+    } else if (icon === 'shop') {
+      ctx.fillStyle = COLORS.shop
+      ctx.fillRect(cx - 4, cy - 4, 8, 8)
+      ctx.strokeStyle = '#1a3a1a'
+      ctx.lineWidth = 1
+      ctx.strokeRect(cx - 4.5, cy - 4.5, 9, 9)
     }
     ctx.restore()
   }
