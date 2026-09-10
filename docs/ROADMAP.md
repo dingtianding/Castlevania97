@@ -142,9 +142,37 @@ Round out the Aria soul trinity + payoffs:
   room spawn and zombie-room's continuous trickle-spawner. `save.ngPlusCycle`
   shows as a small badge next to the level in the HUD and Status screen once
   active.
-- **Multiple endings** / true-ending condition (find X%, beat Y).
-- **Completion tracking:** map %, souls %, records/achievements.
+- **Multiple endings** / true-ending condition — ✅ done, combined with
+  completion tracking below. Beating Chaos at ≥80% combined completion shows
+  a "TRUE ENDING" variant (gold panel/title, an extended closing line
+  acknowledging how thorough the hunt was) instead of the standard ending;
+  below that, the standard ending shows with a completion summary anyway.
+  `TRUE_ENDING_THRESHOLD` in `CampaignScene.ts`.
+- **Completion tracking** — ✅ done. `completionStats()` combines rooms
+  explored (`save.visitedNodeIds` / total `CAMPAIGN_NODES`) and relics/souls/
+  abilities collected (summed across all three soul colors + relics +
+  traversal abilities, vs. their pool totals — base/always-owned souls
+  excluded since they're not really "collectible") into one percentage,
+  shown on the ending screen alongside the raw counts. Denominators read
+  straight from the data pools, never hardcoded, so they can't drift as
+  content is added.
 - *Effort: M.*
+
+**Bug found and fixed while building this**: final-boss victory detection
+was gated on `enemies.length > 0 && enemies.every(isDead)`, but a dead
+enemy's corpse despawns in ~14 ticks (`DEATH_HOLD_TICKS` + `DEATH_FADE_TICKS`)
+— far sooner than the 100-tick grace window `victoryTicks` needs before the
+ending fires — and the despawn filter ran *before* that check each tick. So
+`enemies.length` had already dropped to 0 well before `victoryTicks` could
+cross its threshold, and beating the final boss could never actually
+complete the campaign in normal play. Fixed by latching a
+`finalBossDefeated` flag the instant all enemies are confirmed dead,
+decoupling the win condition from whether the corpse is still in the array.
+Also found and fixed a real text-overflow bug in the ending screen: its
+`wrapText` call inherited `textAlign: 'center'` from the title line above it
+(never reset to `'left'`), so every line of the closing paragraph rendered
+centered on its intended left edge instead of starting there, overflowing
+past the panel's left border.
 
 ## Phase 7 — Presentation & polish  *(ongoing)*
 - **Audio:** per-area music, boss themes, richer SFX.

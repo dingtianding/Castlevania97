@@ -6,14 +6,14 @@ import { AssetManager } from '../assets/AssetManager.ts'
 import { AUDIO_MANIFEST } from '../assets/manifest.ts'
 import { addCampaignAbility, addCampaignBlueSoul, addCampaignBulletSoul, addCampaignConsumable, addCampaignEquipment, addCampaignPerk, addCampaignRelic, addCampaignSoul, CAMPAIGN_NODES, equipCampaignBlueSoul, equipCampaignBulletSoul, equipCampaignItem, equipCampaignYellowSoul, equippedDefs, getCampaignChapter, getCampaignNode, grantCampaignRewards, hasWorldFlag, loadCampaignSave, markCampaignVisited, MAX_LEVEL, saveCampaignSave, setWorldFlag, unequipCampaignSlot, useCampaignConsumable, xpForNextLevel } from '../data/campaign.ts'
 import { draftPowerUps, powerUpStacks, type PowerUpDef } from '../data/powerups.ts'
-import { BASE_BULLET_SOUL, bulletSoulForEnemy, getBulletSoul, type BulletSoulDef } from '../data/bulletSouls.ts'
-import { BASE_BLUE_SOUL, blueSoulForEnemy, getBlueSoul, type BlueSoulEffect } from '../data/blueSouls.ts'
+import { BASE_BULLET_SOUL, BULLET_SOUL_POOL, bulletSoulForEnemy, getBulletSoul, type BulletSoulDef } from '../data/bulletSouls.ts'
+import { BASE_BLUE_SOUL, BLUE_SOUL_POOL, blueSoulForEnemy, getBlueSoul, type BlueSoulEffect } from '../data/blueSouls.ts'
 import { CASTLE_ITEM_ROOMS, CASTLE_LIFEUP_ROOMS, CASTLE_MAP_DATA, CASTLE_MERCHANT_ROOMS, CASTLE_SAVE_ROOMS, CASTLE_WARP_ROOMS, ROOM_CELLS } from '../data/castleMapData.ts'
 import { MapService, MapRenderer, MinimapRenderer } from '../map/index.ts'
 import { castleDoors, castleNeighbor, type MapDir } from '../data/castleMap.ts'
 import { buildEquipmentModifiers, EQUIP_SLOT_LABELS, EQUIP_SLOTS, equipmentForSlot, EQUIPMENT_POOL, getEquipment, type EquipmentDef, type EquipmentModifiers, type EquipSlot, type WeaponProfile } from '../data/equipment.ts'
 import { buildRunModifiers, RELIC_POOL, type RelicDef, type RunModifiers } from '../data/relics.ts'
-import { buildSoulModifiers, getSoul, soulForEnemy, type SoulDef, type SoulModifiers } from '../data/souls.ts'
+import { buildSoulModifiers, getSoul, soulForEnemy, SOUL_POOL, type SoulDef, type SoulModifiers } from '../data/souls.ts'
 import { rewardForEnemy } from '../data/enemyRewards.ts'
 import { grey as CAMPAIGN_HERO, zombie } from '../data/characters/castlevaniaCampaign.ts'
 import { CONSUMABLE_POOL, getConsumable } from '../data/consumables.ts'
@@ -229,6 +229,11 @@ const ZOMBIE_OFFICER_REVIVE_FRACTION = 0.3
 const NG_PLUS_MAX_CYCLES_SCALED = 3
 const NG_PLUS_HP_MULT_PER_CYCLE = 0.35
 const NG_PLUS_DAMAGE_TAKEN_MULT_PER_CYCLE = 0.15
+// Completion tracking (see completionStats): rooms explored + relics/souls/
+// abilities collected, combined into one percentage shown on the ending
+// screen. At or above this threshold the ending calls out how thorough the
+// hunt was instead of the standard closing line.
+const TRUE_ENDING_THRESHOLD = 0.8
 // HUD label per active Guardian buff — a Record (not a ternary chain) so
 // TypeScript flags a missing entry the moment a new BlueSoulEffect is added.
 const BLUE_BUFF_LABELS: Record<BlueSoulEffect, string> = {
@@ -1754,6 +1759,12 @@ export class CampaignScene extends Scene {
   private savedFlashTicks = 0
   private roomCooldown = 0
   private victoryTicks = 0
+  // Latched once the final boss is confirmed dead, independent of the
+  // enemies array — its corpse despawns (~14 ticks) long before victoryTicks
+  // can reach the 100-tick threshold below, so gating on "enemies.length > 0"
+  // alone means the ending could never actually fire once the corpse was
+  // filtered out. See the FINAL_BOSS_NODE check in update().
+  private finalBossDefeated = false
   private sealMessageTicks = 0
   private sealMessageText = ''
   private abilityGetTicks = 0
@@ -2503,8 +2514,15 @@ export class CampaignScene extends Scene {
       return
     }
 
-    // Beating the final boss completes the campaign (after the death plays out).
-    if (this.node.id === FINAL_BOSS_NODE && this.enemies.length > 0 && this.enemies.every((e) => e.isDead)) {
+    // Beating the final boss completes the campaign (after the death plays
+    // out). Latch finalBossDefeated the moment it happens: the corpse
+    // despawns in ~14 ticks (DEATH_HOLD_TICKS + DEATH_FADE_TICKS), long
+    // before victoryTicks would otherwise reach its threshold, so gating
+    // purely on "enemies.length > 0" would make the ending unreachable.
+    if (this.node.id === FINAL_BOSS_NODE && !this.finalBossDefeated && this.enemies.length > 0 && this.enemies.every((e) => e.isDead)) {
+      this.finalBossDefeated = true
+    }
+    if (this.finalBossDefeated) {
       this.victoryTicks += 1
       if (this.victoryTicks > 100) {
         this.save = { ...this.save, finished: true }
@@ -2783,6 +2801,7 @@ export class CampaignScene extends Scene {
     this.perkOptions = []
     this.pendingLevelUps = 0
     this.victoryTicks = 0
+    this.finalBossDefeated = false
     this.rewardedDeaths.clear()
     this.floatingTexts = []
     this.particles = []
@@ -4616,23 +4635,57 @@ export class CampaignScene extends Scene {
     ctx.fillRect(0, 0, this.ctx.width, this.ctx.height)
   }
 
+  /** Rooms explored + relics/souls/abilities collected, as counts and one
+   *  combined percentage. Denominators come straight from the data pools
+   *  (never hardcoded), and base souls/bullet-souls that are always owned
+   *  are excluded — they're not something you can fail to "collect". */
+  private completionStats(): { percent: number; rooms: { have: number; total: number }; collectibles: { have: number; total: number } } {
+    const rooms = { have: this.save.visitedNodeIds.length, total: CAMPAIGN_NODES.length }
+    const collectibleTotal =
+      RELIC_POOL.length + SOUL_POOL.length + BULLET_SOUL_POOL.filter((s) => !s.base).length + BLUE_SOUL_POOL.filter((s) => !s.base).length + Object.keys(ABILITIES).length
+    const collectibleHave = this.save.relicIds.length + this.save.souls.length + this.save.bulletSouls.length + this.save.blueSouls.length + this.save.abilities.length
+    const collectibles = { have: collectibleHave, total: collectibleTotal }
+    const percent = (rooms.have / Math.max(1, rooms.total) + collectibles.have / Math.max(1, collectibles.total)) / 2
+    return { percent, rooms, collectibles }
+  }
+
   private drawEnding(): void {
     const { ctx } = this.ctx.renderer
+    const stats = this.completionStats()
+    const trueEnding = stats.percent >= TRUE_ENDING_THRESHOLD
     ctx.save()
     ctx.fillStyle = 'rgba(8, 6, 14, 0.86)'
     ctx.fillRect(110, 130, this.ctx.width - 220, this.ctx.height - 260)
-    ctx.strokeStyle = '#e8d4a0'
+    ctx.strokeStyle = trueEnding ? '#f6b74a' : '#e8d4a0'
     ctx.lineWidth = 3
     ctx.strokeRect(110, 130, this.ctx.width - 220, this.ctx.height - 260)
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
-    ctx.fillStyle = '#e8d4a0'
-    ctx.font = '22px "Press Start 2P", monospace'
-    ctx.fillText('CASTLEVANIA97 COMPLETE', this.ctx.width / 2, 190)
+    ctx.fillStyle = trueEnding ? '#f6b74a' : '#e8d4a0'
+    ctx.font = '20px "Press Start 2P", monospace'
+    ctx.fillText(trueEnding ? 'CASTLEVANIA97 — TRUE ENDING' : 'CASTLEVANIA97 COMPLETE', this.ctx.width / 2, 176)
     ctx.fillStyle = '#b7c7e6'
     ctx.font = '10px "Press Start 2P", monospace'
-    wrapText(ctx, 'The 1997 hunt ends with Julius alive, warned, and changed. The war is still ahead, but the young Belmont now knows where the final road leads.', this.ctx.width / 2 - 260, 234, 520, 16, 6)
+    const closing = trueEnding
+      ? 'The 1997 hunt ends with Julius alive, warned, and changed — and with the castle laid bare behind him. Nothing in these halls escaped him. The war is still ahead, but he walks into it knowing exactly what waits.'
+      : 'The 1997 hunt ends with Julius alive, warned, and changed. The war is still ahead, but the young Belmont now knows where the final road leads.'
+    // wrapText left-aligns from x — must switch out of the title's 'center'
+    // or every line renders centered on the intended left edge instead.
+    ctx.textAlign = 'left'
+    wrapText(ctx, closing, this.ctx.width / 2 - 260, 216, 520, 16, 6)
+    ctx.textAlign = 'center'
+
+    // Completion summary: one combined percentage plus the two inputs.
+    const cy = 340
+    ctx.fillStyle = trueEnding ? '#f6b74a' : '#e8d4a0'
+    ctx.font = '12px "Press Start 2P", monospace'
+    ctx.fillText(`CASTLE COMPLETION: ${Math.round(stats.percent * 100)}%`, this.ctx.width / 2, cy)
+    ctx.fillStyle = '#8a8aa0'
+    ctx.font = '8px "Press Start 2P", monospace'
+    ctx.fillText(`ROOMS ${stats.rooms.have}/${stats.rooms.total}   ·   RELICS/SOULS/ABILITIES ${stats.collectibles.have}/${stats.collectibles.total}`, this.ctx.width / 2, cy + 24)
+
     ctx.fillStyle = '#5a567a'
+    ctx.font = '10px "Press Start 2P", monospace'
     ctx.fillText('J / K RETURN TO TITLE', this.ctx.width / 2, this.ctx.height - 164)
     ctx.restore()
   }
