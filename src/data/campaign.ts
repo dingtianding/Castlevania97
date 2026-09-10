@@ -80,6 +80,10 @@ export interface CampaignSave {
   atkUpgrades: number
   armorTier: number
   finished: boolean
+  /** New Game+ cycles completed. 0 = first run. Enemies scale up per cycle
+   *  (see NG_PLUS_* in CampaignScene); level/gear/souls/abilities all carry
+   *  over — see startNewGamePlus. */
+  ngPlusCycle: number
 }
 
 export const MAX_LEVEL = 50
@@ -733,7 +737,28 @@ export function initialCampaignSave(): CampaignSave {
     atkUpgrades: 0,
     armorTier: 0,
     finished: false,
+    ngPlusCycle: 0,
   }
+}
+
+/** Start a New Game+ cycle: keep level/xp/gold/equipment/souls/abilities/
+ *  perks/worldFlags (so already-collected Life Max Ups etc. don't become
+ *  re-farmable), but reset castle progress back to the entrance and bump
+ *  ngPlusCycle so CampaignScene scales enemies up. */
+export function startNewGamePlus(save: CampaignSave): CampaignSave {
+  const firstChapter = CAMPAIGN_CHAPTERS[0]!
+  const next: CampaignSave = {
+    ...save,
+    chapterId: firstChapter.id,
+    currentNodeId: firstChapter.nodeIds[0] ?? null,
+    completedNodeIds: [],
+    unlockedNodeIds: firstChapter.nodeIds.slice(0, 1),
+    visitedNodeIds: firstChapter.nodeIds.slice(0, 1),
+    finished: false,
+    ngPlusCycle: save.ngPlusCycle + 1,
+  }
+  saveCampaignSave(next)
+  return next
 }
 
 /** Record that the player has entered a room, revealing it on the castle map. */
@@ -985,6 +1010,7 @@ export function completeCampaignBattle(save: CampaignSave): CampaignSave {
     atkUpgrades: save.atkUpgrades,
     armorTier: save.armorTier,
     finished,
+    ngPlusCycle: save.ngPlusCycle,
   }
   saveCampaignSave(next)
   return next
@@ -1108,6 +1134,7 @@ function sanitizeCampaignSave(value: Partial<CampaignSave>): CampaignSave {
     atkUpgrades: clampNumber(value.atkUpgrades, 0, 99, 0),
     armorTier: clampNumber(value.armorTier, 0, 99, 0),
     finished: Boolean(value.finished),
+    ngPlusCycle: clampNumber(value.ngPlusCycle, 0, 99, 0),
   }
 }
 

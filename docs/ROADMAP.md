@@ -127,8 +127,21 @@ Round out the Aria soul trinity + payoffs:
 - *Effort: L, ongoing.*
 
 ## Phase 6 — Meta & replay
-- **Boss Rush** (scored gauntlet, reuses bosses).
-- **New Game+** (keep levels/gear, tougher enemies).
+- **Boss Rush** (scored gauntlet, reuses bosses). Note: a Boss Rush already
+  exists for the Archive/legacy fighter roster (`data/arcade.ts`'s
+  `startBossRush`) — this item means one for the *campaign*'s 8 area bosses,
+  which doesn't exist yet and would need a new scene (the campaign has no
+  mode-select to hang it off).
+- **New Game+** — ✅ done. Beating the campaign (`save.finished`) turns the
+  title's CONTINUE into NEW GAME+ (`startNewGamePlus` in `campaign.ts`):
+  resets castle progress to the entrance but keeps level/xp/gold/equipment/
+  souls/abilities/perks/worldFlags (so already-collected Life Max Ups etc.
+  can't be re-farmed across cycles). Enemies scale up per cycle — +35% HP and
+  +15% damage taken by the player, capped at 3 stacked cycles
+  (`NG_PLUS_*` consts in `CampaignScene.ts`) — applied to both the initial
+  room spawn and zombie-room's continuous trickle-spawner. `save.ngPlusCycle`
+  shows as a small badge next to the level in the HUD and Status screen once
+  active.
 - **Multiple endings** / true-ending condition (find X%, beat Y).
 - **Completion tracking:** map %, souls %, records/achievements.
 - *Effort: M.*

@@ -222,6 +222,13 @@ const ZOMBIE_SOUL_POISON_MULT = 1.25
 // Zombie Officer Soul's real canon effect: cheat a killing blow taken
 // mid-air, popping back up at this fraction of max health instead.
 const ZOMBIE_OFFICER_REVIVE_FRACTION = 0.3
+// New Game+: enemies get tougher each cycle (capped so late cycles don't
+// spiral), while the player keeps everything earned — level, gear, souls,
+// abilities, perks, and worldFlags (so already-collected Life Max Ups etc.
+// can't be re-farmed). See startNewGamePlus in campaign.ts.
+const NG_PLUS_MAX_CYCLES_SCALED = 3
+const NG_PLUS_HP_MULT_PER_CYCLE = 0.35
+const NG_PLUS_DAMAGE_TAKEN_MULT_PER_CYCLE = 0.15
 // HUD label per active Guardian buff — a Record (not a ternary chain) so
 // TypeScript flags a missing entry the moment a new BlueSoulEffect is added.
 const BLUE_BUFF_LABELS: Record<BlueSoulEffect, string> = {
@@ -2737,7 +2744,11 @@ export class CampaignScene extends Scene {
     this.player.meter = this.runMods.startMeterBonus + this.equipMods.startMeterBonus
     this.applyAbilities()
     this.enemies = buildEnemies(this.node, this.ctx.assets, this.layout)
-    for (const enemy of this.enemies) { enemy.roomWidth = this.layout.width; enemy.roomTop = this.layout.top }
+    for (const enemy of this.enemies) {
+      enemy.roomWidth = this.layout.width
+      enemy.roomTop = this.layout.top
+      this.applyNgPlusScaling(enemy)
+    }
     // Zombie rooms (non-boss) breed an endless capped trickle of shamblers.
     // Save and warp rooms are safe: no initial enemies and no trickle either.
     this.zombieSpawner =
@@ -3349,7 +3360,8 @@ export class CampaignScene extends Scene {
   }
 
   private computeDamageTakenMult(): number {
-    return Math.max(0.4, (1 - this.save.armorTier * 0.06) * (1 - this.perkStacks('ward') * 0.05) * this.equipMods.damageTakenMultiplier) * this.blueBuffMult('aegis')
+    const ngPlusCycles = Math.min(this.save.ngPlusCycle, NG_PLUS_MAX_CYCLES_SCALED)
+    return Math.max(0.4, (1 - this.save.armorTier * 0.06) * (1 - this.perkStacks('ward') * 0.05) * this.equipMods.damageTakenMultiplier) * this.blueBuffMult('aegis') * (1 + ngPlusCycles * NG_PLUS_DAMAGE_TAKEN_MULT_PER_CYCLE)
   }
 
   private computeMoveSpeedMult(): number {
@@ -3435,6 +3447,7 @@ export class CampaignScene extends Scene {
     const facing: Facing = this.ctx.rng.next() < 0.5 ? -1 : 1
     const z = new CastleActor(zombie, this.ctx.assets, x, this.layout.checkpointY, facing, campaignEnemySpeed('zombie'))
     z.setMaxHealth(campaignEnemyHealth('zombie', this.node.difficulty))
+    this.applyNgPlusScaling(z)
     z.roomWidth = this.layout.width
     z.roomTop = this.layout.top
     z.riseTicks = 26
@@ -3482,6 +3495,18 @@ export class CampaignScene extends Scene {
   private hasPoisonImmuneSoul(): boolean {
     const soul = this.save.equippedYellowSoul ? getSoul(this.save.equippedYellowSoul) : undefined
     return soul?.poisonImmune === true
+  }
+
+  /** New Game+ enemy HP multiplier for the current cycle (1 outside NG+). */
+  private ngPlusHealthMult(): number {
+    const cycles = Math.min(this.save.ngPlusCycle, NG_PLUS_MAX_CYCLES_SCALED)
+    return 1 + cycles * NG_PLUS_HP_MULT_PER_CYCLE
+  }
+
+  /** Scale a freshly-spawned enemy's health for the current NG+ cycle. */
+  private applyNgPlusScaling(enemy: CastleActor): void {
+    if (this.save.ngPlusCycle <= 0) return
+    enemy.setMaxHealth(Math.round(enemy.maxHealth * this.ngPlusHealthMult()))
   }
 
   /** Zombie Officer Soul's canon effect: cheat a killing blow taken mid-jump.
@@ -4311,7 +4336,7 @@ export class CampaignScene extends Scene {
     ctx.textBaseline = 'top'
     ctx.font = '7px "Press Start 2P", monospace'
     ctx.fillStyle = '#8a8aa0'
-    ctx.fillText(`LV ${this.save.level}`, 30, 70)
+    ctx.fillText(this.save.ngPlusCycle > 0 ? `LV ${this.save.level} +${this.save.ngPlusCycle}` : `LV ${this.save.level}`, 30, 70)
     if (HERO_USES_SOULS) {
       // Soul-reaver: show the two active-button souls (Red cast / Blue guardian).
       ctx.fillStyle = '#ff9ad6'
@@ -4974,7 +4999,7 @@ export class CampaignScene extends Scene {
     ctx.fillStyle = '#b91d2b'; ctx.fillRect(pX + 16, lvY - 16, pW - 32, 32)
     ctx.strokeStyle = '#ff6a72'; ctx.lineWidth = 2; ctx.strokeRect(pX + 16.5, lvY - 15.5, pW - 33, 31)
     ctx.fillStyle = '#ffe0b0'; ctx.font = '14px "Press Start 2P", monospace'
-    ctx.fillText(`LV ${this.save.level}`, cx, lvY)
+    ctx.fillText(this.save.ngPlusCycle > 0 ? `LV ${this.save.level}  NG+${this.save.ngPlusCycle}` : `LV ${this.save.level}`, cx, lvY)
 
     // ---- Stats panel (top-right) ----
     const sX = 244, sY = 28, sW = width - sX - 28, sH = 224

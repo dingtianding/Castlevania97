@@ -3,7 +3,7 @@ import { ModeSelectScene } from './ModeSelectScene.ts'
 import { CampaignScene } from './CampaignScene.ts'
 import { SettingsScene } from './SettingsScene.ts'
 import { TICK_RATE } from '../core/Time.ts'
-import { campaignHasProgress, loadCampaignSave, resetCampaignSave } from '../data/campaign.ts'
+import { campaignHasProgress, loadCampaignSave, resetCampaignSave, startNewGamePlus } from '../data/campaign.ts'
 import type { CampaignSave } from '../data/campaign.ts'
 import { isMenuConfirm } from '../input/menuButtons.ts'
 
@@ -23,7 +23,7 @@ export class TitleScene extends Scene {
     ]
     if (campaignHasProgress(this.save)) {
       options.push({
-        label: this.save.finished ? 'CAMPAIGN CLEAR' : 'CONTINUE',
+        label: this.save.finished ? `NEW GAME+${this.save.ngPlusCycle > 0 ? ` (${this.save.ngPlusCycle + 1})` : ''}` : 'CONTINUE',
         action: 'continue',
       })
     }
@@ -153,6 +153,7 @@ export class TitleScene extends Scene {
         this.ctx.scenes.replace(new CampaignScene(this.ctx))
         break
       case 'continue':
+        if (this.save.finished) startNewGamePlus(this.save)
         this.ctx.scenes.replace(new CampaignScene(this.ctx))
         break
       case 'archive':
