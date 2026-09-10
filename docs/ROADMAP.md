@@ -90,8 +90,18 @@ Round out the Aria soul trinity + payoffs:
   wider bolts, ~2.2x damage each, gold-tinted and larger) — a payoff for
   banking MP rather than a new button. The MP bar pulses gold at 100 to
   signal it's ready. `castSoul()` in `CampaignScene.ts`.
-- **Weapon variety:** multiple main weapons (whip / sword / spear) with distinct
-  movesets — the hook for multiple characters.
+- **Weapon variety** — ✅ done. All 8 weapons in `equipment.ts` now carry a real
+  `WeaponProfile` (reach/speed/damage/hitbox, some with a distinct `swing` —
+  Broadsword's planted overhead chop, Lance's long narrow thrust) that
+  replaces the base light attack entirely, not just a stat multiplier. Five
+  (Dagger/Long Sword/Broadsword/Lance/Elemental Sword) already had one; this
+  pass gave Short Sword, Alucard Sword, and Crissaegrim their own profiles
+  too instead of a flat +% attack — Crissaegrim in particular leans into its
+  canon identity as the fastest blade in the game (startup 2 / active 3 /
+  recovery 4, vs. 6-8/5-6/11-17 for the others) rather than a raw damage
+  number. Swapping weapons at the merchant already changes moveset feel
+  in-game, including crouch attacks. Still the hook for multiple characters
+  (Phase 4) whenever that's picked up.
 - **Status effects** (poison ✅ / curse / stone). A poison DoT now exists
   (`CastleActor.applyPoison`, ticks independent of hit-invulnerability) —
   Poison Worm's bite inflicts it on the player, and it turned four soul

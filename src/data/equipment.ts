@@ -106,10 +106,12 @@ export const EQUIPMENT_POOL: readonly EquipmentDef[] = [
     weapon: { reach: 40, width: 158, height: 56, top: 138, startup: 8, active: 6, recovery: 17, damage: 12, knockbackX: 9, knockbackY: -3, color: '#cfd8e0' } },
   { ...base, id: 'elementalSword', name: 'Elemental Sword', slot: 'weapon', price: 260, blurb: 'A blade wreathed in flame — strong, wide swings.',
     weapon: { reach: 26, width: 120, height: 86, top: 150, startup: 7, active: 6, recovery: 15, damage: 15, knockbackX: 8, knockbackY: -5, color: '#ff8a4a' } },
-  // Stat weapons — flat attack boosts over the base swing.
-  { ...base, id: 'shortSword', name: 'Short Sword', slot: 'weapon', price: 60, damageMultiplier: 1.08, blurb: '+8% ATTACK. A reliable starting blade.' },
-  { ...base, id: 'alucardSword', name: 'Alucard Sword', slot: 'weapon', price: 180, damageMultiplier: 1.18, startMeterBonus: 8, blurb: '+18% ATTACK, start with 8 meter.' },
-  { ...base, id: 'crissaegrim', name: 'Crissaegrim', slot: 'weapon', price: 380, damageMultiplier: 1.3, meterGainMultiplier: 1.1, blurb: '+30% ATTACK, +10% meter. A relic blade.' },
+  { ...base, id: 'shortSword', name: 'Short Sword', slot: 'weapon', price: 60, blurb: 'A basic, reliable blade — quicker than the Long Sword, a touch weaker.',
+    weapon: { reach: 16, width: 80, height: 66, top: 148, startup: 4, active: 4, recovery: 8, damage: 8, knockbackX: 5, knockbackY: -3, color: '#c8ccd6' } },
+  { ...base, id: 'alucardSword', name: 'Alucard Sword', slot: 'weapon', price: 180, startMeterBonus: 8, blurb: 'A relic rapier — good reach, fast recovery, start with 8 meter.',
+    weapon: { reach: 24, width: 112, height: 78, top: 150, startup: 5, active: 5, recovery: 10, damage: 13, knockbackX: 7, knockbackY: -4, color: '#7ec8e3' } },
+  { ...base, id: 'crissaegrim', name: 'Crissaegrim', slot: 'weapon', price: 380, meterGainMultiplier: 1.1, blurb: 'The fastest blade in the castle — startup and recovery near nothing, so it swings again almost as soon as it lands.',
+    weapon: { reach: 20, width: 100, height: 70, top: 150, startup: 2, active: 3, recovery: 4, damage: 9, knockbackX: 3, knockbackY: -2, color: '#f0d060' } },
   // Armor — bulk defense.
   { ...base, id: 'leatherArmor', name: 'Leather Armor', slot: 'armor', price: 55, damageTakenMultiplier: 0.92, blurb: '-8% DAMAGE TAKEN.' },
   { ...base, id: 'platinumMail', name: 'Platinum Mail', slot: 'armor', price: 200, damageTakenMultiplier: 0.84, maxHealthBonus: 15, blurb: '-16% DAMAGE TAKEN, +15 MAX HP.' },
