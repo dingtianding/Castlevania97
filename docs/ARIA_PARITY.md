@@ -87,7 +87,7 @@ a simplification, but worth knowing it's a deliberate deviation, not an oversigh
 | Alastor | Sword familiar orbits and attacks | ❌ |
 | Alura Une | Large HP heal | ❌ |
 | Big Golem | Rock-arm heavy melee | ✅ built — `guard-golem`, its own `golemslam` effect (a periodic ground-slam AoE pulse around the player while held, see `CampaignScene.ts`'s golem-slam check) — a closer mechanical match than the shared `frenzy` stat buff it used before |
-| Black Panther | Damaging dash | ❌ |
+| Black Panther | Damaging dash | ✅ built — `guard-panther` (the always-owned base Guardian soul), its own `panther` effect (real speed boost + a trailing damaging shockwave while running, see `CampaignScene.ts`'s panther-dash check) — exact canon match |
 | Bone Pillar | Flamethrower | ❌ |
 | Buer | Rotating flame orbs | ❌ |
 | Cagnazzo | Wild punching demon | ✅ built — `guard-cagnazzo` in `blueSouls.ts`, its own `flurry` effect (a rapid, close-range multi-tick pulse while held, see `CampaignScene.ts`'s flurry check) — matches "wild, uncountable" better than the `frenzy` stat buff it used before |
@@ -102,25 +102,27 @@ a simplification, but worth knowing it's a deliberate deviation, not an oversigh
 | Giant Ghost | Reflects projectiles | ❌ |
 | Great Armor | +120% STR, red lightning | ✅ built — `guard-great-armor`, approximated as an attack-boost buff (`frenzy` slot) |
 | Imp | Imp familiar | ❌ |
-| Manticore | Charging beast form | ✅ built — `guard-manticore`, approximated as a speed buff (`haste` slot, closest available) |
+| Manticore | Charging beast form | ✅ built — `guard-manticore`, its own `charge` effect (a periodic forward-ramming hitbox in front of the player, harder-hitting and directional rather than the golem/flurry's radius pulse, see `CampaignScene.ts`'s charge check) — a closer mechanical match than the `haste` speed buff it used before |
 | Medusa Head | Freeze mid-air | ❌ |
 | Persephone | Life-drain vacuum | ❌ |
 | Shadow Knight | Ghost familiar, attacks after you | ❌ |
 | Sky Fish | Temp STR/LCK boost | ❌ |
 | Witch | Repels bullets | ❌ |
 
-Engine limitation, partially addressed: `BlueSoulEffect` had 5 mechanical slots (glide/aegis/frenzy/
-haste/panther) with several genuinely different canon Guardian souls compressed onto the same buff
-type. Big Golem got its own `golemslam` effect (a periodic ground-slam AoE pulse, distinct from
-Panther's moving dash-trail or Frenzy's passive stat buff) and Cagnazzo got its own `flurry` effect (a
+Engine limitation, being worked down: `BlueSoulEffect` originally had 5 mechanical slots (glide/aegis/
+frenzy/haste/panther) with several genuinely different canon Guardian souls compressed onto the same
+buff type. Big Golem got its own `golemslam` effect (a periodic ground-slam AoE pulse, distinct from
+Panther's moving dash-trail or Frenzy's passive stat buff), Cagnazzo got its own `flurry` effect (a
 much faster, smaller, shorter-range tick — "wild and uncountable" reads differently from one heavy
-slam) — see `CampaignScene.ts`'s golem-slam/flurry checks in `resolveCombat`. Great Armor genuinely is
-a flat STR buff in canon, so it keeping `frenzy` isn't a compression — that one's an accurate match, not
-a placeholder. Creaking Skull and Death aren't Guardian souls in this engine at all (see their own
-rows). Real mechanical differentiation for the rest (familiars, shields, projectile summons) would need
-more new `BlueSoulEffect` variants and matching logic in
-`CampaignScene.updateBlueGuardian`/`resolveCombat` — real engine work, not a data rename, but the
-pattern is now proven out for one soul.
+slam), and Manticore got its own `charge` effect (a periodic forward-ramming hitbox in front of the
+player instead of a radius pulse, mirroring a beast-form ram rather than an AoE) — see
+`CampaignScene.ts`'s golem-slam/flurry/charge checks in `resolveCombat`. The `haste` slot was retired
+once Manticore (its only user) moved off it. Great Armor genuinely is a flat STR buff in canon, so it
+keeping `frenzy` isn't a compression — that one's an accurate match, not a placeholder. Creaking Skull
+and Death aren't Guardian souls in this engine at all (see their own rows). Real mechanical
+differentiation for the rest (familiars, shields, projectile summons) would need more new
+`BlueSoulEffect` variants and matching logic in `CampaignScene.updateBlueGuardian`/`resolveCombat` —
+real engine work, not a data rename, but the pattern is now proven out for three souls.
 
 ## 3. Enchant Souls (33 total — passive stat/utility)
 

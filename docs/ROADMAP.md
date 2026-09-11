@@ -79,10 +79,11 @@ Make the castle actually walkable instead of isolated arenas.
 ## Phase 3 — Combat identity & build depth  *(can interleave)*
 Round out the Aria soul trinity + payoffs:
 - **Guardian souls** (blue) — started. Big Golem (`golemslam`, a periodic
-  ground-slam AoE pulse) and Cagnazzo (`flurry`, a rapid close-range tick) each
-  got their own hold-to-channel effect instead of sharing the generic `frenzy`
-  stat buff. Still to do: distinct familiars/shields/projectile summons for the
-  rest of the still-unbuilt canon Guardian souls (see `docs/ARIA_PARITY.md`).
+  ground-slam AoE pulse), Cagnazzo (`flurry`, a rapid close-range tick), and
+  Manticore (`charge`, a periodic forward-ramming hitbox) each got their own
+  hold-to-channel effect instead of sharing a generic stat-buff slot. Still to
+  do: distinct familiars/shields/projectile summons for the rest of the
+  still-unbuilt canon Guardian souls (see `docs/ARIA_PARITY.md`).
 - **Enchant souls** (yellow): formalize the existing passive souls as this tier.
 - **Item Crash / super** — ✅ done. Casting the equipped Bullet Soul at a full MP
   bar spends the whole bar instead of the soul's normal cost and fires a

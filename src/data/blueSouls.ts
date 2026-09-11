@@ -4,7 +4,7 @@
  * is always owned, and stronger guardians drop from certain enemies. Owned blue
  * souls live on the campaign save; only the equipped one is castable.
  */
-export type BlueSoulEffect = 'glide' | 'aegis' | 'frenzy' | 'haste' | 'panther' | 'golemslam' | 'flurry'
+export type BlueSoulEffect = 'glide' | 'aegis' | 'frenzy' | 'panther' | 'golemslam' | 'flurry' | 'charge'
 
 export interface BlueSoulDef {
   id: string
@@ -38,9 +38,12 @@ export const BASE_BLUE_SOUL = 'guard-panther'
 // really is a flat stat ("+120% STR"). guard-great-armor keeps 'frenzy' —
 // unlike the other two, its canon effect is genuinely a stat multiplier, so
 // the shared slot is an accurate match, not a compression. guard-manticore
-// approximates Manticore's "charging beast form" as a speed buff, the
-// closest available slot. guard-bulwark has no confirmed canon Guardian-soul
-// source among enemies built here and is labeled original.
+// has its own effect too ('charge' — a periodic forward-ramming hitbox in
+// front of the player, see CampaignScene's charge check): its canon effect
+// is a beast-form charge, a directional ram rather than a speed number, so
+// it earned its own effect instead of the generic move-speed buff it used
+// before. guard-bulwark has no confirmed canon Guardian-soul source among
+// enemies built here and is labeled original.
 export const BLUE_SOUL_POOL: readonly BlueSoulDef[] = [
   {
     id: 'guard-panther',
@@ -94,8 +97,8 @@ export const BLUE_SOUL_POOL: readonly BlueSoulDef[] = [
     mpCost: 38,
     cooldown: 210,
     duration: 240,
-    effect: 'haste',
-    blurb: 'Canon effect: a charging beast form. Approximated here as a burst of move speed.',
+    effect: 'charge',
+    blurb: 'Canon effect: a charging beast form. Periodically rams forward, goring anything in front of you.',
   },
   {
     id: 'guard-cagnazzo',

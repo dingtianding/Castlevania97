@@ -211,6 +211,13 @@ const GOLEM_SLAM_RADIUS = 96
 const FLURRY_DAMAGE = 6
 const FLURRY_INTERVAL = 12
 const FLURRY_RADIUS = 60
+// Manticore Soul: a periodic forward-ramming hitbox in front of the player
+// instead of a radius pulse — directional and harder-hitting than the golem
+// slam, mirroring its canon "charging beast form" (a ram, not an AoE).
+const CHARGE_DAMAGE = 22
+const CHARGE_INTERVAL = 60
+const CHARGE_RANGE = 110
+const CHARGE_HEIGHT = 80
 // Poison DoT: a lingering condition (see CastleActor.applyPoison), ticking
 // independently of hit-invulnerability. Poison Worm's bite applies it
 // directly; the Skull Millone soul's poisonOnHit lives on its own soul def
@@ -242,10 +249,10 @@ const BLUE_BUFF_LABELS: Record<BlueSoulEffect, string> = {
   glide: 'GLIDE',
   aegis: 'WARD',
   frenzy: 'FRENZY',
-  haste: 'HASTE',
   panther: 'SONIC DASH',
   golemslam: 'ROCK ARM',
   flurry: 'FLURRY',
+  charge: 'CHARGE',
 }
 // A low tunnel's floor gap — a standing player is blocked, a sliding one fits.
 const CRAWL_GAP = 46
@@ -1753,6 +1760,7 @@ export class CampaignScene extends Scene {
   private pantherHitCooldown = 0
   private golemSlamCooldown = 0
   private flurryCooldown = 0
+  private chargeCooldown = 0
   private defeatTicks = 0
   private bossIntroTicks = 0
   // Zone title card: freeze timer + name for the "first time entering a zone" banner.
@@ -2371,6 +2379,7 @@ export class CampaignScene extends Scene {
     if (this.pantherHitCooldown > 0) this.pantherHitCooldown -= 1
     if (this.golemSlamCooldown > 0) this.golemSlamCooldown -= 1
     if (this.flurryCooldown > 0) this.flurryCooldown -= 1
+    if (this.chargeCooldown > 0) this.chargeCooldown -= 1
     if (this.levelUpTicks > 0) this.levelUpTicks -= 1
     if (this.popupTicks > 0) this.popupTicks -= 1
     const otherModalOpen = this.ending || this.drafting || this.perkChoosing || this.levelUpScreen || this.shopping || this.showStatus || this.showEquipment || this.showSouls || this.showItems || this.showMap || this.showWarp || this.showDebugWarp || this.showMenu
@@ -2893,6 +2902,34 @@ export class CampaignScene extends Scene {
         this.hitstop = Math.max(this.hitstop, 2)
       }
     }
+    // Manticore Soul: while held, periodically ram forward — a directional
+    // box in front of the player instead of the golem/flurry's radius pulse,
+    // mirroring its canon beast-form charge rather than a stationary AoE.
+    if (this.blueBuffEffect === 'charge' && this.chargeCooldown <= 0) {
+      const facing = this.player.facing
+      const px = this.player.position.x
+      const py = this.player.position.y - 40
+      const box = {
+        x: facing >= 0 ? px : px - CHARGE_RANGE,
+        y: py - CHARGE_HEIGHT / 2,
+        width: CHARGE_RANGE,
+        height: CHARGE_HEIGHT,
+      }
+      let hitAny = false
+      for (const enemy of this.enemies) {
+        if (enemy.isDead || !rectsOverlap(box, enemy.hurtbox())) continue
+        if (!enemy.applyFlatDamage(CHARGE_DAMAGE, px, -7, this.playerDamageMult)) continue
+        hitAny = true
+        this.spawnDamageNumber(enemy, '#ffb35c')
+        if (enemy.isDead) this.flashTicks = BIG_HIT_FLASH_TICKS
+      }
+      this.spawnChargeFx(px, py, facing)
+      this.chargeCooldown = CHARGE_INTERVAL
+      if (hitAny) {
+        this.ctx.audio.hit()
+        this.hitstop = Math.max(this.hitstop, 4)
+      }
+    }
     // A diving slam damages every enemy it drops onto (each once per dive).
     if (this.player.isDiving) {
       const dbox = this.player.diveHitbox()
@@ -3189,8 +3226,8 @@ export class CampaignScene extends Scene {
   }
 
   /** Hold-to-sustain Blue (Guardian) soul: while ; is held it drains MP and keeps
-   *  its effect active (Glide slows falls, Aegis softens hits, Frenzy/Haste boost
-   *  attack/speed); releasing ; or running out of MP ends it. */
+   *  its effect active (Glide slows falls, Aegis softens hits, Frenzy boosts
+   *  attack); releasing ; or running out of MP ends it. */
   private updateBlueGuardian(held: boolean): void {
     const soul = getBlueSoul(this.save.equippedBlueSoul)
     const active = held && soul !== undefined && !this.player.isDead && this.bossIntroTicks <= 0 && this.player.meter > 0
@@ -3198,7 +3235,7 @@ export class CampaignScene extends Scene {
     const effect: BlueSoulEffect | null = active && soul ? soul.effect : null
     if (effect !== this.blueBuffEffect) {
       this.blueBuffEffect = effect
-      this.refreshLivePlayerStats() // frenzy/haste/aegis stat mults toggled
+      this.refreshLivePlayerStats() // frenzy/aegis stat mults toggled
     }
     this.player.gliding = this.blueBuffEffect === 'glide'
   }
@@ -3206,7 +3243,7 @@ export class CampaignScene extends Scene {
   /** Multiplier a live Blue buff applies to the given stat (1 = no effect). */
   private blueBuffMult(effect: BlueSoulEffect): number {
     if (this.blueBuffEffect !== effect) return 1
-    return effect === 'aegis' ? 0.4 : effect === 'frenzy' ? 1.45 : effect === 'panther' ? 2.2 : 1.4
+    return effect === 'aegis' ? 0.4 : effect === 'frenzy' ? 1.45 : effect === 'panther' ? 2.2 : 1
   }
 
   /** Curve a homing soul bolt toward the nearest live enemy it has not hit. */
@@ -3392,7 +3429,7 @@ export class CampaignScene extends Scene {
   }
 
   private computeMoveSpeedMult(): number {
-    return this.runMods.moveSpeedMultiplier * this.soulMods.moveSpeedMultiplier * this.equipMods.moveSpeedMultiplier * (1 + this.perkStacks('swiftness') * 0.06) * this.blueBuffMult('haste') * this.blueBuffMult('panther') * this.zombieSoulPoisonMult()
+    return this.runMods.moveSpeedMultiplier * this.soulMods.moveSpeedMultiplier * this.equipMods.moveSpeedMultiplier * (1 + this.perkStacks('swiftness') * 0.06) * this.blueBuffMult('panther') * this.zombieSoulPoisonMult()
   }
 
   /** Zombie Soul's real canon effect: a live conditional bonus while the
@@ -3912,6 +3949,23 @@ export class CampaignScene extends Scene {
         ticksLeft: life, life, size: 2,
         color: rng.next() < 0.5 ? '#ff9a4a' : '#ffce8a',
         gravity: 0.2,
+      })
+    }
+  }
+
+  /** Manticore Soul's charge tick: a forward-streaking burst of dust in the
+   *  ram direction, distinct from the golem's radial burst or the flurry's
+   *  tiny knuckle sparks. */
+  private spawnChargeFx(x: number, y: number, facing: Facing): void {
+    const rng = this.ctx.rng
+    for (let i = 0; i < 10; i += 1) {
+      const life = 12 + Math.floor(rng.next() * 8)
+      this.particles.push({
+        position: { x: x + facing * (10 + rng.next() * 30), y: y + (rng.next() - 0.5) * 30 },
+        velocity: { x: facing * (3 + rng.next() * 3), y: (rng.next() - 0.5) * 1.4 },
+        ticksLeft: life, life, size: 2 + Math.floor(rng.next() * 2),
+        color: rng.next() < 0.5 ? '#ffb35c' : '#d97a2e',
+        gravity: 0.1,
       })
     }
   }
