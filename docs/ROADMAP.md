@@ -189,8 +189,8 @@ past the panel's left border.
   (the entrance is both a merchant and an ability-item room) rendered them
   stacked exactly on top of each other with no offset; both now space
   correctly.
-- **Meta polish:** save slots ✅ done, options, accessibility (reduce-motion
-  exists), touch controls, performance/mobile pass.
+- **Meta polish:** save slots ✅ done, options ✅ done, accessibility
+  (reduce-motion exists), touch controls ✅ done, performance/mobile pass.
   - **Save slots**: 3 independent slots (`SAVE_SLOT_COUNT` in `campaign.ts`),
     picked from a new `SAVE SLOTS` title option → `SlotSelectScene`. Slot 0
     deliberately keeps the original, un-suffixed `localStorage` key so
@@ -202,6 +202,18 @@ past the panel's left border.
     across the codebase keeps working unchanged. The picker shows each
     slot's level/area/clear-status or EMPTY without touching which slot is
     actually active, so browsing is non-destructive.
+  - **Options**: `SettingsScene` was already reachable from the title screen,
+    but not mid-run — the only way to change volume or motion settings once
+    you'd started a campaign was to quit to the title. Added a `SETTINGS`
+    entry to the in-campaign pause menu that pushes `SettingsScene` (rather
+    than replacing the scene stack), so the live `CampaignScene` freezes
+    underneath instead of being torn down; backing out pops back to the
+    exact same room/state. Required extending `SettingsScene`'s return
+    target with a `'campaign'` case that pops instead of replacing.
+  - **Touch controls**: turned out to already be fully implemented
+    (`TouchControls`/`TouchSource`, activated via
+    `matchMedia('(pointer: coarse)')` in `CampaignScene.bindInput`) — this
+    line just hadn't been updated to reflect it.
 
 ---
 

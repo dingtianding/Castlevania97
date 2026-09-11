@@ -6,7 +6,7 @@ import type { GameContext } from '../core/GameContext.ts'
 import type { GameSettings } from '../settings/SettingsStore.ts'
 import { isMenuCancel, isMenuConfirm } from '../input/menuButtons.ts'
 
-type SettingsReturnTarget = 'archive' | 'title'
+type SettingsReturnTarget = 'archive' | 'title' | 'campaign'
 type SettingKey = 'masterVolume' | 'musicVolume' | 'sfxVolume' | 'reduceMotion' | 'difficulty'
 
 interface SettingRow {
@@ -112,7 +112,8 @@ export class SettingsScene extends Scene {
   }
 
   private goBack(): void {
-    if (this.returnTo === 'title') this.ctx.scenes.replace(new TitleScene(this.ctx))
+    if (this.returnTo === 'campaign') this.ctx.scenes.pop()
+    else if (this.returnTo === 'title') this.ctx.scenes.replace(new TitleScene(this.ctx))
     else this.ctx.scenes.replace(new ModeSelectScene(this.ctx))
   }
 

@@ -2,6 +2,7 @@ import { Scene } from './Scene.ts'
 import { TitleScene } from './TitleScene.ts'
 import { ModeSelectScene } from './ModeSelectScene.ts'
 import { PauseScene } from './PauseScene.ts'
+import { SettingsScene } from './SettingsScene.ts'
 import { AssetManager } from '../assets/AssetManager.ts'
 import { AUDIO_MANIFEST } from '../assets/manifest.ts'
 import { addCampaignAbility, addCampaignBlueSoul, addCampaignBulletSoul, addCampaignConsumable, addCampaignEquipment, addCampaignPerk, addCampaignRelic, addCampaignSoul, CAMPAIGN_NODES, equipCampaignBlueSoul, equipCampaignBulletSoul, equipCampaignItem, equipCampaignYellowSoul, equippedDefs, getCampaignChapter, getCampaignNode, grantCampaignRewards, hasWorldFlag, loadCampaignSave, markCampaignVisited, MAX_LEVEL, saveCampaignSave, setWorldFlag, unequipCampaignSlot, useCampaignConsumable, xpForNextLevel } from '../data/campaign.ts'
@@ -64,7 +65,7 @@ const WARP_RANGE = 72
 // Beating this room's boss completes the campaign.
 const FINAL_BOSS_NODE = 'fbd-chaos'
 // Navigable pause menu entries (GBA-style).
-const MENU_ITEMS = ['STATUS', 'EQUIP', 'SOULS', 'ITEMS', 'MAP', 'TITLE', 'RESUME'] as const
+const MENU_ITEMS = ['STATUS', 'EQUIP', 'SOULS', 'ITEMS', 'MAP', 'SETTINGS', 'TITLE', 'RESUME'] as const
 // One-line help shown in the menu's description box for the highlighted entry.
 const MENU_DESC: Record<(typeof MENU_ITEMS)[number], string> = {
   STATUS: 'View your full stats and loadout.',
@@ -72,6 +73,7 @@ const MENU_DESC: Record<(typeof MENU_ITEMS)[number], string> = {
   SOULS: 'Set your Red, Blue and Yellow souls.',
   ITEMS: 'Use a potion or an elixir.',
   MAP: 'Open the castle map.',
+  SETTINGS: 'Adjust volume, motion and difficulty.',
   TITLE: 'Save and return to the title screen.',
   RESUME: 'Close the menu and keep playing.',
 }
@@ -2670,6 +2672,12 @@ export class CampaignScene extends Scene {
       // Open the confirmation popup over the menu; don't leave the menu yet.
       this.confirmTitle = true
       this.confirmTitleYes = false
+      return
+    }
+    if (item === 'SETTINGS') {
+      // Push a full scene rather than an in-scene overlay: leave showMenu
+      // true so the pause menu is exactly as it was once Settings pops.
+      this.ctx.scenes.push(new SettingsScene(this.ctx, 'campaign'))
       return
     }
     this.showMenu = false
